@@ -11,6 +11,9 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   `max_image_width` and re-encoded; transparent PNGs above 150 KB are flattened onto white and
   encoded as JPEG, which is what dominates a large archive. The Kong book went from 705 MB to
   236 MB with no visible change on an e-reader.
+- The complete **Axway** archive (1,968 posts, 2011 to 2026) — the longest here — and the
+  complete **Gravitee** archive (656 posts), each with a cover in its brand palette.
+  Gravitee publishes through HubSpot, so its entry reads that sitemap rather than the site's own.
 - `AGENTS.md`: how to work on the repository and the recipe pattern for adding a blog, with the
   gotchas learned building the Tyk and Kong archives.
 - `scripts/probe_blog.py`: works out a new blog's recipe in one command — sources and their post
@@ -34,6 +37,15 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   book; `make cover` and the monitor workflow use it.
 
 ### Fixed
+- Placeholder publication dates are ignored. HubSpot writes `1970-01-01T00:00:00.000Z` when the
+  field is unset and puts the real date on a second JSON-LD node; three Gravitee posts were
+  landing in a 1970 chapter. A date now has to be 1995 or later to count, and an unusable one no
+  longer blocks a later good one on the same page.
+- A trailing site name is stripped from post titles. `og:title` and `<title>` routinely carry
+  " | Site Name" where the on-page `<h1>` does not, which put "| Gravitee" and "| Ambassador" in
+  25 chapter titles. The tail goes when the page's own headline ends earlier or when the tail is
+  the site naming itself; a title that genuinely contains a pipe, and another brand's name on a
+  migrated post, are both left alone.
 - Kindle's Send to Kindle converter treated books containing SVG images as fixed layout. SVG
   images (and the generated fallback cover) are now rasterised to PNG at build time
   (`svg_images: raster`, the default; `keep` and `drop` are the alternatives). Needs the new

@@ -34,9 +34,11 @@ and cross-links that stay inside the book. A book can be one blog's complete arc
 magazine-style digest that combines several blogs over a date range. Every book it produces passes
 the W3C [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
 
-It ships configured with four books: three complete archives — [Tyk](https://tyk.io/blog)
-(627 posts), [Kong](https://konghq.com/blog) (900 posts) and
-[Apigee](https://cloud.google.com/blog/products/apigee) (244 posts, back to 2011) — and the
+It ships configured with six books: five complete archives — [Tyk](https://tyk.io/blog)
+(627 posts), [Kong](https://konghq.com/blog) (900 posts),
+[Apigee](https://cloud.google.com/blog/products/apigee) (244 posts),
+[Axway](https://blog.axway.com) (1,968 posts, back to 2011) and
+[Gravitee](https://www.gravitee.io/blog) (656 posts) — and the
 **API Management Digest**, a monthly issue drawn from eleven API-management blogs. All are
 published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
 
@@ -476,7 +478,7 @@ is a tag page; the posts live under other product sections. Match where they rea
 
 ## The complete-archive books
 
-Two blogs are configured as complete archives, newest first, with year → month navigation and
+Five blogs are configured as complete archives, newest first, with year → month navigation and
 their own covers:
 
 | Book | Source | Posts | Notes |
@@ -484,6 +486,8 @@ their own covers:
 | `tyk` | WordPress REST API | 627 | The API delivers every post with full metadata in seven requests. |
 | `kong` | `sitemaps/blogs.xml` | 900 | The feed carries only the latest ten, so the sitemap is used instead. |
 | `apigee` | Google's `cloudblog` sitemap | 244 | The URL given is a tag page, not a section; posts live under other product paths. |
+| `axway` | WordPress REST API | 1,968 | The longest archive here, back to 2011, across API management, MFT and B2B. |
+| `gravitee` | HubSpot sitemap | 656 | Gravitee publishes through HubSpot, so the archive is in that sitemap, not the site's own. |
 
 Kong's pages prerender twenty related-post cards into every article, which readability alone
 mistakes for part of the story, so the entry uses a `keep` selector for the article body plus
@@ -491,7 +495,9 @@ mistakes for part of the story, so the entry uses a `keep` selector for the arti
 [Site rules](#site-rules) on a modern JavaScript-rendered site. Apigee is the worked example of a
 blog URL that is a tag page: nothing lives under `/blog/products/apigee`, so the entry matches
 where the posts really are and walks only the English partitions of Google's 1058-file sitemap
-index.
+index. Gravitee is the worked example of a blog whose archive lives on the platform it publishes
+through: its own sitemap knows nothing of the posts, HubSpot's has all of them, and the two
+disagree about trailing slashes, which `get_text_tolerant` absorbs.
 
 ```bash
 .venv/bin/blog2epub run kong     # sync + build → output/kong.epub
@@ -515,14 +521,17 @@ Because the window rolls, the weekly workflow always produces a fresh issue; the
 ## Magazine covers
 
 <p align="center">
-  <img src="covers/tyk.jpg" width="30%" alt="Tyk Blog cover">
-  <img src="covers/kong.jpg" width="30%" alt="Kong Blog cover">
-  <img src="covers/api-management.jpg" width="30%" alt="API Management Digest cover">
+  <img src="covers/tyk.jpg" width="19%" alt="Tyk Blog cover">
+  <img src="covers/kong.jpg" width="19%" alt="Kong Blog cover">
+  <img src="covers/apigee.jpg" width="19%" alt="Apigee Blog cover">
+  <img src="covers/axway.jpg" width="19%" alt="Axway Blog cover">
+  <img src="covers/gravitee.jpg" width="19%" alt="Gravitee Blog cover">
 </p>
 
-`covers/tyk.jpg`, `covers/kong.jpg` and `covers/api-management.jpg` are rendered from the HTML
-templates next to them by `scripts/render_cover.py`, each in its blog's own brand palette: Tyk's
-purple, Kong's acid lime on near-black, and teal and amber for the digest. The Tyk cover uses a masthead, three
+Every book has a cover rendered from the HTML template next to it by `scripts/render_cover.py`,
+each in its blog's own brand palette: Tyk's purple, Kong's acid lime on near-black, Google's four
+colours for Apigee, Axway's crimson on warm off-white, Gravitee's flame on near-black, and teal
+and amber for the digest. The Tyk cover uses a masthead, three
 kicker-plus-title cover lines taken from the newest cached posts, a hexagon badge with the post
 count and year span, and a topic strip. The digest cover uses the month as its headline, the lead
 post as the main cover line, four more posts with their blog names as kickers, a post-count stamp
