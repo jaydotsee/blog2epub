@@ -71,8 +71,12 @@ blogs:
   - id: axway
     title: "Axway Blog"
     url: https://blog.axway.com
-    standalone: false
-    since: 3m
+    author: "Axway"
+    description: "Every post from the Axway blog: API management, managed file transfer, B2B integration and the platforms behind them."
+    source: wordpress        # the REST API returns posts only, so no include regex is needed
+    order: desc              # newest post first
+    group_by: year-month     # contents: year -> month -> posts
+    cover: covers/axway.jpg  # rendered by `make cover`
   - id: brunopedro
     title: "Bruno Pedro"
     url: https://brunopedro.com
@@ -83,8 +87,17 @@ blogs:
   - id: gravitee
     title: "Gravitee Blog"
     url: https://www.gravitee.io/blog
-    standalone: false
-    since: 3m
+    author: "Gravitee"
+    description: "Every post from the Gravitee blog: API management, event-native gateways, access management and agentic AI."
+    # The feed carries only the latest ten posts. Gravitee publishes through HubSpot, so the
+    # whole archive lives in that sitemap rather than the site's own.
+    source: sitemap
+    sitemap: { url: https://www.gravitee.io/sitemap.hubspot.xml }
+    include:
+      - "^https://www\\.gravitee\\.io/blog/[^/]+/?$"
+    order: desc              # newest post first
+    group_by: year-month     # contents: year -> month -> posts
+    cover: covers/gravitee.jpg
   - id: kong
     title: "Kong Blog"
     url: https://konghq.com/blog

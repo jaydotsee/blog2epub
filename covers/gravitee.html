@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gravitee Blog cover</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root {
+    --flame: #FF492C; --ink: #030208; --ink-2: #140A12; --paper: #FFF3EF; --muted: #A99B97;
+    --w: 1600px; --h: 2133px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: var(--w); height: var(--h); overflow: hidden; background: var(--ink); }
+  body { font-family: "Barlow", "Liberation Sans", Arial, sans-serif; color: var(--paper); position: relative; }
+
+  .bg { position: absolute; inset: 0; overflow: hidden; }
+  .glow { position: absolute; width: 1500px; height: 1500px; border-radius: 50%; right: -520px; top: 240px;
+          background: radial-gradient(circle, rgba(255,73,44,.34) 0%, rgba(255,73,44,.06) 46%, transparent 68%); }
+  svg.orbit { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .frame { position: absolute; inset: 0; padding: 92px 96px 92px; display: flex; flex-direction: column; }
+
+  .masthead { display: flex; align-items: flex-end; gap: 26px; line-height: .8; }
+  .masthead .name { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 268px; letter-spacing: 2px; color: var(--paper); }
+  .masthead .dot { width: 42px; height: 42px; border-radius: 50%; background: var(--flame); margin-bottom: 26px; }
+  .masthead .blog { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 112px; letter-spacing: 4px; color: var(--flame); margin-bottom: 12px; }
+
+  .issue { display: flex; gap: 20px; align-items: center; margin-top: 22px; font-weight: 600; font-size: 29px; color: var(--muted); }
+  .issue .bar { width: 3px; height: 28px; background: var(--flame); }
+  .issue b { color: var(--paper); font-weight: 600; }
+
+  .lines { margin-top: 96px; margin-bottom: 92px; width: 680px; display: flex; flex-direction: column; gap: 44px; }
+  .line .kicker { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 37px; letter-spacing: 3px; text-transform: uppercase; color: var(--flame); }
+  .line .title { font-weight: 600; font-size: 43px; line-height: 1.14; color: #fff; margin-top: 6px; text-wrap: balance; }
+
+  .badge { position: absolute; right: 110px; top: 580px; width: 348px; height: 348px; border-radius: 50%;
+           border: 9px solid var(--flame); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+           background: rgba(3,2,8,.7); }
+  .badge .big { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 152px; line-height: .86; color: var(--flame); }
+  .badge .small { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 33px; letter-spacing: 5px; color: var(--paper); margin-top: 6px; }
+  .badge .tiny { font-size: 26px; color: var(--muted); margin-top: 4px; }
+
+  .headline { margin-top: auto; text-align: center; padding-bottom: 24px; }
+  .headline .over { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 50px; letter-spacing: 16px; color: var(--paper); }
+  .headline .over::before, .headline .over::after { content: ""; display: inline-block; width: 62px; height: 4px; background: var(--flame); vertical-align: middle; margin: 0 24px 8px; }
+  .headline .big { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 262px; line-height: .87; letter-spacing: 4px; margin-top: 18px; color: var(--flame); }
+  .headline .big span { display: block; }
+  .headline .big .alt { color: var(--paper); }
+  .headline .dek { font-size: 35px; line-height: 1.32; color: #e6d8d4; margin: 36px auto 0; width: 1190px; }
+  .headline .dek b { color: var(--flame); font-weight: 600; }
+
+  .strip { margin-top: 46px; border-top: 3px solid rgba(255,243,239,.28); padding-top: 24px; display: flex; justify-content: space-between;
+           font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 35px; letter-spacing: 3px; text-transform: uppercase; }
+  .strip .sep { color: var(--flame); }
+</style>
+</head>
+<body>
+  <div class="bg">
+    <div class="glow"></div>
+    <!-- event-native: streams radiating from a broker, some carrying live traffic -->
+    <svg class="orbit" viewBox="0 0 1600 2133" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke="#FF492C" opacity=".22" stroke-width="2">
+        <circle cx="1230" cy="880" r="190"/><circle cx="1230" cy="880" r="300"/>
+        <circle cx="1230" cy="880" r="410"/><circle cx="1230" cy="880" r="520"/>
+      </g>
+      <g stroke="#FF492C" stroke-width="3.5" fill="none" opacity=".8">
+        <path d="M1230 880 L1560 640" stroke-dasharray="16 12"/>
+        <path d="M1230 880 L1520 1180" stroke-dasharray="16 12"/>
+        <path d="M1230 880 L880 760" stroke-dasharray="16 12"/>
+        <path d="M1230 880 L980 1220" stroke-dasharray="16 12"/>
+      </g>
+      <g fill="#FF492C">
+        <circle cx="1230" cy="880" r="22"/>
+        <circle cx="1560" cy="640" r="10"/><circle cx="1520" cy="1180" r="10"/>
+        <circle cx="880" cy="760" r="10"/><circle cx="980" cy="1220" r="10"/>
+      </g>
+      <g fill="#FFF3EF" opacity=".5">
+        <circle cx="1420" cy="880" r="6"/><circle cx="1230" cy="1080" r="6"/><circle cx="1040" cy="880" r="6"/>
+        <circle cx="1230" cy="680" r="6"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="frame">
+    <div class="masthead"><div class="name">GRAVITEE</div><div class="dot"></div><div class="blog">BLOG</div></div>
+    <div class="issue"><span>Issue <b>$issue_number</b></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
+
+    <div class="lines">
+      <div class="line"><div class="kicker">$kicker1</div><div class="title">$title1</div></div>
+      <div class="line"><div class="kicker">$kicker2</div><div class="title">$title2</div></div>
+      <div class="line"><div class="kicker">$kicker3</div><div class="title">$title3</div></div>
+    </div>
+
+    <div class="badge"><div class="big">$count</div><div class="small">POSTS</div><div class="tiny">$first_year &ndash; $last_year</div></div>
+
+    <div class="headline">
+      <div class="over">THE COMPLETE</div>
+      <div class="big"><span>EVENT-NATIVE</span><span class="alt">ARCHIVE</span></div>
+      <div class="dek">Every post from the <b>Gravitee</b> blog, $first_year to $last_year: API management, event-native gateways, access management and agentic AI.</div>
+    </div>
+
+    <div class="strip"><span>API Management</span><span class="sep">/</span><span>Event Native</span><span class="sep">/</span><span>Access</span><span class="sep">/</span><span>Agentic AI</span></div>
+  </div>
+</body>
+</html>

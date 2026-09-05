@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Axway Blog cover</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root {
+    --crimson: #B0001A; --ink: #22272B; --grey: #4A4F54; --paper: #F5F2ED; --line: #D8D3CA;
+    --w: 1600px; --h: 2133px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: var(--w); height: var(--h); overflow: hidden; background: var(--paper); }
+  body { font-family: "Barlow", "Liberation Sans", Arial, sans-serif; color: var(--ink); position: relative; }
+
+  .bg { position: absolute; inset: 0; overflow: hidden; }
+  .band { position: absolute; left: 0; right: 0; top: 0; height: 26px; background: var(--crimson); }
+  .wash { position: absolute; left: 0; right: 0; bottom: 0; height: 900px; background: linear-gradient(180deg, rgba(176,0,26,0), rgba(176,0,26,.07)); }
+  svg.lanes { position: absolute; right: -60px; top: 560px; width: 900px; height: 900px; }
+
+  .frame { position: absolute; inset: 0; padding: 96px 96px 92px; display: flex; flex-direction: column; }
+
+  .kicker-top { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 42px; letter-spacing: 12px; color: var(--grey); }
+  .masthead { margin-top: 12px; display: flex; align-items: flex-end; gap: 24px; line-height: .82; }
+  .masthead .name { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 300px; letter-spacing: 2px; color: var(--ink); }
+  .masthead .blog { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 118px; letter-spacing: 3px; color: var(--paper); background: var(--crimson); padding: 6px 22px 0; margin-bottom: 16px; }
+
+  .issue { display: flex; gap: 20px; align-items: center; margin-top: 24px; font-weight: 600; font-size: 29px; color: var(--grey); }
+  .issue .bar { width: 3px; height: 28px; background: var(--crimson); }
+  .issue b { color: var(--ink); font-weight: 600; }
+
+  .lines { margin-top: 92px; margin-bottom: 88px; width: 660px; display: flex; flex-direction: column; gap: 42px; }
+  .line { padding-left: 26px; border-left: 7px solid var(--crimson); }
+  .line .kicker { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 36px; letter-spacing: 3px; text-transform: uppercase; color: var(--crimson); }
+  .line .title { font-weight: 600; font-size: 42px; line-height: 1.14; color: var(--ink); margin-top: 6px; text-wrap: balance; }
+
+  .badge { position: absolute; right: 108px; top: 560px; width: 340px; height: 340px; background: var(--crimson); color: var(--paper);
+           display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .badge .big { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 150px; line-height: .86; }
+  .badge .small { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 33px; letter-spacing: 5px; margin-top: 6px; }
+  .badge .tiny { font-size: 26px; opacity: .92; margin-top: 4px; }
+
+  .headline { margin-top: auto; padding-bottom: 22px; }
+  .headline .over { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 44px; letter-spacing: 12px; color: var(--grey); }
+  .headline .big { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 236px; line-height: .87; letter-spacing: 3px; margin-top: 16px; color: var(--ink); }
+  .headline .big span { display: block; }
+  .headline .big .accent { color: var(--crimson); }
+  .headline .dek { font-size: 35px; line-height: 1.34; color: var(--grey); margin-top: 34px; width: 1170px; }
+  .headline .dek b { color: var(--ink); font-weight: 600; }
+
+  .strip { margin-top: 42px; border-top: 2px solid var(--line); padding-top: 24px; display: flex; justify-content: space-between;
+           font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 34px; letter-spacing: 3px; text-transform: uppercase; color: var(--grey); }
+  .strip .sep { color: var(--crimson); }
+</style>
+</head>
+<body>
+  <div class="bg">
+    <div class="band"></div>
+    <div class="wash"></div>
+    <!-- managed transfer: payloads moving along governed lanes between partners -->
+    <svg class="lanes" viewBox="0 0 900 900" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#D8D3CA" stroke-width="3" fill="none">
+        <path d="M20 140 H880"/><path d="M20 300 H880"/><path d="M20 460 H880"/><path d="M20 620 H880"/><path d="M20 780 H880"/>
+      </g>
+      <g stroke="#B0001A" stroke-width="5" fill="none" opacity=".85">
+        <path d="M120 140 H430"/><path d="M300 300 H700"/><path d="M60 460 H360"/><path d="M480 620 H860"/><path d="M200 780 H520"/>
+      </g>
+      <g fill="#B0001A">
+        <circle cx="430" cy="140" r="11"/><circle cx="700" cy="300" r="11"/><circle cx="360" cy="460" r="11"/>
+        <circle cx="860" cy="620" r="11"/><circle cx="520" cy="780" r="11"/>
+      </g>
+      <g fill="#4A4F54" opacity=".55">
+        <circle cx="120" cy="140" r="7"/><circle cx="300" cy="300" r="7"/><circle cx="60" cy="460" r="7"/>
+        <circle cx="480" cy="620" r="7"/><circle cx="200" cy="780" r="7"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="frame">
+    <div class="kicker-top">ENTERPRISE INTEGRATION</div>
+    <div class="masthead"><div class="name">AXWAY</div><div class="blog">BLOG</div></div>
+    <div class="issue"><span>Issue <b>$issue_number</b></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
+
+    <div class="lines">
+      <div class="line"><div class="kicker">$kicker1</div><div class="title">$title1</div></div>
+      <div class="line"><div class="kicker">$kicker2</div><div class="title">$title2</div></div>
+      <div class="line"><div class="kicker">$kicker3</div><div class="title">$title3</div></div>
+    </div>
+
+    <div class="badge"><div class="big">$count</div><div class="small">POSTS</div><div class="tiny">$first_year &ndash; $last_year</div></div>
+
+    <div class="headline">
+      <div class="over">THE COMPLETE</div>
+      <div class="big"><span>INTEGRATION</span><span class="accent">ARCHIVE</span></div>
+      <div class="dek">Every post from the <b>Axway</b> blog, $first_year to $last_year: API management, managed file transfer, B2B integration and the platforms enterprises run on.</div>
+    </div>
+
+    <div class="strip"><span>API Management</span><span class="sep">/</span><span>MFT</span><span class="sep">/</span><span>B2B</span><span class="sep">/</span><span>Amplify</span></div>
+  </div>
+</body>
+</html>
