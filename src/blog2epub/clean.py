@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
 from lxml import etree, html
 from lxml_html_clean import Cleaner
@@ -61,16 +61,46 @@ def _replace_media(root: html.HtmlElement) -> None:
         if not src:
             src_el = el.find("source")
             src = src_el.get("src") if src_el is not None else None
-        p = html.Element("p")
-        p.set("class", "embed")
+        # a span is valid both inside a <p> and on its own (CSS makes it display as a block)
+        placeholder = html.Element("span")
+        placeholder.set("class", "embed")
         label = {"iframe": "Embedded content", "video": "Video", "audio": "Audio"}[el.tag]
-        if src and not src.startswith(("about:", "javascript:", "data:")):
-            a = etree.SubElement(p, "a", href=src)
+        if src and not src.startswith(("about:", "javascript:", "data:")) and _valid_href(src):
+            a = etree.SubElement(placeholder, "a", href=_valid_href(src))
             a.text = f"{label}: {src}"
         else:
-            p.text = f"[{label} omitted]"
-        p.tail = el.tail
-        el.getparent().replace(el, p)
+            placeholder.text = f"[{label} omitted]"
+        placeholder.tail = el.tail
+        el.getparent().replace(el, placeholder)
+
+
+_BLOCK_TAGS = {"p", "div", "ul", "ol", "table", "pre", "blockquote", "figure", "hr", "dl",
+               "h1", "h2", "h3", "h4", "h5", "h6", "address"}
+_INLINE_TAGS = {"a", "b", "i", "em", "strong", "span", "code", "small", "u", "s", "sub", "sup",
+                "mark", "q", "cite", "abbr", "kbd", "del", "ins", "label"}
+_HOST_RE = re.compile(r"^[A-Za-z0-9.\-_~:\[\]%@]+$")
+
+
+def _valid_href(href: str) -> str | None:
+    """Return a cleaned href, or None when no reader would accept it (epubcheck RSC-020)."""
+    href = href.strip()
+    if not href or href.startswith(("javascript:", "data:", "vbscript:")):
+        return None
+    parts = urlsplit(href)
+    if parts.scheme in ("http", "https") and not _HOST_RE.match(parts.netloc or ""):
+        return None
+    if parts.scheme and parts.scheme not in ("http", "https", "mailto", "tel", "ftp"):
+        return None
+    return quote(href, safe=":/?#[]@!$&'()*+,;=%")
+
+
+def _unwrap_inline_around_blocks(root: html.HtmlElement) -> None:
+    """<b><p>..</p></b> and friends are invalid XHTML; drop the inline wrapper, keep its content."""
+    for el in list(root.iter(*_INLINE_TAGS)):
+        if el.getparent() is None:
+            continue
+        if any(isinstance(d.tag, str) and d.tag in _BLOCK_TAGS for d in el.iterdescendants()):
+            el.drop_tag()
 
 
 def _shift_headings(root: html.HtmlElement) -> None:
@@ -162,8 +192,11 @@ def clean_html(
             el.drop_tree()
     for el in list(root.iter()):
         if isinstance(el.tag, str) and el.tag in _UNWRAP_TAGS and el is not root and el.getparent() is not None:
+            if el.get("class") == "embed":  # our own media placeholder
+                continue
             el.drop_tag()
 
+    _unwrap_inline_around_blocks(root)
     if demote_headings:
         _shift_headings(root)
 
@@ -204,8 +237,11 @@ def clean_html(
             if target:
                 a.set("href", target)
                 continue
-        if href.startswith(("javascript:", "data:")):
-            a.attrib.pop("href", None)
+        valid = _valid_href(href)
+        if valid:
+            a.set("href", valid)
+        else:
+            del a.attrib["href"]
 
     seen_ids: set[str] = set()
     for el in root.iter():

@@ -57,6 +57,26 @@ def test_media_embeds_become_links():
     assert "iframe" not in xhtml and "<video" not in xhtml
 
 
+def test_embed_inside_paragraph_stays_valid():
+    xhtml, _ = _clean('<p>Watch: <iframe src="https://www.youtube.com/embed/abc"></iframe> now</p>')
+    assert '<p>Watch: <span class="embed"><a href="https://www.youtube.com/embed/abc">' in xhtml
+    assert "<p><p" not in xhtml
+
+
+def test_inline_wrappers_around_blocks_are_unwrapped():
+    xhtml, _ = _clean('<strong>Intro <p>para</p></strong><a href="/x"><div>block</div></a>')
+    assert "<strong><p>" not in xhtml and "<strong>" not in xhtml
+    assert "<a" not in xhtml and "<div>block</div>" in xhtml
+
+
+def test_invalid_hrefs_dropped_and_spaces_encoded():
+    xhtml, _ = _clean('<a href="https://2022 State of Report">r</a><a href="/a b/c?x=1 2">s</a>'
+                      '<a href="mailto:a@b.c">m</a><a href="ftp://x/y">f</a><a href="weird:thing">w</a>')
+    assert 'href="https://2022' not in xhtml
+    assert 'href="https://example.com/a%20b/c?x=1%202"' in xhtml
+    assert 'href="mailto:a@b.c"' in xhtml and 'href="ftp://x/y"' in xhtml and "weird:thing" not in xhtml
+
+
 def test_headings_demoted_only_when_h1_present():
     assert "<h2>T</h2>" in _clean("<h1>T</h1><h2>S</h2>")[0]
     assert "<h3>S</h3>" in _clean("<h1>T</h1><h2>S</h2>")[0]

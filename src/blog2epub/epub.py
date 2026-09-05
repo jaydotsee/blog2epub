@@ -304,7 +304,7 @@ def build_epub(blog: BlogConfig, posts: list[Post], store: BlogStore, out_path: 
     by_url = {normalize_url(c.post.url): c for c in chapters}
 
     image_files: dict[str, tuple[str, Path, str]] = {}   # url -> (href, path, media_type)
-    missing = 0
+    missing: set[str] = set()
 
     def link_resolver(href: str) -> str | None:
         base, _, frag = href.partition("#")
@@ -315,14 +315,13 @@ def build_epub(blog: BlogConfig, posts: list[Post], store: BlogStore, out_path: 
 
     def make_image_resolver():
         def resolve(url: str) -> str | None:
-            nonlocal missing
             if not blog.images:
                 return None
             if url in image_files:
                 return "../" + image_files[url][0]
             path = store.image_path(url)
             if path is None:
-                missing += 1
+                missing.add(url)
                 return None
             media_type = store.image_media_type(url) or MEDIA_TYPES.get(path.suffix.lstrip("."), "image/jpeg")
             href = f"Images/{path.name}"
@@ -398,7 +397,7 @@ def build_epub(blog: BlogConfig, posts: list[Post], store: BlogStore, out_path: 
     log.info("wrote %s (%d posts, %d images, %.1f MB)", out_path, len(chapters), len(image_files),
              out_path.stat().st_size / 1e6)
     return BuildResult(path=out_path, title=title, posts=len(chapters), images=len(image_files),
-                       missing_images=missing, size=out_path.stat().st_size)
+                       missing_images=len(missing), size=out_path.stat().st_size)
 
 
 def build_blog(blog: BlogConfig, store: BlogStore, output_dir: Path, cover_path: Path | None = None) -> list[BuildResult]:
