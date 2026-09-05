@@ -169,31 +169,59 @@ def optimize_image(path: Path, max_width: int, quality: int = 82) -> tuple[Path,
     return out, media
 
 
-def rasterize_svg(svg_path: Path, png_path: Path, width: int) -> bool:
-    """Convert an SVG file to PNG (cached next to it). Returns False when cairosvg is unavailable."""
-    if png_path.exists():
-        return True
+_VAR_WITH_FALLBACK = re.compile(rb"var\(\s*--[\w-]+\s*,\s*([^()]*?)\s*\)")
+_LIGHT_DARK = re.compile(rb"light-dark\(\s*([^(),]*?)\s*,\s*[^()]*?\s*\)")
+
+
+def downgrade_modern_css(svg: bytes) -> bytes:
+    """Rewrite CSS colour functions cairosvg cannot parse to their light-theme value.
+
+    draw.io writes `light-dark(#fff, var(--ge-dark-color, #121212))`; cairosvg reads that as a
+    hex colour and dies on "ig". A book is a light-theme document, so the light value is the
+    right one to keep — and keeping the diagram beats dropping it.
+    """
+    for _ in range(4):  # var() nests inside light-dark(), so resolve innermost-out
+        after = _VAR_WITH_FALLBACK.sub(rb"\1", svg)
+        if after == svg:
+            break
+        svg = after
+    return _LIGHT_DARK.sub(rb"\1", svg)
+
+
+def cairosvg_available() -> bool:
     try:
-        import cairosvg  # noqa: PLC0415  (optional dependency: the `svg` extra)
+        import cairosvg  # noqa: F401, PLC0415  (optional dependency: the `svg` extra)
     except ImportError:
-        return False
-    try:
-        cairosvg.svg2png(url=str(svg_path), write_to=str(png_path), output_width=width)
-    except Exception as exc:  # cairosvg raises a variety of parse errors on odd files
-        log.warning("could not rasterise %s: %s", svg_path.name, exc)
         return False
     return True
 
 
-def rasterize_svg_bytes(svg: bytes, width: int) -> bytes | None:
+def rasterize_svg(svg_path: Path, png_path: Path, width: int) -> bool:
+    """Convert an SVG file to PNG (cached next to it). Returns False when cairosvg is unavailable."""
+    if png_path.exists():
+        return True
+    png = rasterize_svg_bytes(svg_path.read_bytes(), width, name=svg_path.name)
+    if png is None:
+        return False
+    png_path.write_bytes(png)
+    return True
+
+
+def rasterize_svg_bytes(svg: bytes, width: int, name: str = "SVG") -> bytes | None:
     try:
         import cairosvg  # noqa: PLC0415
     except ImportError:
         return None
     try:
         return cairosvg.svg2png(bytestring=svg, output_width=width)
-    except Exception as exc:
-        log.warning("could not rasterise SVG: %s", exc)
+    except Exception:  # cairosvg raises a variety of parse errors on odd files
+        downgraded = downgrade_modern_css(svg)
+        if downgraded != svg:
+            try:
+                return cairosvg.svg2png(bytestring=downgraded, output_width=width)
+            except Exception as exc2:
+                exc = exc2
+        log.warning("could not rasterise %s: %s", name, exc)
         return None
 
 

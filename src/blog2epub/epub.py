@@ -16,7 +16,7 @@ from xml.sax.saxutils import escape, quoteattr
 from .clean import clean_html, normalize_url, text_of
 from .config import BlogConfig, BookConfig
 from .extract import readability_pass
-from .images import MEDIA_TYPES, optimize_image, rasterize_svg, rasterize_svg_bytes
+from .images import MEDIA_TYPES, cairosvg_available, optimize_image, rasterize_svg, rasterize_svg_bytes
 from .models import Post, resolve_date
 from .store import BlogStore
 
@@ -116,16 +116,27 @@ def _fmt_date(post: Post) -> str:
 
 
 # ---- selecting and ordering --------------------------------------------------------
+def _strip_title(title: str, patterns: list[re.Pattern[str]]) -> str:
+    """Apply the blog's `title_strip` rules to a post title. Build-time, so editing a rule
+    and rebuilding is enough; nothing has to be fetched again."""
+    for pattern in patterns:
+        title = pattern.sub("", title).strip()
+    return title
+
+
 def select_entries(book: BookConfig, sources: dict[str, tuple[BlogConfig, BlogStore]]) -> list[Entry]:
     """Every cached post of the book's blogs within since/until, sorted, trimmed to max_posts."""
     since, until = resolve_date(book.since), resolve_date(book.until)
     entries: list[Entry] = []
     for blog_id in book.blogs:
         blog, store = sources[blog_id]
+        strip = [re.compile(p) for p in blog.title_strip]
         for post in store.iter_posts():
             d = post.date_obj
             if d is not None and ((since and d < since) or (until and d > until)):
                 continue
+            if strip:
+                post.title = _strip_title(post.title, strip)
             entries.append(Entry(blog=blog, store=store, post=post))
 
     def key(e: Entry):
@@ -662,10 +673,15 @@ def build_epub(
             if png:
                 cover_bytes, cover_href, cover_type = png, "Images/cover.png", "image/png"
     if svg_kept:
+        why = (
+            "cairosvg is not installed (pip install 'blog2epub[svg]')"
+            if not cairosvg_available()
+            else "cairosvg could not parse them; see the warnings above"
+        )
         log.warning(
-            "%d SVG image(s) kept as SVG because cairosvg is not installed (pip install 'blog2epub[svg]'); "
-            "Kindle may treat the book as fixed layout",
+            "%d SVG image(s) kept as SVG because %s; Kindle may treat the book as fixed layout",
             len(svg_kept),
+            why,
         )
 
     manifest: list[tuple[str, str, str, str]] = [

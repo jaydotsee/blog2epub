@@ -276,7 +276,10 @@ def _valid_href(href: str) -> str | None:
             parts.netloc,
             quote(parts.path, safe=safe),
             quote(parts.query, safe=safe + "?&"),
-            parts.fragment,
+            # A fragment may not contain '#'. Broken markdown links produce hrefs with two of
+            # them, which epubcheck rejects (RSC-020), so the second one is encoded like any
+            # other illegal character rather than the whole link being thrown away.
+            quote(parts.fragment, safe=safe + "?&"),
         )
     )
 

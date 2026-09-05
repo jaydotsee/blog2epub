@@ -125,6 +125,10 @@ class BlogConfig:
     min_chars: int = 150
     keep: list[str] = field(default_factory=list)  # CSS selectors: the article container(s)
     remove: list[str] = field(default_factory=list)  # CSS selectors: clutter to drop from every post
+    # Regexes matched against the end of every post title and dropped when they hit. The generic
+    # rules in extract.py already remove a tail the page's own <h1> or domain disowns; this is for
+    # a stale brand they cannot know about, such as the "| Ambassador" a migration left on Gravitee.
+    title_strip: list[str] = field(default_factory=list)
     extra_css: str = ""  # appended to the stylesheet of every book containing this blog
     request_delay: float | None = None
     wordpress: dict[str, Any] = field(default_factory=dict)
@@ -172,6 +176,11 @@ class BlogConfig:
                 ) from exc
         _check_selectors(f"blog {self.id!r}", "keep", self.keep)
         _check_selectors(f"blog {self.id!r}", "remove", self.remove)
+        for pattern in self.title_strip:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ConfigError(f"blog {self.id!r}: invalid title_strip regex {pattern!r}: {exc}") from exc
         _check_date(f"blog {self.id!r}", "since", self.since)
         _check_date(f"blog {self.id!r}", "until", self.until)
         self.as_book()  # validates the book-level choices

@@ -1,3 +1,4 @@
+import re
 import zipfile
 
 from lxml import etree
@@ -281,3 +282,17 @@ def test_year_month_grouping_newest_first(tmp_path, blog, store):
     assert "<h1>June 2023</h1>" in sec and 'class="kicker">2023</p>' in sec
     title = z.read("OEBPS/Text/title.xhtml").decode()
     assert '<p class="issue">Issue 20' in title
+
+
+def test_title_strip_applies_at_build_time():
+    # A build-time rule, so editing it and rebuilding is enough — nothing is fetched again.
+    from blog2epub.epub import _strip_title
+
+    strip = [re.compile(r"\s*\|\s*Ambassador(\s+Labs)?\s*$")]
+    assert _strip_title("6 Reasons You Should Take the CKAD | Ambassador", strip) == (
+        "6 Reasons You Should Take the CKAD"
+    )
+    assert _strip_title("Extending Knative for fun and profit | Ambassador Labs", strip) == (
+        "Extending Knative for fun and profit"
+    )
+    assert _strip_title("Ambassador patterns explained", strip) == "Ambassador patterns explained"

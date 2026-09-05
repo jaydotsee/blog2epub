@@ -9,6 +9,7 @@ import pytest
 
 from blog2epub.config import BookConfig, ConfigError
 from blog2epub.epub import build_epub, select_entries
+from blog2epub.images import downgrade_modern_css
 from tests.conftest import make_post
 
 cairosvg = pytest.importorskip("cairosvg")
@@ -138,3 +139,21 @@ def test_build_reports_what_optimisation_saved(tmp_path, blog, store):
     r = build_epub(book, select_entries(book, {blog.id: (blog, store)}), tmp_path / "b.epub")
     assert r.image_bytes_before > r.image_bytes > 0
     assert "images optimised" in _build_line(r)
+
+
+def test_drawio_light_dark_colours_are_downgraded_so_the_diagram_survives():
+    # draw.io writes light-dark(#fff, var(--ge-dark-color, #121212)); cairosvg reads that as a
+    # hex colour and dies. A book is a light-theme document, so the light value is the right one.
+    svg = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'style="background-color: light-dark(#ffffff, var(--ge-dark-color, #121212));">'
+        b'<rect width="10" height="10" fill="light-dark(#3D4574, #ffffff)"/></svg>'
+    )
+    out = downgrade_modern_css(svg)
+    assert b"light-dark" not in out and b"var(" not in out
+    assert b"background-color: #ffffff" in out and b'fill="#3D4574"' in out
+
+
+def test_a_plain_svg_is_left_untouched():
+    svg = b'<svg xmlns="http://www.w3.org/2000/svg"><rect fill="#ff0000"/></svg>'
+    assert downgrade_modern_css(svg) == svg

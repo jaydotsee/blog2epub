@@ -95,6 +95,10 @@ blogs:
     sitemap: { url: https://www.gravitee.io/sitemap.hubspot.xml }
     include:
       - "^https://www\\.gravitee\\.io/blog/[^/]+/?$"
+    # A batch of posts migrated in still carries Ambassador Labs' SEO title. The page is
+    # Gravitee's now, so that trailing brand is stale furniture rather than attribution.
+    title_strip:
+      - "\\s*\\|\\s*Ambassador(\\s+Labs)?\\s*$"
     order: desc              # newest post first
     group_by: year-month     # contents: year -> month -> posts
     cover: covers/gravitee.jpg
