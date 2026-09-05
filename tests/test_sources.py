@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 import requests
 
-from blog2epub.config import BlogConfig
+from blog2epub.config import BlogConfig, ConfigError
 from blog2epub.sources import resolve_source
 from blog2epub.sources.feed import FeedSource
 from blog2epub.sources.sitemap import SitemapSource
@@ -91,7 +91,11 @@ def wp_item(i, date="2024-01-01T00:00:00", modified=None, link=None):
         "slug": f"p{i}",
         "link": link or f"https://example.com/blog/p{i}/",
         "title": {"rendered": f"Post &amp; {i}"},
-        "content": {"rendered": f"<p>content {i}</p><img src='/img{i}.png'>"},
+        "content": {
+            "rendered": f"<p>Post {i} body. "
+            + ("Enough running text that it reads as a real article rather than a soft 404. ") * 3
+            + f"</p><img src='/img{i}.png'>"
+        },
         "excerpt": {"rendered": "<p>ex</p>"},
         "author": 1,
         "_embedded": {
@@ -263,3 +267,39 @@ def test_store_failed_image_entries(tmp_path):
     assert store.image_path("https://x/b.png").name.endswith(".png") and not store.image_failed(
         "https://x/b.png"
     )
+
+
+NESTED_INDEX = """<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<sitemap><loc>https://example.com/sm/en/2026-01</loc></sitemap>
+<sitemap><loc>https://example.com/sm/fr/2026-01</loc></sitemap>
+<sitemap><loc>https://example.com/sm/en/2026-02</loc></sitemap></sitemapindex>"""
+
+
+def _urlset(*paths):
+    body = "".join(f"<url><loc>https://example.com/blog/{p}</loc></url>" for p in paths)
+    return f'<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>'
+
+
+def test_sitemap_index_partitions_can_be_filtered_and_capped(blog):
+    """Date/language-partitioned indexes (Google Cloud's blog) need both knobs."""
+    routes = {
+        "https://example.com/sitemap.xml": FakeResponse(200, NESTED_INDEX),
+        "https://example.com/sm/en/2026-01": FakeResponse(200, _urlset("a")),
+        "https://example.com/sm/en/2026-02": FakeResponse(200, _urlset("b")),
+        "https://example.com/sm/fr/2026-01": FakeResponse(200, _urlset("fr-only")),
+    }
+    blog.sitemap = {"include": ["/sm/en/"]}
+    client = FakeClient(lambda u, p: routes.get(u))
+    src = SitemapSource(blog, client, "https://example.com/sitemap.xml")
+    urls = sorted(r.url for r in src.discover())
+    assert urls == ["https://example.com/blog/a", "https://example.com/blog/b"]
+    assert "https://example.com/sm/fr/2026-01" not in [c[0] for c in client.calls]
+
+    blog.sitemap = {"include": ["/sm/en/"], "max": 2}  # index + one partition
+    src = SitemapSource(blog, client, "https://example.com/sitemap.xml")
+    assert len(src.discover()) == 1
+
+
+def test_invalid_sitemap_include_regex_is_rejected():
+    with pytest.raises(ConfigError):
+        BlogConfig(id="x", url="https://x", sitemap={"include": ["("]})

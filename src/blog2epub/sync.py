@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from .clean import extract_image_urls
+from .clean import extract_image_urls, text_of
 from .config import BlogConfig, Settings
 from .http import HttpClient
 from .images import fetch_image
@@ -68,6 +68,13 @@ def sync_blog(
 
     fetched_keys: set[str] = set()
     for post in source.fetch(to_fetch):
+        body_chars = len(text_of(post.html)) if post.html else 0
+        if blog.min_chars and body_chars < blog.min_chars:
+            # Almost always a soft 404 or a paywall, not a real post.
+            log.warning("%s: skipping %s (only %d characters)", blog.id, post.url, body_chars)
+            result.errors.append(f"too short ({body_chars} chars): {post.url}")
+            fetched_keys.add(post.key)
+            continue
         post.blog_id = blog.id
         existed = store.has_post(post.key)
         store.put_post(post)

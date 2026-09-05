@@ -13,6 +13,12 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 - The `/add-blog` skill, which walks from a URL to a published release.
 - `HttpClient.get_text_tolerant` retries the other trailing-slash form on 404, so sitemaps that
   disagree with their server (Gravitee lists `/slug/`, serves `/slug`) work.
+- Sitemap indexes partitioned by date or language can be narrowed and uncapped with
+  `sitemap: { include: [...], max: N }` — Google Cloud's blog has 1058 such files.
+- `min_chars` (default 150) skips posts whose body is too short to be real, so soft 404s (a site
+  answering 200 with an error page) never become chapters.
+- `scripts/probe_blog.py --from-config --id <blog>` probes a blog through its configured source
+  and rules, for iterating on an entry that auto-detection cannot reach.
 - The complete **Kong blog** archive as a second standalone book (901 posts): sourced from Kong's
   blog sitemap because the feed carries only the latest ten, with `keep`/`remove` rules for the
   related-post cards Kong prerenders into every page, and its own cover in Kong's palette.

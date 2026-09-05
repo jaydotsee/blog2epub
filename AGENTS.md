@@ -62,6 +62,24 @@ include: ["^https://konghq\\.com/blog/[^/]+/[^/]+"]
 
 Without this you get chapters that are lists of links.
 
+**Check that the URL you were given is a section, not a tag.** `cloud.google.com/blog/products/apigee`
+looks like a section and is really a tag page: not one post lives under that path. The posts are
+filed under `/blog/products/api-management/` and other product sections, and merely *surfaced* on
+the Apigee page. An `include` regex built from the given URL would have matched nothing. Take the
+URLs from the source listing (or the feed) and see where they actually point before writing the
+regex.
+
+Large sites partition their sitemap index by date and language. Google Cloud's blog has 1058
+fortnightly files across a dozen languages; walking them all would blow past the safety cap and
+waste hundreds of requests on translations. Narrow it:
+
+```yaml
+    sitemap:
+      url: https://cloud.google.com/transform/sitemapsummary/cloudblog
+      include: ["/cloudblog/en/"]   # skip ja, ko, fr, ...
+      max: 400                      # the default cap is 200
+```
+
 ### 4. Get the article body, and check for bleed
 
 This is the step that is easy to get wrong and hard to notice.
@@ -180,6 +198,10 @@ release regardless.
 | epubcheck NAV-011 warnings | A TOC link points backwards past earlier chapters | Section pages go in the spine right before their chapters |
 | Book too large to email | Images | `split: year`, lower `max_image_width`, or `images: false` |
 | Chapters are lists of links | `include` matched index pages | Tighten the regex to the post depth |
+| `include` matches nothing at all | The URL given is a **tag page**, not a section | Find where posts really live (see below) |
+| The feed is "not available" but you know it exists | It is on another host | Set `feed.url` explicitly |
+| Chapters read "404. That's an error." | The site answers 200 for missing pages | `min_chars` (default 150) skips them |
+| A huge sitemap index stops early | More than 200 partitions | `sitemap: { include: [...], max: N }` |
 | A blog fails and the run stops | — | It should not: failures are isolated per blog, exit code 2 |
 
 ## Where to change what

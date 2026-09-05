@@ -20,7 +20,7 @@ from .base import Source
 log = logging.getLogger(__name__)
 
 NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
-MAX_SITEMAPS = 200
+MAX_SITEMAPS = 200  # raise with `sitemap: { max: N }` for date-partitioned indexes
 
 
 class SitemapSource(Source):
@@ -29,6 +29,11 @@ class SitemapSource(Source):
     def __init__(self, blog: BlogConfig, client: HttpClient, sitemap_url: str) -> None:
         super().__init__(blog, client)
         self.sitemap_url = sitemap_url
+        # Big sites partition their sitemap index by date and language (Google Cloud's blog has
+        # 1058 fortnightly files across a dozen languages). `include` picks the partitions worth
+        # walking; `max` raises the safety cap.
+        self.max_sitemaps = int(blog.sitemap.get("max", MAX_SITEMAPS))
+        self.sitemap_include = [re.compile(p) for p in blog.sitemap.get("include", [])]
 
     def describe(self) -> str:
         return f"sitemap ({self.sitemap_url})"
@@ -63,7 +68,7 @@ class SitemapSource(Source):
         return None
 
     def _walk(self, url: str, seen: set[str], out: list[tuple[str, str | None]]) -> None:
-        if url in seen or len(seen) >= MAX_SITEMAPS:
+        if url in seen or len(seen) >= self.max_sitemaps:
             return
         seen.add(url)
         try:
@@ -74,7 +79,7 @@ class SitemapSource(Source):
         if root.tag == f"{NS}sitemapindex":
             for sm in root.iter(f"{NS}sitemap"):
                 loc = sm.findtext(f"{NS}loc")
-                if loc:
+                if loc and self._wanted_sitemap(loc.strip()):
                     # skip sitemaps that obviously belong to other content types when we can tell
                     self._walk(loc.strip(), seen, out)
         elif root.tag == f"{NS}urlset":
@@ -82,6 +87,9 @@ class SitemapSource(Source):
                 loc = u.findtext(f"{NS}loc")
                 if loc:
                     out.append((loc.strip(), (u.findtext(f"{NS}lastmod") or "").strip() or None))
+
+    def _wanted_sitemap(self, loc: str) -> bool:
+        return not self.sitemap_include or any(p.search(loc) for p in self.sitemap_include)
 
     def discover(self) -> list[PostRef]:
         found: list[tuple[str, str | None]] = []

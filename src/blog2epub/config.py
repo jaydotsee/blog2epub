@@ -116,6 +116,9 @@ class BlogConfig:
     max_image_width: int = 1200
     max_image_bytes: int = 8_000_000
     fetch_full: bool = True  # feed source: fetch the page when the feed body is missing/short
+    # Some sites answer 200 with an error page for URLs that no longer exist (Google Cloud's
+    # blog does). Posts whose body is shorter than this are skipped and named in the log.
+    min_chars: int = 150
     keep: list[str] = field(default_factory=list)  # CSS selectors: the article container(s)
     remove: list[str] = field(default_factory=list)  # CSS selectors: clutter to drop from every post
     extra_css: str = ""  # appended to the stylesheet of every book containing this blog
@@ -154,6 +157,13 @@ class BlogConfig:
                 re.compile(pattern)
             except re.error as exc:
                 raise ConfigError(f"blog {self.id!r}: invalid regex {pattern!r}: {exc}") from exc
+        for pattern in self.sitemap.get("include", []):
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ConfigError(
+                    f"blog {self.id!r}: invalid sitemap.include regex {pattern!r}: {exc}"
+                ) from exc
         _check_selectors(f"blog {self.id!r}", "keep", self.keep)
         _check_selectors(f"blog {self.id!r}", "remove", self.remove)
         _check_date(f"blog {self.id!r}", "since", self.since)

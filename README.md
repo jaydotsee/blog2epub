@@ -265,13 +265,14 @@ Any blog or book key may also appear under `defaults`.
 | `max_image_width` | `1200` | Choose the largest `srcset` candidate not wider than this. |
 | `max_image_bytes` | `8000000` | Skip larger images. |
 | `fetch_full` | `true` | Feed source: fetch the page when the feed body is missing or short. |
+| `min_chars` | `150` | Skip posts whose body is shorter than this and name them in the log. Catches soft 404s, where a site answers 200 with an error page. Set `0` for a blog of genuinely tiny posts. |
 | `keep` | `[]` | CSS selectors for the article container(s). When one matches, only that content is kept. See [Site rules](#site-rules). |
 | `remove` | `[]` | CSS selectors for clutter to drop from every post (share bars, newsletter boxes, related posts). |
 | `extra_css` | – | CSS appended to every book that contains this blog. Chapters carry `class="blog-<id>"` for scoping. |
 | `request_delay` | inherits | Per-blog override. |
 | `wordpress` | `{}` | `api` (base URL), `post_type`, `categories` (ids), `params` (extra query params such as `author`). |
 | `feed` | `{}` | `url` of the feed when discovery fails. |
-| `sitemap` | `{}` | `url` of the sitemap when discovery fails. |
+| `sitemap` | `{}` | `url` of the sitemap when discovery fails; `include` (regexes) picks which partitions of a sitemap index to walk; `max` raises the 200-file cap. Large sites partition by date and language. |
 | book keys | see below | `author`, `description`, `publisher`, `language`, `max_posts`, `cover`, `group_by`, `order`, `split`, `demote_headings`, `readability`, `excerpts`, `featured_images` configure the blog's standalone book. |
 
 ### `books` (outputs)
@@ -441,6 +442,20 @@ can be passed; APIDAYS' articles on API Scene are selected this way in the shipp
   - id: apiscene
     url: https://apiscene.io
     wordpress: { params: { author_exclude: 3 } }
+```
+
+**A blog whose posts are not under the URL you were given.** `cloud.google.com/blog/products/apigee`
+is a tag page; the posts live under other product sections. Match where they really are:
+
+```yaml
+  - id: apigee
+    url: https://cloud.google.com/blog/products/apigee
+    source: sitemap
+    sitemap:
+      url: https://cloud.google.com/transform/sitemapsummary/cloudblog
+      include: ["/cloudblog/en/"]   # the index is partitioned by fortnight and language
+      max: 400
+    include: ["^https://cloud\\.google\\.com/blog/(products/api-management/|[^ ]*apigee)"]
 ```
 
 **A blog whose feed is not discoverable:**

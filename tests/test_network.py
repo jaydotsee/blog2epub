@@ -203,3 +203,41 @@ def test_trailing_slash_mismatch_is_retried(blog):
     ref = PostRef(key="sm-1", url=served)
     post = next(iter(src.fetch([ref])))
     assert post.url == served.rstrip("/")
+
+
+SOFT_404 = """<html><head><title>Google Cloud Blog</title></head><body><article>
+<p>404. That&#39;s an error. The requested URL was not found on this server.</p>
+</article></body></html>"""
+
+
+def test_soft_404_pages_are_not_stored_as_posts(tmp_path, blog):
+    """Some sites answer 200 with an error page; those must not become chapters."""
+    from types import SimpleNamespace
+
+    from blog2epub.store import BlogStore
+    from blog2epub.sync import sync_blog
+
+    settings = SimpleNamespace(
+        config_path=tmp_path / "blogs.yaml", cache_dir=tmp_path / "cache", output_dir=tmp_path / "out"
+    )
+    sitemap = (
+        '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        "<url><loc>https://example.com/blog/gone/</loc></url>"
+        "<url><loc>https://example.com/blog/real/</loc></url></urlset>"
+    )
+    routes = {
+        "https://example.com/robots.txt": FakeResponse(200, "Sitemap: https://example.com/sitemap.xml"),
+        "https://example.com/sitemap.xml": FakeResponse(200, sitemap),
+        "https://example.com/blog/gone/": FakeResponse(200, SOFT_404),
+        "https://example.com/blog/real/": FakeResponse(200, PAGE),
+    }
+    blog.source = "sitemap"
+    store = BlogStore(settings.cache_dir, blog.id)
+    result = sync_blog(blog, settings, FakeClient(lambda u, p: routes.get(u)), store)
+    assert result.new == 1
+    assert [p.url for p in store.iter_posts()] == ["https://example.com/blog/real/"]
+    assert any("too short" in e for e in result.errors)
+
+    blog.min_chars = 0  # a link blog with genuinely tiny posts can switch the guard off
+    store2 = BlogStore(settings.cache_dir, blog.id)
+    assert sync_blog(blog, settings, FakeClient(lambda u, p: routes.get(u)), store2).new == 1

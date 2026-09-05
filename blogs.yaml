@@ -123,6 +123,29 @@ blogs:
     standalone: false
     since: 3m
 
+  # Google Cloud's Apigee blog. Three quirks, all handled here:
+  #  * cloud.google.com/blog/products/apigee is a TAG page - no post lives under that path.
+  #    The posts are filed under /blog/products/api-management/ and other product sections.
+  #  * The feed lives on another host (cloudblog.withgoogle.com) and caps at 20 items, so the
+  #    sitemap is the only route to the archive.
+  #  * The sitemap index is partitioned by fortnight and language: 1058 files, of which only
+  #    the English ones are worth walking.
+  - id: apigee
+    title: "Apigee Blog"
+    url: https://cloud.google.com/blog/products/apigee
+    author: "Google Cloud"
+    description: "Apigee and API management posts from the Google Cloud blog."
+    source: sitemap
+    sitemap:
+      url: https://cloud.google.com/transform/sitemapsummary/cloudblog
+      include: ["/cloudblog/en/"]
+      max: 400
+    include:
+      - "^https://cloud\\.google\\.com/blog/(products/api-management/|[^ ]*apigee)"
+    order: desc               # newest post first
+    group_by: year-month      # contents: year -> month -> posts
+    cover: covers/apigee.jpg  # rendered by `make cover`
+
 books:
   - id: api-management
     title: "API Management Digest"

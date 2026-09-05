@@ -34,7 +34,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from lxml import html as lx  # noqa: E402
 
 from blog2epub.clean import clean_html, text_of  # noqa: E402
-from blog2epub.config import BlogConfig  # noqa: E402
+from blog2epub.config import BlogConfig, load_config  # noqa: E402
 from blog2epub.extract import extract_article  # noqa: E402
 from blog2epub.http import HttpClient  # noqa: E402
 from blog2epub.sources import SOURCES  # noqa: E402
@@ -246,35 +246,61 @@ def sample_posts(src, refs: list, client: HttpClient, args, all_titles: set[str]
         print("\n  >> No bleed detected in the sample.")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("url", help="the blog's root URL, e.g. https://konghq.com/blog")
+    ap.add_argument("url", nargs="?", help="the blog's root URL, e.g. https://konghq.com/blog")
     ap.add_argument("--id", help="blog id for the draft entry (default: derived from the host)")
+    ap.add_argument(
+        "--from-config",
+        action="store_true",
+        help="probe the blog that --id names in blogs.yaml using its configured source, include, "
+        "keep and remove, instead of auto-detecting. Use this to iterate on an entry.",
+    )
+    ap.add_argument("-c", "--config", default=str(ROOT / "blogs.yaml"), help="path to blogs.yaml")
+    ap.add_argument("--no-draft", action="store_true", help="skip the draft entry and brand colours")
     ap.add_argument("--samples", type=int, default=5, help="how many posts to extract (default 5)")
     ap.add_argument("--keep", action="append", default=[], help="candidate keep selector (repeatable)")
     ap.add_argument("--remove", action="append", default=[], help="candidate remove selector (repeatable)")
     ap.add_argument("--delay", type=float, default=0.5, help="seconds between requests (be polite)")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     client = HttpClient(UA, delay=args.delay, timeout=30)
-    blog_id = args.id or urlsplit(args.url).netloc.lower().removeprefix("www.").split(".")[0]
 
-    h("1. Sources that answer")
-    found = detect_sources(args.url, client)
-    if not found:
-        print("\nNo source available. Try passing the feed or sitemap URL explicitly in blogs.yaml.")
-        return 2
-    # Prefer the richest source; on a tie prefer the one listing the most posts.
-    order = {"wordpress": 3, "feed": 2, "sitemap": 1}
-    best = max(found, key=lambda n: (len(found[n][1]), order[n]))
-    most = max(found, key=lambda n: len(found[n][1]))
-    if most != best:
-        print(
-            f"\n  NOTE: {best} is the richest source but {most} lists more posts "
-            f"({len(found[most][1])} vs {len(found[best][1])})."
-        )
-    src, refs = found[most]
-    print(f"\n  using: {most} ({len(refs)} posts) for the rest of the probe")
+    if args.from_config:
+        # Iterate on an entry that is already written: use its source and rules, not detection.
+        if not args.id:
+            ap.error("--from-config needs --id <blog id from blogs.yaml>")
+        blog = load_config(args.config).blog(args.id)
+        args.url, blog_id = blog.url, blog.id
+        args.keep = args.keep or blog.keep
+        args.remove = args.remove or blog.remove
+        h(f"1. Configured source for {blog.id!r}")
+        src = SOURCES[blog.source].detect(blog, client) if blog.source != "auto" else None
+        if src is None:
+            print(f"  the configured source {blog.source!r} did not answer")
+            return 2
+        refs = src.discover()
+        print(f"  {src.describe()}\n  -> {len(refs)} posts after include/exclude and since/until")
+    else:
+        if not args.url:
+            ap.error("give a URL, or --from-config --id <blog id>")
+        blog_id = args.id or urlsplit(args.url).netloc.lower().removeprefix("www.").split(".")[0]
+        h("1. Sources that answer")
+        found = detect_sources(args.url, client)
+        if not found:
+            print("\nNo source available. Try the feed or sitemap URL explicitly in blogs.yaml.")
+            return 2
+        # Prefer the richest source; on a tie prefer the one listing the most posts.
+        order = {"wordpress": 3, "feed": 2, "sitemap": 1}
+        best = max(found, key=lambda n: (len(found[n][1]), order[n]))
+        most = max(found, key=lambda n: len(found[n][1]))
+        if most != best:
+            print(
+                f"\n  NOTE: {best} is the richest source but {most} lists more posts "
+                f"({len(found[most][1])} vs {len(found[best][1])})."
+            )
+        src, refs = found[most]
+        print(f"\n  using: {most} ({len(refs)} posts) for the rest of the probe")
 
     h("2. URL shape")
     include = url_shapes(refs, args.url)
@@ -302,6 +328,10 @@ def main() -> int:
         + (f" with keep={args.keep} remove={args.remove}" if args.keep or args.remove else " (no rules yet)")
     )
     sample_posts(src, refs, client, args, {(r.title or "").strip() for r in refs})
+
+    if args.no_draft or args.from_config:
+        print(f"\n  requests made: {client.requests_made}")
+        return 0
 
     h("6. Brand colours (most-used first) for the cover template")
     colours = brand_colours(client, args.url)
