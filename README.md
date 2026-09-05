@@ -63,7 +63,9 @@ built output/api-management.epub - 150 posts, 119 images, 36.9 MB
   author and excerpt.
 - **Magazine digests.** Combine any number of blogs into one book, newest first, with a lead
   image per article and the blog name in every byline.
-- **Your cover or a generated one.** Point `cover:` at a JPG/PNG (path or URL).
+- **Your cover or a generated one.** Point `cover:` at a JPG/PNG (path or URL). The Tyk book
+  ships with a magazine-style cover rendered from an HTML template with live cover lines
+  (`make cover`, see `covers/README.md`).
 - **Scriptable.** A plain CLI, a JSON report for automation, and a ready-made GitHub Actions
   workflow that publishes rebuilt books to a rolling release.
 
@@ -388,6 +390,21 @@ books:
     feed: { url: https://example.org/writing/index.xml }
 ```
 
+## Magazine covers
+
+`covers/tyk.jpg` is rendered from `covers/tyk.html` by `scripts/render_cover.py`: an HTML page
+in Tyk's brand palette with a masthead, three kicker-plus-title cover lines taken from the newest
+cached posts, a hexagon badge with the post count and year span, and a topic strip. Re-render it
+after a sync to refresh the cover lines:
+
+```bash
+make cover        # installs the `covers` extra (Playwright) and renders covers/tyk.jpg
+```
+
+Copy the template to make a cover for another blog; the placeholders (`$count`, `$issue`,
+`$kicker1`, `$title1`, ...) work for any blog id. Fonts are bundled under `covers/fonts/`
+(SIL Open Font License), so rendering is identical everywhere and needs no network.
+
 ## Keeping books current with GitHub Actions
 
 `.github/workflows/monitor.yml` runs every Monday at 06:00 UTC and on demand:
@@ -418,7 +435,8 @@ the only state.
 
 ```
 blogs.yaml                     configuration (blogs = sources, books = outputs)
-covers/                        your cover images (git-ignored except the README)
+covers/                        cover images, the Tyk cover template and bundled fonts
+scripts/render_cover.py        renders an HTML cover template to JPG with Playwright
 src/blog2epub/
   cli.py                       list, detect, sync, build, run, status
   config.py                    YAML → BlogConfig / BookConfig / Settings, validation

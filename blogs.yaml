@@ -34,7 +34,7 @@ blogs:
       - "^https://tyk\\.io/blog/"     # only posts whose URL matches one of these regexes
     exclude: []
     # since: "2020-01-01"     # lower bound on publication date; "1y", "3m", "2w", "7d" work too
-    # cover: covers/tyk.jpg   # jpg/png path (relative to this file) or URL; otherwise a cover is generated
+    cover: covers/tyk.jpg     # rendered by `make cover`; a jpg/png path (relative to this file) or a URL
     # keep: ["article.post"]  # CSS selectors: the article container(s), Calibre-recipe style
     # remove: [".share", ".newsletter-signup"]   # CSS selectors: clutter to drop from every post
     # extra_css: ".blog-tyk pre { font-size: 0.8em; }"

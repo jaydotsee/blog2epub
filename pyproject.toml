@@ -22,6 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.10", "types-requests", "types-PyYAML"]
+covers = ["playwright>=1.45"]
 
 [project.scripts]
 blog2epub = "blog2epub.cli:main"

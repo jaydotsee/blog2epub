@@ -2,7 +2,7 @@ PYTHON ?= python3
 VENV   ?= .venv
 BIN    := $(VENV)/bin
 
-.PHONY: setup test lint format typecheck check list detect sync build run status epubcheck clean
+.PHONY: setup test lint format typecheck check list detect sync build run status epubcheck cover clean
 
 setup: $(VENV)/.ok
 $(VENV)/.ok: pyproject.toml
@@ -54,6 +54,12 @@ epubcheck: build
 	  curl -sSL -o epubcheck.zip https://github.com/w3c/epubcheck/releases/download/v$(EPUBCHECK_VERSION)/epubcheck-$(EPUBCHECK_VERSION).zip && \
 	  unzip -q -o epubcheck.zip && rm epubcheck.zip )
 	@for f in output/*.epub; do echo "== $$f"; java -jar .tools/epubcheck-$(EPUBCHECK_VERSION)/epubcheck.jar "$$f" | grep -E 'Messages|ERROR|WARNING'; done
+
+# Re-render the Tyk magazine cover from the cache (needs the `covers` extra and a Chromium:
+# `pip install -e ".[covers]" && playwright install chromium`, or set CHROMIUM_PATH).
+cover: setup
+	$(BIN)/pip install -q -e ".[covers]"
+	$(BIN)/python scripts/render_cover.py --blog tyk --template covers/tyk.html --out covers/tyk.jpg
 
 clean:
 	rm -rf output .pytest_cache .mypy_cache .ruff_cache

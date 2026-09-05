@@ -15,5 +15,4 @@ venv/
 .tools/
 .mypy_cache/
 .ruff_cache/
-covers/*
-!covers/README.md
+.*.render.html
