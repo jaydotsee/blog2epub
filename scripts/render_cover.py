@@ -175,7 +175,8 @@ def main(argv: list[str] | None = None) -> int:
         fonts = page.evaluate(
             "Array.from(document.fonts).map(f => f.family + ':' + f.weight + ':' + f.status)"
         )
-        missing = [f for f in fonts if not f.endswith(":loaded")]
+        # "unloaded" just means no element used that weight; only "error" is a real failure.
+        missing = [f for f in fonts if f.endswith(":error")]
         if missing:
             print(f"warning: fonts not loaded: {missing}", file=sys.stderr)
         kind = "jpeg" if args.out.suffix.lower() in (".jpg", ".jpeg") else "png"
