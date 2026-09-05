@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
@@ -98,6 +99,34 @@ def pick_srcset_candidate(src: str | None, srcset: str | None, max_width: int) -
     if widths:
         return min(widths)[1]
     return src or candidates[0][1]
+
+
+def rasterize_svg(svg_path: Path, png_path: Path, width: int) -> bool:
+    """Convert an SVG file to PNG (cached next to it). Returns False when cairosvg is unavailable."""
+    if png_path.exists():
+        return True
+    try:
+        import cairosvg  # noqa: PLC0415  (optional dependency: the `svg` extra)
+    except ImportError:
+        return False
+    try:
+        cairosvg.svg2png(url=str(svg_path), write_to=str(png_path), output_width=width)
+    except Exception as exc:  # cairosvg raises a variety of parse errors on odd files
+        log.warning("could not rasterise %s: %s", svg_path.name, exc)
+        return False
+    return True
+
+
+def rasterize_svg_bytes(svg: bytes, width: int) -> bytes | None:
+    try:
+        import cairosvg  # noqa: PLC0415
+    except ImportError:
+        return None
+    try:
+        return cairosvg.svg2png(bytestring=svg, output_width=width)
+    except Exception as exc:
+        log.warning("could not rasterise SVG: %s", exc)
+        return None
 
 
 PERMANENT_STATUSES = {400, 401, 403, 404, 410, 451}

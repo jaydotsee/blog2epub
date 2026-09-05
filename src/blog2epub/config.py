@@ -62,6 +62,7 @@ class BookConfig:
     excerpts: bool = True  # show excerpts on the part/contents pages
     featured_images: bool = True  # lead each chapter with the post's featured image
     extra_css: str = ""  # appended to the book's stylesheet
+    svg_images: str = "raster"  # raster | keep | drop  (Kindle's converter mishandles SVG)
 
     def __post_init__(self) -> None:
         if not self.id or not _ID_RE.fullmatch(self.id):
@@ -76,6 +77,7 @@ class BookConfig:
         _check_choice(f"book {self.id!r}", "order", self.order, {"asc", "desc"})
         _check_choice(f"book {self.id!r}", "split", self.split, {"none", "year"})
         _check_choice(f"book {self.id!r}", "readability", self.readability, {"auto", "always", "never"})
+        _check_choice(f"book {self.id!r}", "svg_images", self.svg_images, {"raster", "keep", "drop"})
         _check_date(f"book {self.id!r}", "since", self.since)
         _check_date(f"book {self.id!r}", "until", self.until)
 
@@ -97,6 +99,7 @@ _BOOK_OPTS = (
     "readability",
     "excerpts",
     "featured_images",
+    "svg_images",
 )
 
 
@@ -136,6 +139,7 @@ class BlogConfig:
     readability: str = "auto"
     excerpts: bool = True
     featured_images: bool = True
+    svg_images: str = "raster"
 
     def __post_init__(self) -> None:
         if not self.id or not _ID_RE.fullmatch(self.id):

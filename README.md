@@ -162,7 +162,9 @@ python3 -m venv .venv
 ```
 
 Java is only needed for `make epubcheck` and the optional validator test. Cover rendering needs
-the `covers` extra (Playwright) and a Chromium.
+the `covers` extra (Playwright) and a Chromium. SVG rasterisation needs the `svg` extra (cairosvg,
+which needs the cairo library: `libcairo2` on Debian and Ubuntu, `cairo` on Homebrew); `make setup`
+installs it.
 
 ## Quick start
 
@@ -280,6 +282,7 @@ Any blog or book key may also appear under `defaults`.
 | `excerpts` | `true` | Excerpts on the part pages. |
 | `featured_images` | `true` | Lead each chapter with the post's featured image. |
 | `extra_css` | – | CSS appended to this book's stylesheet. |
+| `svg_images` | `raster` | What to do with SVG images: `raster` converts them to PNG (needs the `svg` extra, cairosvg), `keep` embeds them as is, `drop` replaces them with their alt text. Kindle's converter falls back to a fixed layout when it meets SVG, so `raster` is the default. |
 
 ### About `readability`
 
@@ -509,8 +512,12 @@ the only state.
 
 - **Kobo, PocketBook, Tolino, Boox, Apple Books, Calibre:** copy the `.epub` over as is.
 - **Kindle:** Send to Kindle accepts EPUB up to 200 MB via the web and app, 25 MB via email.
-  The shipped covers are JPG; generated fallback covers are SVG, which Kindle conversion may not
-  render, so set `cover:` for Kindle.
+  Amazon's converter treats a book as fixed layout ("original layout preserved, similar to PDF")
+  when it finds content it cannot reflow, SVG images in particular. blog2epub therefore rasterises
+  SVG images and the generated cover to PNG by default (`svg_images: raster`, which needs the
+  `svg` extra). If a book still arrives as fixed layout, `svg_images: drop` removes the SVGs
+  entirely, and converting with Calibre (`ebook-convert book.epub book.azw3`) bypasses Amazon's
+  converter altogether.
 - The table of contents shows parts and chapters; part pages give the date, author and an excerpt
   for every post; every chapter links back to the original URL.
 
@@ -576,6 +583,8 @@ HTTP client.
   the exit code is 2 so CI notices. Books that include the failed blog are still built from what
   the cache holds.
 - **Book too large**: use `split: year`, lower `max_image_width`, or `images: false`.
+- **Kindle shows "original layout preserved" / no font size control**: the converter met SVG. Make
+  sure the `svg` extra is installed (the build warns when it is not) or set `svg_images: drop`.
 - **A post is missing**: check `include`/`exclude`, `since`/`until`, and whether the source lists
   it (`detect URL --sample 50`).
 - **Articles come with menus or footers**: add a `keep` selector for the article container, or

@@ -16,7 +16,7 @@ from xml.sax.saxutils import escape, quoteattr
 from .clean import clean_html, normalize_url, text_of
 from .config import BlogConfig, BookConfig
 from .extract import readability_pass
-from .images import MEDIA_TYPES
+from .images import MEDIA_TYPES, rasterize_svg, rasterize_svg_bytes
 from .models import Post, resolve_date
 from .store import BlogStore
 
@@ -568,6 +568,11 @@ def build_epub(
 
     image_files: dict[str, tuple[str, Path, str]] = {}  # url -> (href, path, media_type)
     missing: set[str] = set()
+    svg_kept: set[str] = set()  # SVGs we wanted to rasterise but could not (cairosvg missing)
+    widths = {e.blog.id: e.blog.max_image_width for e in entries}
+
+    def store_width(store: BlogStore) -> int:
+        return widths.get(store.root.name, 1200)
 
     def link_resolver(href: str) -> str | None:
         base, _, frag = href.partition("#")
@@ -587,6 +592,14 @@ def build_epub(
                 missing.add(url)
                 return None
             media_type = store.image_media_type(url) or MEDIA_TYPES.get(path.suffix.lstrip("."), "image/jpeg")
+            if media_type == "image/svg+xml" and book.svg_images != "keep":
+                if book.svg_images == "drop":
+                    return None
+                png = path.with_suffix(".svg.png")
+                if not rasterize_svg(path, png, max(store_width(store), 600)):
+                    svg_kept.add(url)
+                else:
+                    path, media_type = png, "image/png"
             href = f"Images/{path.name}"
             image_files[url] = (href, path, media_type)
             return "../" + href
@@ -636,6 +649,16 @@ def build_epub(
     if cover_bytes is None:
         cover_bytes = generate_cover_svg(title, subtitle or book.description, book.author)
         cover_href, cover_type = "Images/cover.svg", "image/svg+xml"
+        if book.svg_images != "keep":
+            png = rasterize_svg_bytes(cover_bytes, 1200)
+            if png:
+                cover_bytes, cover_href, cover_type = png, "Images/cover.png", "image/png"
+    if svg_kept:
+        log.warning(
+            "%d SVG image(s) kept as SVG because cairosvg is not installed (pip install 'blog2epub[svg]'); "
+            "Kindle may treat the book as fixed layout",
+            len(svg_kept),
+        )
 
     manifest: list[tuple[str, str, str, str]] = [
         ("nav", "nav.xhtml", "application/xhtml+xml", "nav"),

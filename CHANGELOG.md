@@ -4,6 +4,12 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### Fixed
+- Kindle's Send to Kindle converter treated books containing SVG images as fixed layout. SVG
+  images (and the generated fallback cover) are now rasterised to PNG at build time
+  (`svg_images: raster`, the default; `keep` and `drop` are the alternatives). Needs the new
+  `svg` extra (cairosvg).
+
 ## [0.2.0] – 2026-09-05
 
 ### Added
