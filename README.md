@@ -58,9 +58,9 @@ built output/api-management.epub - 150 posts, 119 images, 36.9 MB
   `remove` lists the clutter to drop, as CSS selectors. `extra_css` tunes the look.
 - **Rolling windows.** `since: 7d`, `2w`, `3m` or `1y` on a book gives a "last week" or "last
   quarter" issue without editing dates.
-- **Real navigation.** EPUB 3 `nav.xhtml` with parts (per year, month or blog) and chapters, a
-  `toc.ncx` for older readers, landmarks, and part pages that list each post with its date,
-  author and excerpt.
+- **Real navigation.** EPUB 3 `nav.xhtml` with parts (per year, month or blog), optional month
+  sub-sections inside each year, and chapters; a `toc.ncx` for older readers; landmarks; and
+  part pages that list each post with its date, author and excerpt.
 - **Magazine digests.** Combine any number of blogs into one book, newest first, with a lead
   image per article and the blog name in every byline.
 - **Your cover or a generated one.** Point `cover:` at a JPG/PNG (path or URL). The Tyk book
@@ -238,7 +238,7 @@ Any blog or book key may also appear under `defaults`.
 | `max_posts` | – | Keep the N most recent posts across all the book's blogs. |
 | `cover` | – | JPG/PNG path relative to `blogs.yaml`, or a URL (downloaded once). Otherwise a cover is generated. |
 | `images` | `true` | Embed images. `false` gives a text-only edition. |
-| `group_by` | `year` | Part level of the TOC: `year`, `month`, `blog` or `none`. |
+| `group_by` | `year` | Part level of the TOC: `year`, `year-month` (years with month sub-sections), `month`, `blog` or `none`. |
 | `order` | `asc` | `asc` reads oldest to newest like a book; `desc` is magazine order. |
 | `split` | `none` | `year` writes one EPUB per year (`<id>-<year>.epub`). |
 | `demote_headings` | `true` | Shift headings inside posts down so the post title is the only `h1`. |
@@ -338,6 +338,18 @@ the listed URLs.
 
 ## Recipes
 
+**Newest first, years with month sub-sections.** This is how the Tyk book is configured:
+the table of contents reads 2026 → September 2026 → posts, all newest first. Each year gets a part
+page listing its months, and each month a short page listing its posts with excerpts, placed right
+before them in reading order.
+
+```yaml
+  - id: tyk
+    url: https://tyk.io/blog
+    order: desc
+    group_by: year-month
+```
+
 **A blog's complete archive, one file per year.** Big archives with images get large (the full
 tyk.io book is about 50 MB). Split it:
 
@@ -401,8 +413,10 @@ after a sync to refresh the cover lines:
 make cover        # installs the `covers` extra (Playwright) and renders covers/tyk.jpg
 ```
 
-Copy the template to make a cover for another blog; the placeholders (`$count`, `$issue`,
-`$kicker1`, `$title1`, ...) work for any blog id. Fonts are bundled under `covers/fonts/`
+The cover carries an issue number, the render date as `2026.09.05`, and the title page inside the
+book repeats it as `Issue 2026.09.05` from the build date. The weekly workflow re-renders the cover
+before building, so both stay current. Copy the template to make a cover for another blog; the
+placeholders (`$count`, `$issue`, `$issue_number`, `$kicker1`, `$title1`, ...) work for any blog id. Fonts are bundled under `covers/fonts/`
 (SIL Open Font License), so rendering is identical everywhere and needs no network.
 
 ## Keeping books current with GitHub Actions

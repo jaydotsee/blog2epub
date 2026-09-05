@@ -7,7 +7,7 @@ templates that generate them.
 
 A magazine-style cover for the Tyk Blog archive in Tyk's brand palette, rendered from
 `tyk.html` by `scripts/render_cover.py`. The template is a `string.Template`: the render
-script fills `$count`, `$first_year`, `$last_year`, `$issue`, `$url` and three cover lines
+script fills `$count`, `$first_year`, `$last_year`, `$issue`, `$issue_number` (the render date as `2026.09.05`), `$url` and three cover lines
 (`$kicker1`/`$title1` ...) from the newest cached posts, so the cover lines change as the
 blog does.
 

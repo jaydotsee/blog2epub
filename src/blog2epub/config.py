@@ -54,7 +54,7 @@ class BookConfig:
     max_posts: int | None = None  # keep only the N most recent posts across all blogs
     cover: str | None = None  # path (relative to blogs.yaml) or URL of a jpg/png
     images: bool = True
-    group_by: str = "year"  # year | month | blog | none  -> the "part" level of the TOC
+    group_by: str = "year"  # year | year-month | month | blog | none  -> the "part" level of the TOC
     order: str = "asc"  # asc = oldest first (book), desc = newest first (magazine)
     split: str = "none"  # none | year
     demote_headings: bool = True
@@ -70,7 +70,9 @@ class BookConfig:
             raise ConfigError(f"book {self.id!r} needs a non-empty `blogs` list")
         if not self.title:
             self.title = self.id
-        _check_choice(f"book {self.id!r}", "group_by", self.group_by, {"year", "month", "blog", "none"})
+        _check_choice(
+            f"book {self.id!r}", "group_by", self.group_by, {"year", "year-month", "month", "blog", "none"}
+        )
         _check_choice(f"book {self.id!r}", "order", self.order, {"asc", "desc"})
         _check_choice(f"book {self.id!r}", "split", self.split, {"none", "year"})
         _check_choice(f"book {self.id!r}", "readability", self.readability, {"auto", "always", "never"})

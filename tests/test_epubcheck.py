@@ -37,6 +37,7 @@ def test_generated_epub_passes_epubcheck(tmp_path, blog, store):
     store.save()
     out = tmp_path / "check.epub"
     book = blog.as_book()
+    book.order, book.group_by = "desc", "year-month"  # exercises the three-level nav and month anchors
     build_epub(book, select_entries(book, {blog.id: (blog, store)}), out)
     proc = subprocess.run(
         ["java", "-jar", os.environ["EPUBCHECK_JAR"], str(out)], capture_output=True, text=True, check=False

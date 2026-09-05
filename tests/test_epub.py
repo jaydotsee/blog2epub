@@ -240,3 +240,44 @@ def test_excerpt_of():
     long_body = "<p>" + "word " * 100 + "</p>"
     e = excerpt_of(p, long_body)
     assert e.endswith("…") and len(e) <= 222
+
+
+def test_year_month_grouping_newest_first(tmp_path, blog, store):
+    _posts(store)
+    store.put_post(make_post("wp-4", "2023-06-20T10:00:00+00:00"))
+    store.save()
+    book = blog.as_book()
+    book.order, book.group_by = "desc", "year-month"
+    build_epub(book, select_entries(book, {blog.id: (blog, store)}), tmp_path / "ym.epub")
+    z = zipfile.ZipFile(tmp_path / "ym.epub")
+    nav = etree.fromstring(z.read("OEBPS/nav.xhtml"))
+    top = nav.find(".//x:nav[@id='toc']/x:ol", NS)
+    years = top.findall("x:li", NS)
+    assert [li.find("x:a", NS).text for li in years] == ["Title page", "2024", "2023"]
+    months_2023 = years[2].find("x:ol", NS).findall("x:li", NS)
+    assert [li.find("x:a", NS).text for li in months_2023] == ["June 2023", "May 2023"]
+    assert months_2023[0].find("x:a", NS).get("href") == "Text/sec-2023-06.xhtml"
+    june_posts = [a.text for a in months_2023[0].find("x:ol", NS).findall("x:li/x:a", NS)]
+    assert june_posts == ["Post wp-4", "Post wp-2"]  # newest first inside the month
+    ncx = etree.fromstring(z.read("OEBPS/toc.ncx"))
+    assert ncx.find(".//ncx:meta[@name='dtb:depth']", NS).get("content") == "3"
+    part = z.read("OEBPS/Text/part-2023.xhtml").decode()
+    assert '<section id="m-2023-06" class="month">' in part and "June 2023</a></h2>" in part
+    assert part.index("June 2023") < part.index("May 2023")
+    opf = etree.fromstring(z.read("OEBPS/content.opf"))
+    idrefs = [r.get("idref") for r in opf.findall(".//opf:itemref", NS)]
+    assert idrefs[3:] == [
+        "part-2024",
+        "sec-2024-01",
+        "ch-0001",
+        "part-2023",
+        "sec-2023-06",
+        "ch-0002",
+        "ch-0003",
+        "sec-2023-05",
+        "ch-0004",
+    ]
+    sec = z.read("OEBPS/Text/sec-2023-06.xhtml").decode()
+    assert "<h1>June 2023</h1>" in sec and 'class="kicker">2023</p>' in sec
+    title = z.read("OEBPS/Text/title.xhtml").decode()
+    assert '<p class="issue">Issue 20' in title

@@ -47,4 +47,10 @@ nav#toc li { margin: 0.3em 0; }
 .cover img { max-height: 100%; margin: 0 auto; }
 .lead { margin: 0 0 1.2em; }
 .lead img { max-width: 100%; margin: 0 auto; }
+.part .month { margin-top: 1.6em; text-align: left; }
+.part.section { margin-top: 18%; }
+.part .kicker { font-family: Helvetica, Arial, sans-serif; letter-spacing: 0.15em; color: #666; text-transform: uppercase; }
+.part .month h2 a { text-decoration: none; }
+.part .month h2 { font-size: 1.3em; border-bottom: 1px solid #999; padding-bottom: 0.2em; }
+.titlepage .issue { font-family: Helvetica, Arial, sans-serif; letter-spacing: 0.1em; color: #333; }
 .part-list .excerpt { margin: 0.2em 0 0.6em; font-size: 0.9em; color: #444; }

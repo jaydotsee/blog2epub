@@ -54,10 +54,28 @@ class Chapter:
 
 
 @dataclass
+class Section:
+    """A sub-heading inside a part page (e.g. a month inside a year)."""
+
+    label: str
+    slug: str
+    chapters: list[Chapter]
+
+    @property
+    def filename(self) -> str:
+        return f"Text/sec-{self.slug}.xhtml"
+
+    @property
+    def item_id(self) -> str:
+        return f"sec-{self.slug}"
+
+
+@dataclass
 class Part:
     label: str
     slug: str
     chapters: list[Chapter]
+    sections: list[Section] = field(default_factory=list)
 
     @property
     def filename(self) -> str:
@@ -118,20 +136,36 @@ def select_entries(book: BookConfig, sources: dict[str, tuple[BlogConfig, BlogSt
     return entries
 
 
+def _month_label(ch: Chapter) -> tuple[str, str]:
+    d = ch.post.date_obj
+    label = d.strftime("%B %Y") if d else "Undated"
+    return label, (d.strftime("%Y-%m") if d else "undated")
+
+
 def group_chapters(book: BookConfig, chapters: list[Chapter]) -> list[Part]:
+    """Split chapters into parts (and, for year-month, month sections inside each year).
+
+    Chapters arrive already sorted (asc or desc), and parts/sections keep that order, so a
+    newest-first book gets its years, months and posts all newest-first.
+    """
     if book.group_by == "none":
         return [Part(label="", slug="all", chapters=chapters)]
     parts: dict[str, Part] = {}
     for ch in chapters:
         if book.group_by == "blog":
             label, slug = ch.entry.blog.title, ch.entry.blog.id
-        elif book.group_by == "year":
+        elif book.group_by in ("year", "year-month"):
             label, slug = ch.post.year, _slug(ch.post.year)
         else:
-            d = ch.post.date_obj
-            label = d.strftime("%B %Y") if d else "Undated"
-            slug = _slug(label)
+            label, slug = _month_label(ch)
         parts.setdefault(slug, Part(label=label, slug=slug, chapters=[])).chapters.append(ch)
+    if book.group_by == "year-month":
+        for part in parts.values():
+            sections: dict[str, Section] = {}
+            for ch in part.chapters:
+                label, slug = _month_label(ch)
+                sections.setdefault(slug, Section(label=label, slug=slug, chapters=[])).chapters.append(ch)
+            part.sections = list(sections.values())
     return list(parts.values())
 
 
@@ -180,9 +214,9 @@ def render_chapter(book: BookConfig, ch: Chapter, body_xhtml: str, lead_image: s
     )
 
 
-def render_part(book: BookConfig, part: Part, excerpts: dict[str, str]) -> str:
+def _part_items(book: BookConfig, chapters: list[Chapter], excerpts: dict[str, str]) -> str:
     items = []
-    for ch in part.chapters:
+    for ch in chapters:
         meta = [
             m
             for m in (
@@ -198,15 +232,41 @@ def render_part(book: BookConfig, part: Part, excerpts: dict[str, str]) -> str:
         if book.excerpts and excerpts.get(ch.item_id):
             line += f'\n<p class="excerpt">{_esc(excerpts[ch.item_id])}</p>'
         items.append(line + "</li>")
+    return '<ol class="part-list">\n' + "\n".join(items) + "\n</ol>"
+
+
+def render_part(book: BookConfig, part: Part, excerpts: dict[str, str]) -> str:
     n = len(part.chapters)
+    if part.sections:
+        body = "\n".join(
+            f'<section id={_attr("m-" + sec.slug)} class="month">\n<h2><a href={_attr(sec.filename.split("/")[-1])}>{_esc(sec.label)}</a></h2>\n'
+            + _part_items(book, sec.chapters, excerpts)
+            + "\n</section>"
+            for sec in part.sections
+        )
+    else:
+        body = _part_items(book, part.chapters, excerpts)
     return (
         XHTML_HEAD.format(lang=_attr(book.language), title=_esc(part.label))
         + f'<section epub:type="part" class="part" id={_attr(part.item_id)}>\n'
         + f"<h1>{_esc(part.label)}</h1>\n"
         + f'<p class="count">{n} post{"s" if n != 1 else ""}</p>\n'
-        + '<ol class="part-list">\n'
-        + "\n".join(items)
-        + "\n</ol>\n</section>"
+        + body
+        + "\n</section>"
+        + XHTML_TAIL
+    )
+
+
+def render_section(book: BookConfig, part: Part, sec: Section, excerpts: dict[str, str]) -> str:
+    n = len(sec.chapters)
+    return (
+        XHTML_HEAD.format(lang=_attr(book.language), title=_esc(sec.label))
+        + f'<section epub:type="part" class="part section" id={_attr(sec.item_id)}>\n'
+        + f'<p class="kicker">{_esc(part.label)}</p>\n'
+        + f"<h1>{_esc(sec.label)}</h1>\n"
+        + f'<p class="count">{n} post{"s" if n != 1 else ""}</p>\n'
+        + _part_items(book, sec.chapters, excerpts)
+        + "\n</section>"
         + XHTML_TAIL
     )
 
@@ -242,6 +302,7 @@ def render_title_page(
             + "\n</ul>"
         )
     lines.append(
+        f'<p class="issue">Issue {generated:%Y.%m.%d}</p>\n'
         f"<p>Generated {generated:%d %B %Y} by blog2epub. All content remains the property "
         f"of its original authors.</p>"
     )
@@ -272,6 +333,19 @@ def render_nav(book: BookConfig, title: str, parts: list[Part]) -> str:
 
     entries = [li("Text/title.xhtml", "Title page")]
     for part in parts:
+        if part.sections:
+            month_items = "\n".join(
+                li(
+                    sec.filename,
+                    sec.label,
+                    "\n<ol>\n"
+                    + "\n".join(li(ch.filename, ch.post.title) for ch in sec.chapters)
+                    + "\n</ol>\n",
+                )
+                for sec in part.sections
+            )
+            entries.append(li(part.filename, part.label, f"\n<ol>\n{month_items}\n</ol>\n"))
+            continue
         chapter_items = "\n".join(li(ch.filename, ch.post.title) for ch in part.chapters)
         if part.label:
             entries.append(li(part.filename, part.label, f"\n<ol>\n{chapter_items}\n</ol>\n"))
@@ -318,12 +392,28 @@ def render_ncx(book: BookConfig, title: str, uid: str, parts: list[Part]) -> str
 
     out.append(point("Text/title.xhtml", "Title page", 1))
     for part in parts:
-        if part.label:
+        if part.sections:
+            kids = [
+                point(
+                    sec.filename,
+                    sec.label,
+                    2,
+                    [point(ch.filename, ch.post.title, 3) for ch in sec.chapters],
+                )
+                for sec in part.sections
+            ]
+            out.append(point(part.filename, part.label, 1, kids))
+        elif part.label:
             kids = [point(ch.filename, ch.post.title, 2) for ch in part.chapters]
             out.append(point(part.filename, part.label, 1, kids))
         else:
             out.extend(point(ch.filename, ch.post.title, 1) for ch in part.chapters)
-    depth = 2 if any(p.label for p in parts) else 1
+    if any(p.sections for p in parts):
+        depth = 3
+    elif any(p.label for p in parts):
+        depth = 2
+    else:
+        depth = 1
     return (
         '<?xml version="1.0" encoding="utf-8"?>\n'
         '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang='
@@ -564,15 +654,28 @@ def build_epub(
         "Text/cover.xhtml": render_cover_page(book, title, cover_href).encode("utf-8"),
         "Text/title.xhtml": render_title_page(book, title, subtitle, chapters, blogs, now).encode("utf-8"),
     }
+
+    def add_chapter(ch: Chapter) -> None:
+        manifest.append((ch.item_id, ch.filename, "application/xhtml+xml", ""))
+        spine.append(ch.item_id)
+        files[ch.filename] = ch.xhtml.encode("utf-8")
+
     for part in parts:
         if part.label:
             manifest.append((part.item_id, part.filename, "application/xhtml+xml", ""))
             spine.append(part.item_id)
             files[part.filename] = render_part(book, part, excerpts).encode("utf-8")
-        for ch in part.chapters:
-            manifest.append((ch.item_id, ch.filename, "application/xhtml+xml", ""))
-            spine.append(ch.item_id)
-            files[ch.filename] = ch.xhtml.encode("utf-8")
+        if part.sections:
+            # month page, then its posts, so the TOC follows reading order (epubcheck NAV-011)
+            for sec in part.sections:
+                manifest.append((sec.item_id, sec.filename, "application/xhtml+xml", ""))
+                spine.append(sec.item_id)
+                files[sec.filename] = render_section(book, part, sec, excerpts).encode("utf-8")
+                for ch in sec.chapters:
+                    add_chapter(ch)
+        else:
+            for ch in part.chapters:
+                add_chapter(ch)
     for n, (href, path, media_type) in enumerate(image_files.values(), start=1):
         manifest.append((f"img-{n}", href, media_type, ""))
         files[href] = path.read_bytes()

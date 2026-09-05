@@ -4,7 +4,8 @@
     scripts/render_cover.py --blog tyk --template covers/tyk.html --out covers/tyk.jpg
 
 The template is a string.Template with placeholders filled from the blog's cache:
-$count, $first_year, $last_year, $issue (e.g. "September 2026"), $url, and three
+$count, $first_year, $last_year, $issue (e.g. "September 2026"), $issue_number (e.g.
+"2026.09.05", the date the cover was rendered), $url, and three
 cover lines ($kicker1/$title1 ... $kicker3/$title3) taken from the newest posts.
 Rendering uses the Chromium bundled with Playwright; fonts come from Google Fonts
 when the network allows and fall back to system fonts otherwise.
@@ -91,6 +92,7 @@ def main() -> int:
         "first_year": str(dates[0].year) if dates else "",
         "last_year": str(dates[-1].year) if dates else "",
         "issue": f"{now:%B %Y}",
+        "issue_number": f"{now:%Y.%m.%d}",
         "url": blog.url.removeprefix("https://").removeprefix("http://"),
         "title": blog.title,
     }

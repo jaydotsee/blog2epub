@@ -15,7 +15,7 @@ defaults:
   images: true                # download and embed images
   max_image_width: 1200       # pick the srcset candidate closest to (but not above) this width
   max_image_bytes: 8000000    # skip images larger than this
-  group_by: year              # year | month | blog | none  -> the "part" level of the navigation
+  group_by: year              # year | year-month | month | blog | none  -> the "part" level of the navigation
   order: asc                  # asc = oldest post first (reads like a book); desc = newest first (magazine)
   split: none                 # none = one EPUB per book; year = one EPUB per year
   demote_headings: true       # shift headings inside posts down so the post title stays the only h1
@@ -35,6 +35,8 @@ blogs:
     exclude: []
     # since: "2020-01-01"     # lower bound on publication date; "1y", "3m", "2w", "7d" work too
     cover: covers/tyk.jpg     # rendered by `make cover`; a jpg/png path (relative to this file) or a URL
+    order: desc               # newest post first
+    group_by: year-month      # contents: year -> month -> posts
     # keep: ["article.post"]  # CSS selectors: the article container(s), Calibre-recipe style
     # remove: [".share", ".newsletter-signup"]   # CSS selectors: clutter to drop from every post
     # extra_css: ".blog-tyk pre { font-size: 0.8em; }"
