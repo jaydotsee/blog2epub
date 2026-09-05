@@ -5,6 +5,14 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 ## [Unreleased]
 
 ### Added
+- `AGENTS.md`: how to work on the repository and the recipe pattern for adding a blog, with the
+  gotchas learned building the Tyk and Kong archives.
+- `scripts/probe_blog.py`: works out a new blog's recipe in one command — sources and their post
+  counts, URL shape and `include` regex, `keep`/`remove` candidates, a real extraction with a
+  cross-article bleed check, brand colours, and a draft config entry.
+- The `/add-blog` skill, which walks from a URL to a published release.
+- `HttpClient.get_text_tolerant` retries the other trailing-slash form on 404, so sitemaps that
+  disagree with their server (Gravitee lists `/slug/`, serves `/slug`) work.
 - The complete **Kong blog** archive as a second standalone book (901 posts): sourced from Kong's
   blog sitemap because the feed carries only the latest ten, with `keep`/`remove` rules for the
   related-post cards Kong prerenders into every page, and its own cover in Kong's palette.

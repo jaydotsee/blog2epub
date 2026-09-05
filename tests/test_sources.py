@@ -64,6 +64,11 @@ class FakeClient:
     def get_json(self, url, **kw):
         return self.get(url, **kw).json()
 
+    def get_text_tolerant(self, url, **kw):  # mirrors HttpClient
+        from blog2epub.http import HttpClient
+
+        return HttpClient.get_text_tolerant(self, url, **kw)
+
     def try_get(self, url, **kw):
         try:
             resp = self.get(url, allow_404=True, **kw)

@@ -64,6 +64,23 @@ class HttpClient:
             resp.encoding = resp.apparent_encoding or "utf-8"
         return resp.text
 
+    def get_text_tolerant(self, url: str, **kwargs: Any) -> tuple[str, str]:
+        """GET text, retrying the other trailing-slash form on 404.
+
+        Sitemaps and the servers behind them disagree about trailing slashes often enough to
+        matter: Gravitee, for one, lists `/blog/slug/` but serves only `/blog/slug`.
+        Returns (text, the URL that actually worked).
+        """
+        try:
+            return self.get_text(url, **kwargs), url
+        except requests.HTTPError as exc:
+            resp = getattr(exc, "response", None)
+            alt = url.rstrip("/") if url.endswith("/") else url + "/"
+            if resp is None or resp.status_code != 404 or alt == url:
+                raise
+            log.debug("404 on %s, trying %s", url, alt)
+            return self.get_text(alt, **kwargs), alt
+
     def get_json(self, url: str, **kwargs: Any) -> Any:
         return self.get(url, **kwargs).json()
 

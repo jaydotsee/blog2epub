@@ -11,14 +11,17 @@ import requests
 from blog2epub import cli
 from blog2epub.config import BlogConfig
 from blog2epub.images import fetch_image
+from blog2epub.models import PostRef
 from blog2epub.sources import SourceError
 from blog2epub.sources.feed import FeedSource
+from blog2epub.sources.sitemap import SitemapSource
 from blog2epub.sources.wordpress import WordPressSource
 from blog2epub.sync import SyncResult
 from tests.conftest import PNG_1x1
-from tests.test_sources import BLOG_HTML, FakeClient, FakeResponse, wp_item
+from tests.test_sources import BLOG_HTML, PAGE, FakeClient, FakeResponse, wp_item
 
 PNG_HEADERS = {"Content-Type": "image/png"}
+PAGE_RESPONSE = FakeResponse(200, PAGE)
 
 
 class FlakyBody(FakeResponse):
@@ -181,3 +184,22 @@ def test_list_survives_a_closed_pipe(tmp_path, monkeypatch, capsys):
 
     monkeypatch.setattr("builtins.print", exploding_print)
     assert cli.main(["-c", str(cfg), "list"]) == 0
+
+
+def test_trailing_slash_mismatch_is_retried(blog):
+    """A sitemap may list /slug/ while the server serves only /slug (Gravitee does this)."""
+    served = "https://example.com/blog/f1/"
+
+    def routes(url, params):
+        return PAGE_RESPONSE if url == served.rstrip("/") else FakeResponse(404)
+
+    client = FakeClient(routes)
+    text, used = client.get_text_tolerant(served)
+    assert used == served.rstrip("/") and "Real paragraph" in text
+
+    # the sitemap source records the URL that worked, so chapters link somewhere real
+    blog.source = "sitemap"
+    src = SitemapSource(blog, FakeClient(routes), "https://example.com/sitemap.xml")
+    ref = PostRef(key="sm-1", url=served)
+    post = next(iter(src.fetch([ref])))
+    assert post.url == served.rstrip("/")

@@ -176,7 +176,18 @@ installs it.
 .venv/bin/blog2epub status                  # cache and output state
 ```
 
-To add a blog, let blog2epub probe it first:
+### Adding a blog
+
+Run the probe: it reports every source that answers and how many posts each lists, the URL shape,
+candidate extraction rules, a real extraction of five posts with a check for other posts leaking
+in, the site's brand colours, and a draft config entry.
+
+```bash
+.venv/bin/python scripts/probe_blog.py https://example.com/blog
+```
+
+`AGENTS.md` explains what to do with the answers and the traps to avoid; the `/add-blog` skill
+walks the whole path from URL to published release. For a quick look at just the source:
 
 ```
 $ .venv/bin/blog2epub detect https://konghq.com/blog
@@ -545,9 +556,12 @@ the only state.
 ## Project layout
 
 ```
+AGENTS.md                      how to work on this repo, and the recipe pattern for a new blog
+.claude/skills/add-blog/       the /add-blog skill: probe, configure, build, release
 blogs.yaml                     configuration (blogs = sources, books = outputs)
 covers/                        cover images, their HTML templates and bundled fonts
 docs/                          README assets (screenshots, social preview)
+scripts/probe_blog.py          works out a new blog's recipe: source, URL shape, rules, colours
 scripts/render_cover.py        renders a cover template to JPG with Playwright
 scripts/render_docs.py         renders the README screenshots and social preview
 src/blog2epub/
@@ -584,7 +598,9 @@ make epubcheck        # build everything, then validate with the W3C checker (ne
 EPUBCHECK_JAR=path/to/epubcheck.jar make test   # also runs the validator inside the test suite
 ```
 
-Design notes for contributors are in [CONTRIBUTING.md](CONTRIBUTING.md). In short: sources are
+[AGENTS.md](AGENTS.md) is the working guide: ground rules, the recipe pattern for adding a blog,
+a gotchas table, and a map of where to change what. Design notes are in
+[CONTRIBUTING.md](CONTRIBUTING.md). In short: sources are
 small classes with `detect`, `discover` and `fetch`; `clean.clean_html` is the only place that
 turns untrusted HTML into XHTML; the EPUB writer has no dependencies and its output is checked
 structurally and with epubcheck in the tests; and the whole suite runs offline against a fake

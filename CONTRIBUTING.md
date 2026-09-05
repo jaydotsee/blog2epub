@@ -26,6 +26,11 @@ Java is only needed for `make epubcheck` and the optional validator test
 | Cache and image downloads | `src/blog2epub/store.py`, `images.py` | `tests/test_network.py` |
 | CLI | `src/blog2epub/cli.py` | `tests/test_network.py` |
 
+## Adding a blog
+
+That is a recipe, not a code change: see the recipe pattern in [AGENTS.md](AGENTS.md), start with
+`scripts/probe_blog.py <url>`, or run the `/add-blog` skill.
+
 ## Adding a source
 
 Subclass `Source` in `src/blog2epub/sources/`, implement `detect`, `discover`, `fetch` and
