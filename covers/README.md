@@ -20,6 +20,17 @@ make cover                       # or:
 Rendering uses Playwright's Chromium (`playwright install chromium`, or point `CHROMIUM_PATH`
 at an existing binary). Output is 1600×2133 (3:4) JPEG, which suits Kobo, Kindle and Apple Books.
 
+## api-management.jpg
+
+The monthly digest cover, rendered from `api-management.html` with `--book api-management`.
+For a book the cover lines carry the blog name as the kicker, `$count` is the number of posts in
+the book's window, `$blog_count`/`$blog_list` describe the sources, and `$month`/`$year` give the
+issue month. Six cover lines are available (`$kicker1`..`$kicker6`).
+
+```bash
+.venv/bin/python scripts/render_cover.py --book api-management --template covers/api-management.html --out covers/api-management.jpg
+```
+
 ## fonts/
 
 Bebas Neue, Barlow and Barlow Condensed (latin subsets), bundled so covers render offline and

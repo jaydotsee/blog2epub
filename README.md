@@ -402,15 +402,32 @@ books:
     feed: { url: https://example.org/writing/index.xml }
 ```
 
-## Magazine covers
+## The API Management Digest
 
-`covers/tyk.jpg` is rendered from `covers/tyk.html` by `scripts/render_cover.py`: an HTML page
-in Tyk's brand palette with a masthead, three kicker-plus-title cover lines taken from the newest
-cached posts, a hexagon badge with the post count and year span, and a topic strip. Re-render it
-after a sync to refresh the cover lines:
+`blogs.yaml` ships a second book, `api-management`: a monthly digest of the last 30 days of posts
+from API Changelog, API Evangelist, API Scene, APIDAYS (which publishes on API Scene), Axway,
+Bruno Pedro, Gravitee, Kong, Nordic APIs, Postman and Tyk. It uses a rolling `since: 1m` window
+measured at build time, one part per blog, newest first, and its own cover. The digest-only blogs
+carry `since: 3m` so their first sync stays small; the cache accumulates from then on.
 
 ```bash
-make cover        # installs the `covers` extra (Playwright) and renders covers/tyk.jpg
+.venv/bin/blog2epub run api-management     # sync its blogs, build output/api-management.epub
+```
+
+Because the window rolls, the weekly workflow always produces a fresh issue; the release workflow
+(below) publishes one as a dated release when you want to keep it.
+
+## Magazine covers
+
+`covers/tyk.jpg` and `covers/api-management.jpg` are rendered from the HTML templates next to them
+by `scripts/render_cover.py`. The Tyk cover uses Tyk's brand palette with a masthead, three
+kicker-plus-title cover lines taken from the newest cached posts, a hexagon badge with the post
+count and year span, and a topic strip. The digest cover uses the month as its headline, the lead
+post as the main cover line, four more posts with their blog names as kickers, a post-count stamp
+and the list of sources. Re-render them after a sync to refresh the cover lines:
+
+```bash
+make cover        # installs the `covers` extra (Playwright) and renders both covers
 ```
 
 The cover carries an issue number, the render date as `2026.09.05`, and the title page inside the
@@ -432,6 +449,11 @@ placeholders (`$count`, `$issue`, `$issue_number`, `$kicker1`, `$title1`, ...) w
 
 "Run workflow" accepts two switches: `force` rebuilds every book, `full` ignores the cache and
 re-fetches everything. Nothing generated is committed; `cache/` and `output/` are git-ignored.
+
+`.github/workflows/release.yml` publishes one book as a **dated release** on demand: run it from
+the Actions tab with a book id and it syncs that book's blogs, renders its cover, builds it, and
+creates a release tagged `<book>-<YYYY.MM.DD>` (for example `tyk-2026.09.05`) with the EPUB
+attached.
 
 To run somewhere else, any scheduler that can call `blog2epub run` works: the cache directory is
 the only state.
@@ -472,6 +494,7 @@ src/blog2epub/
 tests/                         pytest suite (sources with a fake HTTP client, cleaner, builder, config)
 .github/workflows/ci.yml       ruff, mypy, pytest + epubcheck on every push
 .github/workflows/monitor.yml  weekly sync/build/release
+.github/workflows/release.yml  on-demand dated release of one book
 ```
 
 ## Development

@@ -1,0 +1,77 @@
+# Build one book on demand and publish it as a dated GitHub release, e.g. tag `tyk-2026.09.05`.
+# Run it from the Actions tab ("Run workflow") with the book id, or via the API:
+#   workflow_dispatch on release.yml with inputs {book: "tyk"}
+name: Release a book
+
+on:
+  workflow_dispatch:
+    inputs:
+      book:
+        description: "Book id from blogs.yaml (e.g. tyk, api-management)"
+        required: true
+        default: "tyk"
+      full:
+        description: "Re-fetch every post (ignore the cache)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monitor          # share the cache lock with the weekly monitor
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e ".[covers]"
+
+      - name: Restore download cache
+        uses: actions/cache@v4
+        with:
+          path: cache
+          key: blog2epub-cache-${{ github.run_id }}
+          restore-keys: |
+            blog2epub-cache-
+
+      - name: Sync
+        run: blog2epub -v sync "${{ inputs.book }}" ${{ inputs.full && '--full' || '' }}
+
+      - name: Render cover
+        continue-on-error: true
+        run: |
+          if [ -f "covers/${{ inputs.book }}.html" ]; then
+            python -m playwright install --with-deps chromium
+            if grep -q "^  - id: ${{ inputs.book }}$" blogs.yaml; then target="--blog"; else target="--book"; fi
+            python scripts/render_cover.py $target "${{ inputs.book }}" --template "covers/${{ inputs.book }}.html" --out "covers/${{ inputs.book }}.jpg"
+          fi
+
+      - name: Build
+        id: build
+        run: |
+          blog2epub -v build "${{ inputs.book }}"
+          echo "issue=$(date -u +%Y.%m.%d)" >> "$GITHUB_OUTPUT"
+          title=$(python -c "import sys; from blog2epub.config import load_config; print(load_config('blogs.yaml').book(sys.argv[1]).title)" "${{ inputs.book }}")
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+          ls -la output/
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.book }}-${{ steps.build.outputs.issue }}
+          name: "${{ steps.build.outputs.title }} — Issue ${{ steps.build.outputs.issue }}"
+          body: |
+            ${{ steps.build.outputs.title }}, built ${{ steps.build.outputs.issue }} by blog2epub.
+
+            EPUB 3, validated with epubcheck. Copy to your e-reader or send to Kindle.
+          files: output/${{ inputs.book }}*.epub
+          make_latest: false

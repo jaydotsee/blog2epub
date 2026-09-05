@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>API Management Digest cover</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root {
+    --ink: #0B1622;        /* deep blue-black */
+    --ink-2: #10283A;
+    --teal: #2EC4B6;
+    --amber: #FFB703;
+    --coral: #FF5D73;
+    --paper: #F6F4EF;
+    --muted: #9FB3C8;
+    --w: 1600px; --h: 2133px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: var(--w); height: var(--h); overflow: hidden; background: var(--ink); }
+  body { font-family: "Barlow", "Liberation Sans", Arial, sans-serif; color: var(--paper); position: relative; }
+
+  .bg { position: absolute; inset: 0; overflow: hidden; }
+  .grid { position: absolute; inset: 0; opacity: .16;
+          background-image: linear-gradient(rgba(159,179,200,.5) 1px, transparent 1px), linear-gradient(90deg, rgba(159,179,200,.5) 1px, transparent 1px);
+          background-size: 80px 80px; }
+  .band { position: absolute; left: -200px; right: -200px; top: 1010px; height: 560px; background: linear-gradient(90deg, var(--teal), #1d9c92 45%, var(--amber)); transform: rotate(-7deg); opacity: .96; }
+  .band-shadow { position: absolute; left: -200px; right: -200px; top: 1032px; height: 560px; background: #000; opacity: .35; transform: rotate(-7deg); filter: blur(30px); }
+  .glow { position: absolute; width: 1100px; height: 1100px; border-radius: 50%; right: -400px; top: -350px; background: radial-gradient(circle, rgba(46,196,182,.35) 0%, transparent 65%); }
+  svg.nodes { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .frame { position: absolute; inset: 0; padding: 84px 96px 90px; display: flex; flex-direction: column; }
+
+  .masthead .over { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 56px; letter-spacing: 14px; color: var(--teal); }
+  .masthead .name { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 292px; line-height: .84; letter-spacing: 4px; color: #fff; display: flex; align-items: flex-end; gap: 30px; }
+  .masthead .name .tag { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 44px; letter-spacing: 4px; color: var(--ink); background: var(--amber); padding: 10px 22px 8px; margin-bottom: 26px; line-height: 1; }
+  .issue { display: flex; gap: 22px; align-items: center; margin-top: 22px; font-weight: 600; font-size: 30px; letter-spacing: 1px; color: var(--muted); }
+  .issue .bar { width: 4px; height: 30px; background: var(--amber); }
+  .issue b { color: #fff; font-weight: 600; }
+
+  .lead { margin-top: 74px; display: flex; gap: 60px; align-items: flex-start; }
+  .lead .kicker { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 40px; letter-spacing: 3px; color: var(--amber); }
+  .lead .title { font-weight: 800; font-size: 74px; line-height: 1.04; color: #fff; margin-top: 10px; text-wrap: balance; max-width: 1080px; }
+  .stamp { margin-left: auto; flex: none; width: 300px; height: 300px; border-radius: 50%; border: 10px solid var(--teal); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: rgba(11,22,34,.75); }
+  .stamp .num { font-family: "Bebas Neue", sans-serif; font-size: 128px; line-height: .9; color: #fff; }
+  .stamp .lbl { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 28px; letter-spacing: 3px; color: var(--teal); margin-top: 6px; }
+  .stamp .sub { font-size: 24px; color: var(--muted); margin-top: 4px; }
+
+  .month { position: absolute; left: 96px; right: 96px; top: 1150px; transform: rotate(-7deg); transform-origin: left center; }
+  .month .big { font-family: "Bebas Neue", sans-serif; font-size: 330px; line-height: .8; letter-spacing: 6px; color: var(--ink); white-space: nowrap; }
+  .month .yr { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 74px; letter-spacing: 16px; color: var(--ink); margin-top: 10px; margin-left: 12px; }
+
+  .lines { position: absolute; left: 96px; right: 96px; top: 1595px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 60px; row-gap: 30px; }
+  .line .kicker { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 30px; letter-spacing: 3px; color: var(--teal); }
+  .line .title { font-weight: 600; font-size: 34px; line-height: 1.15; color: #fff; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .strip { position: absolute; left: 96px; right: 96px; bottom: 84px; border-top: 3px solid rgba(255,255,255,.3); padding-top: 22px; font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 28px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); line-height: 1.5; }
+  .strip b { color: var(--amber); font-weight: 800; }
+</style>
+</head>
+<body>
+  <div class="bg">
+    <div class="grid"></div>
+    <div class="glow"></div>
+    <svg class="nodes" viewBox="0 0 1600 2133" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#2EC4B6" stroke-width="2" fill="none" opacity=".45">
+        <path d="M1200 140 L1420 260 L1380 470 L1180 520 L1060 360 Z"/>
+        <path d="M1420 260 L1560 200"/><path d="M1380 470 L1540 560"/><path d="M1060 360 L900 300"/><path d="M1180 520 L1120 700"/>
+      </g>
+      <g fill="#FFB703">
+        <circle cx="1200" cy="140" r="9"/><circle cx="1420" cy="260" r="9"/><circle cx="1380" cy="470" r="9"/><circle cx="1180" cy="520" r="9"/><circle cx="1060" cy="360" r="9"/>
+      </g>
+      <g fill="#2EC4B6" opacity=".8">
+        <circle cx="1560" cy="200" r="6"/><circle cx="1540" cy="560" r="6"/><circle cx="900" cy="300" r="6"/><circle cx="1120" cy="700" r="6"/>
+      </g>
+    </svg>
+    <div class="band-shadow"></div>
+    <div class="band"></div>
+  </div>
+
+  <div class="frame">
+    <div class="masthead">
+      <div class="over">API MANAGEMENT</div>
+      <div class="name">DIGEST <span class="tag">MONTHLY</span></div>
+    </div>
+    <div class="issue"><span>Issue <b>$issue_number</b></span><span class="bar"></span><span><b>$blog_count</b> sources</span><span class="bar"></span><span>the last 30 days of API management writing</span></div>
+
+    <div class="lead">
+      <div>
+        <div class="kicker">$kicker1</div>
+        <div class="title">$title1</div>
+      </div>
+      <div class="stamp"><div class="num">$count</div><div class="lbl">POSTS</div><div class="sub">this issue</div></div>
+    </div>
+  </div>
+
+  <div class="month">
+    <div class="big">$month</div>
+    <div class="yr">$year &nbsp;&middot;&nbsp; EDITION</div>
+  </div>
+
+  <div class="lines">
+    <div class="line"><div class="kicker">$kicker2</div><div class="title">$title2</div></div>
+    <div class="line"><div class="kicker">$kicker3</div><div class="title">$title3</div></div>
+    <div class="line"><div class="kicker">$kicker4</div><div class="title">$title4</div></div>
+    <div class="line"><div class="kicker">$kicker5</div><div class="title">$title5</div></div>
+  </div>
+
+  <div class="strip"><b>Inside:</b> $blog_list</div>
+</body>
+</html>

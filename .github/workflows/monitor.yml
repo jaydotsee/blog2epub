@@ -47,15 +47,16 @@ jobs:
           restore-keys: |
             blog2epub-cache-
 
-      # Refresh the Tyk cover so its issue number and cover lines match this run. Best effort:
+      # Refresh the covers so issue numbers and cover lines match this run. Best effort:
       # a Playwright hiccup must not stop the books from being built.
       - name: Render covers
         continue-on-error: true
         run: |
           pip install -e ".[covers]"
           python -m playwright install --with-deps chromium
-          blog2epub sync tyk
+          blog2epub -v sync
           python scripts/render_cover.py --blog tyk --template covers/tyk.html --out covers/tyk.jpg
+          python scripts/render_cover.py --book api-management --template covers/api-management.html --out covers/api-management.jpg
 
       - name: Sync and build
         run: |

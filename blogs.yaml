@@ -41,37 +41,77 @@ blogs:
     # remove: [".share", ".newsletter-signup"]   # CSS selectors: clutter to drop from every post
     # extra_css: ".blog-tyk pre { font-size: 0.8em; }"
 
-  # Other API management vendors. They only expose feeds (latest ~10 posts each),
-  # so the cache fills up over time as the weekly monitor runs.
-  - id: kong
-    title: "Kong Blog"
-    url: https://konghq.com/blog
+  # Sources for the API Management Digest. They only need the recent past, so `since: 3m`
+  # keeps the first sync small; the cache still accumulates from then on.
+  - id: apichangelog
+    title: "API Changelog"
+    url: https://apichangelog.substack.com
     standalone: false
-    remove:                   # feed bodies carry the page breadcrumbs and "# " heading markers
-      - "[itemtype='https://schema.org/BreadcrumbList']"
-      - "[class*='Breadcrumbs_']"
-      - "span.agent"
+    since: 3m
+  - id: apievangelist
+    title: "API Evangelist"
+    url: https://apievangelist.com
+    standalone: false
+    since: 3m
+  - id: apiscene
+    title: "API Scene"
+    url: https://apiscene.io
+    standalone: false
+    since: 3m
+    wordpress:
+      params: { author_exclude: 3 }   # apidays' articles are their own source below
+  - id: apidays
+    title: "APIDAYS"
+    url: https://www.apiscene.io/author/apidays-conferences/   # apidays publishes on API Scene
+    standalone: false
+    since: 3m
+    wordpress:
+      api: https://www.apiscene.io/wp-json/wp/v2
+      params: { author: 3 }
+  - id: axway
+    title: "Axway Blog"
+    url: https://blog.axway.com
+    standalone: false
+    since: 3m
+  - id: brunopedro
+    title: "Bruno Pedro"
+    url: https://brunopedro.com
+    standalone: false
+    since: 3m
+    include:
+      - "^https://brunopedro\\.com/\\d{4}/"     # posts live at /YYYY/MM/DD/slug/; skip the site pages
   - id: gravitee
     title: "Gravitee Blog"
     url: https://www.gravitee.io/blog
     standalone: false
-  - id: solo
-    title: "Solo.io Blog"
-    url: https://www.solo.io/blog
+    since: 3m
+  - id: kong
+    title: "Kong Blog"
+    url: https://konghq.com/blog
     standalone: false
+    since: 3m
+    remove:                   # feed bodies carry the page breadcrumbs and "# " heading markers
+      - "[itemtype='https://schema.org/BreadcrumbList']"
+      - "[class*='Breadcrumbs_']"
+      - "span.agent"
+  - id: nordicapis
+    title: "Nordic APIs"
+    url: https://nordicapis.com/blog
+    standalone: false
+    since: 3m
   - id: postman
     title: "Postman Blog"
     url: https://blog.postman.com
     standalone: false
+    since: 3m
 
 books:
   - id: api-management
     title: "API Management Digest"
-    description: "Recent posts from API management vendors, in one magazine-style ebook."
+    description: "A monthly digest: the last 30 days of posts from the API management blogs that matter."
     author: "Various"
-    blogs: [tyk, kong, gravitee, solo, postman]
-    since: "2025-01-01"       # a date, or a rolling window such as 3m (last 90 days at build time)
-    max_posts: 150            # the 150 most recent posts across all five blogs
-    group_by: blog            # one part per blog; try `month` for an issue-like layout
+    blogs: [apichangelog, apidays, apievangelist, apiscene, axway, brunopedro, gravitee, kong, nordicapis, postman, tyk]
+    since: 1m                 # rolling 30-day window, measured at build time
+    group_by: blog            # one part per blog
     order: desc               # newest first
-    # cover: covers/api-management.jpg
+    cover: covers/api-management.jpg   # rendered by `make cover`
