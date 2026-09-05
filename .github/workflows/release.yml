@@ -47,7 +47,11 @@ jobs:
             name="${GITHUB_REF_NAME#release/}"
             book="${name%-*}"; issue="${name##*-}"
           else
-            book="${{ steps.which.outputs.book }}"; issue="$(date -u +%Y.%m.%d)"
+            book="${{ inputs.book }}"; issue="$(date -u +%Y.%m.%d)"
+          fi
+          if [ -z "$book" ]; then
+            echo "::error::No book id. Dispatch with a book, or push a release/<book>-<date> branch."
+            exit 1
           fi
           echo "book=$book" >> "$GITHUB_OUTPUT"
           echo "issue=$issue" >> "$GITHUB_OUTPUT"
