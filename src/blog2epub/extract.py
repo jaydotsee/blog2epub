@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from lxml import html
 from readability import Document
@@ -40,22 +41,49 @@ TITLE_SEPARATORS = ("|", "\u2013", "\u2014", "-", "\u00b7", "\u00bb", "::", ":")
 MAX_SITE_SUFFIX = 40
 
 
-def _strip_site_suffix(title: str, doc: html.HtmlElement) -> str:
-    """Drop a trailing " | Site Name" when the page's own <h1> shows the shorter headline.
+def _site_label(url: str) -> str:
+    """The blog's own name as its domain spells it: blog.axway.com -> "axway"."""
+    host = urlsplit(url).hostname or ""
+    parts = [p for p in host.split(".") if p not in ("www", "blog", "www2")]
+    return parts[0].lower() if parts else ""
 
-    og:title and <title> routinely carry the site name; the <h1> does not. Trusting the
-    <h1> keeps this honest: the suffix goes only when the page itself says the headline
-    ends earlier, so a title that genuinely contains a pipe is left alone.
+
+def _is_site_name(tail: str, label: str) -> bool:
+    """Is this trailing fragment the site naming itself? "Gravitee.io" against gravitee.io."""
+    word = re.sub(r"[^a-z0-9]", "", tail.lower())
+    if len(word) < 4 or len(label) < 4:
+        return False
+    return word.startswith(label) or label.startswith(word)
+
+
+def _strip_site_suffix(title: str, doc: html.HtmlElement, url: str) -> str:
+    """Drop a trailing " | Site Name" that the page itself shows is not part of the headline.
+
+    og:title and <title> routinely carry the site name; the <h1> does not. Two things can
+    show a tail is boilerplate, and nothing else counts: the page's own <h1> ends the
+    headline earlier, or the tail is simply the site naming itself. So a title that
+    genuinely contains a pipe survives, and so does a real subtitle after a dash.
     """
+    separated = [
+        (title[:cut].strip(), title[cut:].lstrip(sep).strip())
+        for sep in TITLE_SEPARATORS
+        for cut in [title.rfind(sep)]
+        if cut > 0 and len(title) - cut <= MAX_SITE_SUFFIX
+    ]
+    label = _site_label(url)
+    for head, tail in separated:
+        if head and tail and _is_site_name(tail, label):
+            return head
+
     h1 = doc.find(".//h1")
     if h1 is None:
         return title
-    head = re.sub(r"\s+", " ", h1.text_content()).strip()
-    if len(head) < 10 or head == title or not title.startswith(head):
+    headline = re.sub(r"\s+", " ", h1.text_content()).strip()
+    if len(headline) < 10 or headline == title or not title.startswith(headline):
         return title
-    rest = title[len(head) :].strip()
+    rest = title[len(headline) :].strip()
     if len(rest) <= MAX_SITE_SUFFIX and rest.startswith(TITLE_SEPARATORS):
-        return head
+        return headline
     return title
 
 
@@ -110,7 +138,7 @@ def extract_article(
         title = h1.text_content().strip() if h1 is not None else ""
     if not title and doc.find(".//title") is not None:
         title = doc.findtext(".//title", "").strip()
-    title = _strip_site_suffix(re.sub(r"\s+", " ", title), doc)
+    title = _strip_site_suffix(re.sub(r"\s+", " ", title), doc, url)
 
     date = ld.get("datePublished") or _plausible_date(
         _meta(doc, "article:published_time", "datePublished", "date")

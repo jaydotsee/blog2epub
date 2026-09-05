@@ -33,3 +33,27 @@ def test_a_pipe_the_h1_also_carries_is_kept():
     <title>{title}</title></head>
     <body><h1>{title}</h1><article><p>{"Body. " * 60}</p></article></body></html>"""
     assert extract_article(page, "https://example.com/p")["title"] == title
+
+
+def test_the_site_naming_itself_is_dropped_even_when_the_h1_differs():
+    # SEO title and on-page headline can be different sentences; the trailing brand still goes.
+    page = """<html><head><meta property="og:title" content="What Is API Governance? | Gravitee.io">
+    <title>x</title></head><body><h1>A Complete Guide to API Governance</h1>
+    <article><p>%s</p></article></body></html>""" % ("Body. " * 60)
+    assert extract_article(page, "https://www.gravitee.io/blog/p")["title"] == "What Is API Governance?"
+
+
+def test_another_brand_in_the_title_is_left_alone():
+    # Migrated posts carry a former publisher's name. That is fact, not boilerplate.
+    title = "3 Factors AWS Lambda is Not Ready for Prime Time | Ambassador"
+    page = f"""<html><head><meta property="og:title" content="{title}"><title>x</title></head>
+    <body><h1>Why AWS Lambda Is Not Production Ready</h1>
+    <article><p>{"Body. " * 60}</p></article></body></html>"""
+    assert extract_article(page, "https://www.gravitee.io/blog/p")["title"] == title
+
+
+def test_a_subtitle_after_a_dash_survives():
+    title = "Rate limiting - a practical guide"
+    page = f"""<html><head><meta property="og:title" content="{title}"><title>x</title></head>
+    <body><h1>{title}</h1><article><p>{"Body. " * 60}</p></article></body></html>"""
+    assert extract_article(page, "https://www.gravitee.io/blog/p")["title"] == title
