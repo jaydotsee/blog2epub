@@ -16,7 +16,7 @@ from xml.sax.saxutils import escape, quoteattr
 from .clean import clean_html, normalize_url, text_of
 from .config import BlogConfig, BookConfig
 from .extract import readability_pass
-from .images import MEDIA_TYPES, rasterize_svg, rasterize_svg_bytes
+from .images import MEDIA_TYPES, optimize_image, rasterize_svg, rasterize_svg_bytes
 from .models import Post, resolve_date
 from .store import BlogStore
 
@@ -592,6 +592,10 @@ def build_epub(
                 missing.add(url)
                 return None
             media_type = store.image_media_type(url) or MEDIA_TYPES.get(path.suffix.lstrip("."), "image/jpeg")
+            if media_type != "image/svg+xml" and book.optimize_images:
+                slimmed = optimize_image(path, store_width(store), book.image_quality)
+                if slimmed:
+                    path, media_type = slimmed
             if media_type == "image/svg+xml" and book.svg_images != "keep":
                 if book.svg_images == "drop":
                     return None

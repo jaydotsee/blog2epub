@@ -249,16 +249,36 @@ def _valid_host(netloc: str) -> bool:
 
 
 def _valid_href(href: str) -> str | None:
-    """Return a cleaned href, or None when no reader would accept it (epubcheck RSC-020)."""
+    """Return a cleaned href, or None when no reader would accept it (epubcheck RSC-020).
+
+    Real posts carry a stray bracket left by a broken markdown link, and placeholders such as
+    `http://managerhost:port/info`. Both are invalid URLs rather than merely ugly ones, so the
+    path and query are percent-encoded and a non-numeric port is rejected outright.
+    """
     href = href.strip()
     if not href or href.startswith(("javascript:", "data:", "vbscript:")):
         return None
-    parts = urlsplit(href)
+    try:
+        parts = urlsplit(href)
+        _ = parts.port  # raises ValueError when the port is not a number
+    except ValueError:
+        return None
     if parts.scheme in ("http", "https") and not _valid_host(parts.netloc or ""):
         return None
     if parts.scheme and parts.scheme not in ("http", "https", "mailto", "tel", "ftp"):
         return None
-    return quote(href, safe=":/?#[]@!$&'()*+,;=%")
+    if parts.scheme in ("mailto", "tel"):
+        return href
+    safe = "/%:@!$&'()*+,;=~-._"
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            quote(parts.path, safe=safe),
+            quote(parts.query, safe=safe + "?&"),
+            parts.fragment,
+        )
+    )
 
 
 def _unwrap_inline_around_blocks(root: html.HtmlElement) -> None:
@@ -316,6 +336,45 @@ def _lazy_aware(img: html.HtmlElement) -> tuple[str | None, str | None]:
     if _looks_broken(src):
         src = None
     return src, srcset
+
+
+def _fix_lists(root: html.HtmlElement) -> None:
+    """Make list markup valid: `ul`/`ol` may hold only `li`, and `li` needs a list parent.
+
+    Hand-written and CMS-exported posts routinely nest a list directly inside another list, or
+    leave paragraphs and text loose between items. Browsers cope; epubcheck does not.
+    """
+    for lst in list(root.iter("ul", "ol")):
+        item: html.HtmlElement | None = None
+        for child in list(lst):
+            if not isinstance(child.tag, str):
+                continue
+            if child.tag == "li":
+                item = child
+                continue
+            if item is None:  # stray content before any item: give it one
+                item = html.Element("li")
+                child.addprevious(item)
+            item.append(child)  # a nested list belongs inside the item it hangs off
+        if (lst.text or "").strip():
+            first = lst.find("li")
+            if first is None:
+                first = html.Element("li")
+                lst.insert(0, first)
+            first.text = (lst.text or "") + (first.text or "")
+        lst.text = None
+    for li in list(root.iter("li")):
+        parent = li.getparent()
+        if parent is not None and parent.tag not in ("ul", "ol"):
+            li.tag = "div"  # an item with no list around it is just a block
+
+
+def _unnest_links(root: html.HtmlElement) -> None:
+    """An `a` inside an `a` is invalid; keep the outer link and unwrap the inner one."""
+    nested = [a for a in root.iter("a") if any(anc.tag == "a" for anc in a.iterancestors())]
+    for a in nested:
+        if a.getparent() is not None:
+            a.drop_tag()
 
 
 def _is_effectively_empty(el: html.HtmlElement) -> bool:
@@ -395,6 +454,9 @@ def clean_html(
             el.drop_tag()
 
     _unwrap_inline_around_blocks(root)
+    _fix_lists(root)
+    _unnest_links(root)
+
     if demote_headings:
         _shift_headings(root)
 

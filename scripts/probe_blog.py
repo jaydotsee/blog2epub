@@ -138,7 +138,7 @@ def clutter_candidates(page: str, url: str) -> None:
     doc = lx.fromstring(page)
     rows: dict[str, tuple[int, int]] = {}
     for el in doc.iter():
-        cls = el.get("class") or ""
+        cls = (el.get("class") or "").strip()
         if not cls:
             continue
         low = cls.lower()
@@ -168,7 +168,7 @@ def keep_candidates(page: str) -> None:
     main_chars = len(" ".join(main[0].text_content().split())) if main else 0
     seen: dict[str, list[int]] = {}
     for el in doc.iter():
-        cls = el.get("class") or ""
+        cls = (el.get("class") or "").strip()
         if not cls or el.tag in ("html", "body", "script", "style"):
             continue
         token = cls.split()[0]

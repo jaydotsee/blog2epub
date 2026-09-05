@@ -5,6 +5,10 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 ## [Unreleased]
 
 ### Added
+- Images are downscaled to `max_image_width` and re-encoded at build time (`optimize_images`,
+  `image_quality`, the new `images` extra). Transparent PNGs above 150 KB are flattened onto
+  white and encoded as JPEG, which is what dominates a large archive: the Kong book went from
+  705 MB to 236 MB with no visible change on an e-reader.
 - `AGENTS.md`: how to work on the repository and the recipe pattern for adding a blog, with the
   gotchas learned building the Tyk and Kong archives.
 - `scripts/probe_blog.py`: works out a new blog's recipe in one command — sources and their post

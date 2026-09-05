@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import zipfile
 
 import pytest
@@ -81,3 +82,35 @@ def test_generated_cover_is_png_unless_keep(tmp_path, blog, store):
 def test_config_validates_svg_images():
     with pytest.raises(ConfigError):
         BookConfig(id="b", blogs=["x"], svg_images="vectorise")
+
+
+def test_images_are_downscaled_and_reencoded(tmp_path, blog, store):
+    """Blogs serve desktop-sized images; a whole archive of them is unreadably large."""
+    import zipfile
+
+    from PIL import Image
+
+    from blog2epub.epub import build_epub, select_entries
+    from tests.conftest import make_post
+
+    big = tmp_path / "big.png"
+    Image.new("RGB", (3000, 1800), (30, 90, 160)).save(big, "PNG")
+    url = "https://example.com/img/big.png"
+    store.put_image(url, big.read_bytes(), "png", "image/png")
+    store.put_post(make_post("wp-1", "2024-01-01T00:00:00+00:00", html=f'<p>x <img src="{url}" alt="b"></p>'))
+    store.save()
+
+    book = blog.as_book()
+    build_epub(book, select_entries(book, {blog.id: (blog, store)}), tmp_path / "small.epub")
+    z = zipfile.ZipFile(tmp_path / "small.epub")
+    embedded = next(n for n in z.namelist() if "/Images/" in n and "cover" not in n)
+    with Image.open(io.BytesIO(z.read(embedded))) as im:
+        assert im.width == blog.max_image_width  # downscaled, not merely re-encoded
+    assert len(z.read(embedded)) < big.stat().st_size
+
+    book.optimize_images = False
+    build_epub(book, select_entries(book, {blog.id: (blog, store)}), tmp_path / "orig.epub")
+    z2 = zipfile.ZipFile(tmp_path / "orig.epub")
+    original = next(n for n in z2.namelist() if "/Images/" in n and "cover" not in n)
+    with Image.open(io.BytesIO(z2.read(original))) as im:
+        assert im.width == 3000

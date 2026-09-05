@@ -63,6 +63,8 @@ class BookConfig:
     featured_images: bool = True  # lead each chapter with the post's featured image
     extra_css: str = ""  # appended to the book's stylesheet
     svg_images: str = "raster"  # raster | keep | drop  (Kindle's converter mishandles SVG)
+    optimize_images: bool = True  # downscale and re-encode images to max_image_width
+    image_quality: int = 82  # JPEG quality used when re-encoding
 
     def __post_init__(self) -> None:
         if not self.id or not _ID_RE.fullmatch(self.id):
@@ -100,6 +102,8 @@ _BOOK_OPTS = (
     "excerpts",
     "featured_images",
     "svg_images",
+    "optimize_images",
+    "image_quality",
 )
 
 
@@ -143,6 +147,8 @@ class BlogConfig:
     excerpts: bool = True
     featured_images: bool = True
     svg_images: str = "raster"
+    optimize_images: bool = True
+    image_quality: int = 82
 
     def __post_init__(self) -> None:
         if not self.id or not _ID_RE.fullmatch(self.id):

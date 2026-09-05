@@ -196,7 +196,7 @@ release regardless.
 | Kindle says "original layout preserved" | SVG images in the book | `svg_images: raster` (the default) with the `svg` extra |
 | Every sitemap URL 404s | Sitemap lists `/slug/`, server serves `/slug` | Handled: `HttpClient.get_text_tolerant` |
 | epubcheck NAV-011 warnings | A TOC link points backwards past earlier chapters | Section pages go in the spine right before their chapters |
-| Book too large to email | Images | `split: year`, lower `max_image_width`, or `images: false` |
+| Book too large to email | Images, almost always | Install the `images` extra so downscaling runs, then lower `max_image_width` / `image_quality`, or `split: year` |
 | Chapters are lists of links | `include` matched index pages | Tighten the regex to the post depth |
 | `include` matches nothing at all | The URL given is a **tag page**, not a section | Find where posts really live (see below) |
 | The feed is "not available" but you know it exists | It is on another host | Set `feed.url` explicitly |

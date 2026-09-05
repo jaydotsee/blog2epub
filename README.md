@@ -36,7 +36,7 @@ the W3C [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warni
 
 It ships configured with three books: the complete [Tyk blog](https://tyk.io/blog) archive
 (627 posts, 2015 to today), the complete [Kong blog](https://konghq.com/blog) archive
-(901 posts, 2015 to today), and the **API Management Digest**, a monthly issue drawn from eleven
+(900 posts, 2018 to today), and the **API Management Digest**, a monthly issue drawn from eleven
 API-management blogs. All are published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
 
 The idea comes from Facundo Olano's [Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/):
@@ -295,6 +295,8 @@ Any blog or book key may also appear under `defaults`.
 | `excerpts` | `true` | Excerpts on the part pages. |
 | `featured_images` | `true` | Lead each chapter with the post's featured image. |
 | `extra_css` | – | CSS appended to this book's stylesheet. |
+| `optimize_images` | `true` | Downscale images to `max_image_width` and re-encode them at build time (needs the `images` extra, Pillow). Blogs serve desktop-sized images; Kong's archive is 705 MB as served and 236 MB optimised. |
+| `image_quality` | `82` | JPEG quality used when re-encoding. |
 | `svg_images` | `raster` | What to do with SVG images: `raster` converts them to PNG (needs the `svg` extra, cairosvg), `keep` embeds them as is, `drop` replaces them with their alt text. Kindle's converter falls back to a fixed layout when it meets SVG, so `raster` is the default. |
 
 ### About `readability`
@@ -475,7 +477,7 @@ their own covers:
 | Book | Source | Posts | Notes |
 | --- | --- | --- | --- |
 | `tyk` | WordPress REST API | 627 | The API delivers every post with full metadata in seven requests. |
-| `kong` | `sitemaps/blogs.xml` | 901 | The feed carries only the latest ten, so the sitemap is used instead. |
+| `kong` | `sitemaps/blogs.xml` | 900 | The feed carries only the latest ten, so the sitemap is used instead. |
 
 Kong's pages prerender twenty related-post cards into every article, which readability alone
 mistakes for part of the story, so the entry uses a `keep` selector for the article body plus
@@ -634,7 +636,9 @@ HTTP client.
 - **A blog is unreachable**: it is reported as an error and the run continues with the other blogs;
   the exit code is 2 so CI notices. Books that include the failed blog are still built from what
   the cache holds.
-- **Book too large**: use `split: year`, lower `max_image_width`, or `images: false`.
+- **Book too large**: images dominate. Check the `images` extra is installed (without Pillow
+  nothing is downscaled), then lower `max_image_width` or `image_quality`, or use `split: year`
+  or `images: false`.
 - **Kindle shows "original layout preserved" / no font size control**: the converter met SVG. Make
   sure the `svg` extra is installed (the build warns when it is not) or set `svg_images: drop`.
 - **A post is missing**: check `include`/`exclude`, `since`/`until`, and whether the source lists

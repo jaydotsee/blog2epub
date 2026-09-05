@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 import re
 import time
@@ -99,6 +100,62 @@ def pick_srcset_candidate(src: str | None, srcset: str | None, max_width: int) -
     if widths:
         return min(widths)[1]
     return src or candidates[0][1]
+
+
+PNG_ALPHA_BUDGET = 150_000  # above this, a transparent PNG is flattened onto white as JPEG
+
+
+def optimize_image(path: Path, max_width: int, quality: int = 82) -> tuple[Path, str] | None:
+    """Downscale and re-encode an image for an e-reader, caching the result next to the original.
+
+    Blogs serve images sized for desktop retina screens; a complete archive of them is enormous
+    (Kong's 3200 images weigh 745 MB as served). Nothing on a 6-inch reader benefits from more
+    than `max_width` pixels, so this is close to free in quality and large in bytes.
+
+    Returns (path, media_type) for the optimised file, or None to keep the original.
+    """
+    try:
+        from PIL import Image  # noqa: PLC0415  (optional: the `images` extra)
+    except ImportError:
+        return None
+
+    suffix = ".opt.jpg"
+    cached = path.with_suffix(suffix)
+    if cached.exists():
+        return (cached, "image/jpeg") if cached.stat().st_size < path.stat().st_size else None
+    try:
+        with Image.open(path) as im:
+            fmt, has_alpha = im.format, im.mode in ("RGBA", "LA", "P")
+            if fmt not in ("JPEG", "PNG", "WEBP"):
+                return None  # leave GIFs (animation) and SVGs alone
+            im.load()
+            if im.width > max_width:
+                im.thumbnail((max_width, max_width * 10), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            if fmt == "PNG" and has_alpha:
+                im.save(buf, "PNG", optimize=True)
+                media, out = "image/png", path.with_suffix(".opt.png")
+                if buf.tell() > PNG_ALPHA_BUDGET:
+                    # Screenshots and diagrams exported as transparent PNGs dominate the weight
+                    # of an archive. E-reader pages are white anyway, so flattening onto white
+                    # and encoding JPEG looks the same and is an order of magnitude smaller.
+                    flat = Image.new("RGB", im.size, (255, 255, 255))
+                    rgba = im.convert("RGBA")
+                    flat.paste(rgba, mask=rgba.split()[-1])
+                    jpg = io.BytesIO()
+                    flat.save(jpg, "JPEG", quality=quality, optimize=True, progressive=True)
+                    if jpg.tell() < buf.tell():
+                        buf, media, out = jpg, "image/jpeg", cached
+            else:
+                im.convert("RGB").save(buf, "JPEG", quality=quality, optimize=True, progressive=True)
+                media, out = "image/jpeg", cached
+    except Exception as exc:  # Pillow raises many things on odd files; never fail a build for one
+        log.debug("could not optimise %s: %s", path.name, exc)
+        return None
+    if buf.tell() >= path.stat().st_size:
+        return None  # already smaller than anything we would produce
+    out.write_bytes(buf.getvalue())
+    return out, media
 
 
 def rasterize_svg(svg_path: Path, png_path: Path, width: int) -> bool:

@@ -54,7 +54,7 @@ jobs:
           echo "Releasing $book as issue $issue"
 
       - name: Install
-        run: pip install -e ".[covers,svg]"
+        run: pip install -e ".[covers,svg,images]"
 
       - name: Restore download cache
         uses: actions/cache@v4

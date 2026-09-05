@@ -7,7 +7,7 @@ BIN    := $(VENV)/bin
 setup: $(VENV)/.ok
 $(VENV)/.ok: pyproject.toml
 	$(PYTHON) -m venv $(VENV)
-	$(BIN)/pip install -q -e ".[dev,svg]"
+	$(BIN)/pip install -q -e ".[dev,svg,images]"
 	touch $@
 
 test: setup

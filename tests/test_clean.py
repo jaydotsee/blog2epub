@@ -170,3 +170,41 @@ def test_invalid_punycode_hosts_dropped():
         '<a href="https://xn--bcher-kva.example/x">ok</a><a href="https://ex ample.com/">sp</a>'
     )
     assert xhtml.count("href=") == 1 and 'href="https://xn--bcher-kva.example/x"' in xhtml
+
+
+def test_malformed_lists_are_repaired():
+    """CMS exports nest lists directly in lists and leave loose content between items."""
+    xhtml, _ = _clean(
+        "<ul><li>one</li><ul><li>nested</li></ul></ul>"
+        "<ul>loose text<li>two</li><p>para</p><strong>bold</strong></ul>"
+        "<div><li>orphan</li></div>"
+    )
+    root = etree.fromstring(f"<body>{xhtml}</body>")
+    for lst in root.iter("ul", "ol"):
+        assert (lst.text or "").strip() == ""
+        assert all(c.tag == "li" for c in lst), [c.tag for c in lst]
+    for li in root.iter("li"):
+        assert li.getparent().tag in ("ul", "ol")
+    assert "nested" in xhtml and "loose text" in xhtml and "para" in xhtml and "orphan" in xhtml
+
+
+def test_nested_links_are_unwrapped():
+    """A link inside a link is invalid. Direct nesting is split by the parser; nesting through
+    an element in between survives parsing and has to be undone."""
+    xhtml, _ = _clean(
+        '<a href="https://a.example/"><span><a href="https://b.example/">inner</a></span> rest</a>'
+    )
+    root = etree.fromstring(f"<body>{xhtml}</body>")
+    assert not [a for a in root.iter("a") if any(x.tag == "a" for x in a.iterancestors())]
+    assert "inner" in xhtml and "rest" in xhtml
+
+
+def test_invalid_urls_are_rejected_or_encoded():
+    xhtml, _ = _clean(
+        '<a href="https://ex.example/blog/post]">bracket</a>'
+        '<a href="http://managerhost:port/info">bad port</a>'
+        '<a href="https://ok.example/a%20b?x=1#f">fine</a>'
+    )
+    assert "post]" not in xhtml and "post%5D" in xhtml  # encoded, link kept
+    assert "managerhost" not in xhtml  # unusable, href dropped
+    assert 'href="https://ok.example/a%20b?x=1#f"' in xhtml  # untouched, no double-encoding
