@@ -74,21 +74,61 @@ def cover_lines(entries: list, n: int, by_blog: bool) -> list[tuple[str, str]]:
     return lines
 
 
-def main() -> int:
+def render_all(settings, args) -> int:
+    """Render every covers/<id>.html whose id names a configured blog or book."""
+    known = {b.id for b in settings.all_books()} | {b.id for b in settings.blogs}
+    templates = sorted(p for p in (ROOT / "covers").glob("*.html") if p.stem in known)
+    if not templates:
+        print("no cover templates match a configured blog or book", file=sys.stderr)
+        return 1
+    rc = 0
+    for template in templates:
+        argv = [
+            "--book" if any(b.id == template.stem for b in settings.all_books()) else "--blog",
+            template.stem,
+            "--template",
+            str(template),
+            "--out",
+            str(template.with_suffix(".jpg")),
+            "-c",
+            args.config,
+            "--width",
+            str(args.width),
+            "--height",
+            str(args.height),
+            "--quality",
+            str(args.quality),
+            "--lines",
+            str(args.lines),
+        ]
+        rc |= main(argv)
+    return rc
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     target = ap.add_mutually_exclusive_group(required=True)
     target.add_argument("--blog", help="blog id from blogs.yaml (its standalone book)")
     target.add_argument("--book", help="book id from blogs.yaml")
-    ap.add_argument("--template", required=True, type=Path)
-    ap.add_argument("--out", required=True, type=Path, help=".jpg or .png")
+    target.add_argument(
+        "--all",
+        action="store_true",
+        help="render every covers/<id>.html whose id is a configured blog or book",
+    )
+    ap.add_argument("--template", type=Path, help="cover template (required unless --all)")
+    ap.add_argument("--out", type=Path, help=".jpg or .png (required unless --all)")
     ap.add_argument("-c", "--config", default=str(ROOT / "blogs.yaml"))
     ap.add_argument("--width", type=int, default=1600)
     ap.add_argument("--height", type=int, default=2133)
     ap.add_argument("--quality", type=int, default=90)
     ap.add_argument("--lines", type=int, default=6, help="how many cover lines to fill")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     settings = load_config(args.config)
+    if args.all:
+        return render_all(settings, args)
+    if not args.template or not args.out:
+        ap.error("--template and --out are required unless --all is given")
     book: BookConfig = settings.blog(args.blog).as_book() if args.blog else settings.book(args.book)
     sources = {bid: (settings.blog(bid), BlogStore(settings.cache_dir, bid)) for bid in book.blogs}
     entries = select_entries(book, sources)

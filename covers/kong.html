@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kong Blog cover</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root {
+    --ink: #001408;        /* Kong near-black green */
+    --ink-2: #04240f;
+    --lime: #CCFF00;       /* Kong signature acid lime */
+    --paper: #E7EDE5;      /* Kong off-white sage */
+    --muted: #CDD4CB;
+    --w: 1600px; --h: 2133px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: var(--w); height: var(--h); overflow: hidden; background: var(--ink); }
+  body { font-family: "Barlow", "Liberation Sans", Arial, sans-serif; color: var(--paper); position: relative; }
+
+  .bg { position: absolute; inset: 0; overflow: hidden; }
+  .wash { position: absolute; inset: 0; background: radial-gradient(ellipse at 78% 24%, rgba(204,255,0,.20) 0%, transparent 58%); }
+  .floor { position: absolute; left: 0; right: 0; bottom: 0; height: 780px; background: linear-gradient(180deg, transparent, rgba(204,255,0,.07)); }
+  svg.mesh { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .frame { position: absolute; inset: 0; padding: 88px 96px 92px; display: flex; flex-direction: column; }
+
+  .masthead { display: flex; align-items: flex-end; gap: 26px; line-height: .8; }
+  .masthead .name { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 300px; letter-spacing: 3px; color: var(--paper); }
+  .masthead .blog { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 118px; letter-spacing: 4px; color: var(--ink); background: var(--lime); padding: 6px 22px 0; margin-bottom: 16px; }
+
+  .issue { display: flex; gap: 22px; align-items: center; margin-top: 22px; font-weight: 600; font-size: 29px; letter-spacing: 1px; color: var(--muted); }
+  .issue .bar { width: 4px; height: 28px; background: var(--lime); }
+  .issue b { color: var(--paper); font-weight: 600; }
+
+  .lines { margin-top: 104px; width: 700px; display: flex; flex-direction: column; gap: 46px; }
+  .line { border-left: 6px solid var(--lime); padding-left: 26px; }
+  .line .kicker { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 38px; letter-spacing: 3px; color: var(--lime); text-transform: uppercase; }
+  .line .title { font-weight: 600; font-size: 43px; line-height: 1.13; color: #fff; margin-top: 6px; text-wrap: balance; }
+
+  .badge { position: absolute; right: 104px; top: 700px; width: 372px; height: 372px; border: 10px solid var(--lime);
+           display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: rgba(0,20,8,.72); }
+  .badge .big { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 168px; line-height: .86; color: var(--lime); }
+  .badge .small { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 36px; letter-spacing: 5px; color: var(--paper); margin-top: 8px; }
+  .badge .tiny { font-weight: 600; font-size: 27px; color: var(--muted); margin-top: 6px; letter-spacing: 1px; }
+
+  .headline { margin-top: auto; text-align: center; padding-bottom: 26px; }
+  .headline .over { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 52px; letter-spacing: 17px; color: var(--paper); }
+  .headline .over::before, .headline .over::after { content: ""; display: inline-block; width: 68px; height: 4px; background: var(--lime); vertical-align: middle; margin: 0 26px 8px; }
+  .headline .big { font-family: "Bebas Neue", "Barlow Condensed", sans-serif; font-size: 292px; line-height: .86; letter-spacing: 5px; margin-top: 20px; color: var(--lime); }
+  .headline .big span { display: block; }
+  .headline .big span.alt { color: var(--paper); }
+  .headline .under { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 56px; letter-spacing: 14px; color: var(--paper); margin-top: 16px; }
+  .headline .dek { font-size: 36px; line-height: 1.32; color: #dbe3d8; margin: 42px auto 0; width: 1230px; }
+  .headline .dek b { color: var(--lime); font-weight: 600; }
+
+  .strip { margin-top: 50px; border-top: 3px solid rgba(231,237,229,.32); padding-top: 26px; display: flex; justify-content: space-between; align-items: center;
+           font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 37px; letter-spacing: 3px; text-transform: uppercase; }
+  .strip .sep { color: var(--lime); }
+</style>
+</head>
+<body>
+  <div class="bg">
+    <div class="wash"></div>
+    <div class="floor"></div>
+    <!-- a service mesh: every node connected to its neighbours, a few routes lit up -->
+    <svg class="mesh" viewBox="0 0 1600 2133" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="lit" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#CCFF00" stop-opacity=".95"/>
+          <stop offset="1" stop-color="#CCFF00" stop-opacity=".15"/>
+        </linearGradient>
+      </defs>
+      <g stroke="#CCFF00" stroke-width="1.5" opacity=".20" fill="none">
+        <path d="M1080 250 L1300 170 L1500 280 L1470 520 L1250 600 L1060 490 Z"/>
+        <path d="M1250 600 L1300 840 L1520 900 L1560 660 L1470 520"/>
+        <path d="M1060 490 L900 640 L940 880 L1160 940 L1300 840"/>
+        <path d="M940 880 L820 1080 L900 1300 L1140 1320 L1240 1120 L1160 940"/>
+        <path d="M1300 840 L1240 1120"/><path d="M1520 900 L1440 1140 L1240 1120"/>
+        <path d="M1440 1140 L1500 1380 L1300 1500 L1140 1320"/>
+        <path d="M1080 250 L1060 490"/><path d="M1300 170 L1470 520"/>
+      </g>
+      <g stroke="url(#lit)" stroke-width="4" fill="none" opacity=".9">
+        <path d="M1060 490 L900 640 L940 880 L1160 940 L1300 840"/>
+        <path d="M1250 600 L1300 840"/>
+      </g>
+      <g fill="#CCFF00" opacity=".55">
+        <circle cx="1080" cy="250" r="7"/><circle cx="1300" cy="170" r="7"/><circle cx="1500" cy="280" r="7"/>
+        <circle cx="1470" cy="520" r="7"/><circle cx="1520" cy="900" r="7"/><circle cx="1440" cy="1140" r="7"/>
+        <circle cx="1500" cy="1380" r="7"/><circle cx="1300" cy="1500" r="7"/><circle cx="820" cy="1080" r="7"/>
+        <circle cx="900" cy="1300" r="7"/><circle cx="1140" cy="1320" r="7"/>
+      </g>
+      <g fill="#CCFF00">
+        <circle cx="1060" cy="490" r="11"/><circle cx="900" cy="640" r="11"/><circle cx="940" cy="880" r="11"/>
+        <circle cx="1160" cy="940" r="11"/><circle cx="1300" cy="840" r="11"/><circle cx="1250" cy="600" r="11"/>
+      </g>
+      <g fill="none" stroke="#CCFF00" stroke-width="2" opacity=".28">
+        <rect x="120" y="1560" width="120" height="120"/>
+        <rect x="176" y="1616" width="120" height="120"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="frame">
+    <div class="masthead">
+      <div class="name">KONG</div>
+      <div class="blog">BLOG</div>
+    </div>
+    <div class="issue"><span>Issue <b>$issue_number</b></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span><span class="bar"></span><span>Complete archive</span></div>
+
+    <div class="lines">
+      <div class="line"><div class="kicker">$kicker1</div><div class="title">$title1</div></div>
+      <div class="line"><div class="kicker">$kicker2</div><div class="title">$title2</div></div>
+      <div class="line"><div class="kicker">$kicker3</div><div class="title">$title3</div></div>
+    </div>
+
+    <div class="badge">
+      <div class="big">$count</div>
+      <div class="small">POSTS</div>
+      <div class="tiny">$first_year &ndash; $last_year</div>
+    </div>
+
+    <div class="headline">
+      <div class="over">THE COMPLETE</div>
+      <div class="big"><span>GATEWAY</span><span class="alt">ARCHIVE</span></div>
+      <div class="under">$first_year &ndash; $last_year</div>
+      <div class="dek">Every post from the <b>Kong</b> blog: API gateways, service mesh, AI gateways and the platform engineering that connects them.</div>
+    </div>
+
+    <div class="strip">
+      <span>API Gateway</span><span class="sep">/</span><span>Service Mesh</span><span class="sep">/</span><span>AI Gateway</span><span class="sep">/</span><span>Engineering</span>
+    </div>
+  </div>
+</body>
+</html>

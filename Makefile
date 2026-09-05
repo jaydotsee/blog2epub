@@ -59,7 +59,7 @@ epubcheck: build
 # `pip install -e ".[covers]" && playwright install chromium`, or set CHROMIUM_PATH).
 cover: setup
 	$(BIN)/pip install -q -e ".[covers]"
-	$(BIN)/python scripts/render_cover.py --blog tyk --template covers/tyk.html --out covers/tyk.jpg
+	$(BIN)/python scripts/render_cover.py --all
 	$(BIN)/python scripts/render_cover.py --book api-management --template covers/api-management.html --out covers/api-management.jpg
 
 clean:

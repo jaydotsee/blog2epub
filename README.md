@@ -34,9 +34,10 @@ and cross-links that stay inside the book. A book can be one blog's complete arc
 magazine-style digest that combines several blogs over a date range. Every book it produces passes
 the W3C [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
 
-It ships configured with two books: the complete [Tyk blog](https://tyk.io/blog) archive
-(627 posts, 2015 to today) and the **API Management Digest**, a monthly issue drawn from eleven
-API-management blogs. Both are published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
+It ships configured with three books: the complete [Tyk blog](https://tyk.io/blog) archive
+(627 posts, 2015 to today), the complete [Kong blog](https://konghq.com/blog) archive
+(901 posts, 2015 to today), and the **API Management Digest**, a monthly issue drawn from eleven
+API-management blogs. All are published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
 
 The idea comes from Facundo Olano's [Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/):
 an EPUB is zipped XHTML plus a manifest. That post builds a book from a blog's *own source files*.
@@ -440,6 +441,25 @@ can be passed; APIDAYS' articles on API Scene are selected this way in the shipp
     feed: { url: https://example.org/writing/index.xml }
 ```
 
+## The complete-archive books
+
+Two blogs are configured as complete archives, newest first, with year → month navigation and
+their own covers:
+
+| Book | Source | Posts | Notes |
+| --- | --- | --- | --- |
+| `tyk` | WordPress REST API | 627 | The API delivers every post with full metadata in seven requests. |
+| `kong` | `sitemaps/blogs.xml` | 901 | The feed carries only the latest ten, so the sitemap is used instead. |
+
+Kong's pages prerender twenty related-post cards into every article, which readability alone
+mistakes for part of the story, so the entry uses a `keep` selector for the article body plus
+`remove` selectors for the surrounding furniture. It is the worked example for
+[Site rules](#site-rules) on a modern JavaScript-rendered site.
+
+```bash
+.venv/bin/blog2epub run kong     # sync + build → output/kong.epub
+```
+
 ## The API Management Digest
 
 `blogs.yaml` ships a second book, `api-management`: a monthly digest of the last 30 days of posts
@@ -459,19 +479,20 @@ Because the window rolls, the weekly workflow always produces a fresh issue; the
 
 <p align="center">
   <img src="covers/tyk.jpg" width="30%" alt="Tyk Blog cover">
-  &nbsp;&nbsp;
+  <img src="covers/kong.jpg" width="30%" alt="Kong Blog cover">
   <img src="covers/api-management.jpg" width="30%" alt="API Management Digest cover">
 </p>
 
-`covers/tyk.jpg` and `covers/api-management.jpg` are rendered from the HTML templates next to them
-by `scripts/render_cover.py`. The Tyk cover uses Tyk's brand palette with a masthead, three
+`covers/tyk.jpg`, `covers/kong.jpg` and `covers/api-management.jpg` are rendered from the HTML
+templates next to them by `scripts/render_cover.py`, each in its blog's own brand palette: Tyk's
+purple, Kong's acid lime on near-black, and teal and amber for the digest. The Tyk cover uses a masthead, three
 kicker-plus-title cover lines taken from the newest cached posts, a hexagon badge with the post
 count and year span, and a topic strip. The digest cover uses the month as its headline, the lead
 post as the main cover line, four more posts with their blog names as kickers, a post-count stamp
 and the list of sources. Re-render them after a sync to refresh the cover lines:
 
 ```bash
-make cover        # installs the `covers` extra (Playwright) and renders both covers
+make cover        # installs the `covers` extra (Playwright) and renders every cover
 ```
 
 The cover carries an issue number, the render date as `2026.09.05`, and the title page inside the

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -311,3 +314,10 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         print("interrupted", file=sys.stderr)
         return 130
+    except BrokenPipeError:
+        # `blog2epub list | head` closes the pipe early; exit quietly like any well-behaved CLI.
+        # Point stdout at /dev/null so the interpreter does not complain again while shutting
+        # down; stdout may have no file descriptor at all (pytest capture, redirection).
+        with contextlib.suppress(OSError, ValueError, io.UnsupportedOperation):
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 0

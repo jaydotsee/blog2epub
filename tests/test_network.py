@@ -166,3 +166,18 @@ def test_sniff_trusts_server_content_type_over_extension():
     assert sniff_media_type(b"\x00" * 16, "application/octet-stream", "https://x/a.png") == "image/png"
     assert sniff_media_type(b"\x00" * 16, None, "https://x/a.jpg") == "image/jpeg"
     assert sniff_media_type(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8, "text/plain", "https://x/x") == "image/png"
+
+
+def test_list_survives_a_closed_pipe(tmp_path, monkeypatch, capsys):
+    """`blog2epub list | head` must exit quietly rather than dumping a traceback."""
+    cfg = tmp_path / "blogs.yaml"
+    cfg.write_text("blogs:\n  - {id: a, url: https://a.example/}\n")
+
+    real_print = print
+
+    def exploding_print(*a, **kw):
+        real_print(*a, **kw)
+        raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr("builtins.print", exploding_print)
+    assert cli.main(["-c", str(cfg), "list"]) == 0

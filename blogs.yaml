@@ -88,12 +88,30 @@ blogs:
   - id: kong
     title: "Kong Blog"
     url: https://konghq.com/blog
-    standalone: false
-    since: 3m
-    remove:                   # feed bodies carry the page breadcrumbs and "# " heading markers
-      - "[itemtype='https://schema.org/BreadcrumbList']"
+    author: "Kong Inc."
+    description: "Every post from the Kong blog: API gateways, service mesh, AI gateways and platform engineering."
+    # The feed carries only the latest ten posts; the sitemap lists the whole archive.
+    source: sitemap
+    sitemap: { url: https://konghq.com/sitemaps/blogs.xml }
+    include:
+      - "^https://konghq\\.com/blog/[^/]+/[^/]+"   # posts are /blog/<category>/<slug>; skip the category indexes
+    # Kong prerenders twenty related-post cards into every page, so readability alone bleeds
+    # text from other articles. Keep the article body and drop the surrounding furniture.
+    keep:
+      - "[class*='TableOfContents_body']"
+    remove:
+      - "[class*='Card_card']"
+      - "[class*='Article_moreOnThis']"
+      - "[class*='Article_cta']"
+      - "[class*='TermList_']"
       - "[class*='Breadcrumbs_']"
+      - "[class*='Article_authors']"
+      - "[class*='Article_meta']"
+      - "[class*='Newsletter']"
       - "span.agent"
+    order: desc               # newest post first
+    group_by: year-month      # contents: year -> month -> posts
+    cover: covers/kong.jpg    # rendered by `make cover`
   - id: nordicapis
     title: "Nordic APIs"
     url: https://nordicapis.com/blog

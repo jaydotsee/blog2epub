@@ -4,6 +4,13 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### Added
+- The complete **Kong blog** archive as a second standalone book (901 posts): sourced from Kong's
+  blog sitemap because the feed carries only the latest ten, with `keep`/`remove` rules for the
+  related-post cards Kong prerenders into every page, and its own cover in Kong's palette.
+- `scripts/render_cover.py --all` renders every cover template that names a configured blog or
+  book; `make cover` and the monitor workflow use it.
+
 ### Fixed
 - Kindle's Send to Kindle converter treated books containing SVG images as fixed layout. SVG
   images (and the generated fallback cover) are now rasterised to PNG at build time

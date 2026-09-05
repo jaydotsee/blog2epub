@@ -55,8 +55,7 @@ jobs:
           pip install -e ".[covers,svg]"
           python -m playwright install --with-deps chromium
           blog2epub -v sync
-          python scripts/render_cover.py --blog tyk --template covers/tyk.html --out covers/tyk.jpg
-          python scripts/render_cover.py --book api-management --template covers/api-management.html --out covers/api-management.jpg
+          python scripts/render_cover.py --all
 
       - name: Sync and build
         run: |
