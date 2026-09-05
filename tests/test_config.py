@@ -52,3 +52,50 @@ def test_accepts_url(blog):
     assert not blog.accepts_url("https://example.com/docs/hello/")
     blog.exclude = [r"/draft-"]
     assert not blog.accepts_url("https://example.com/blog/draft-1/")
+
+
+def test_books_and_standalone(tmp_path):
+    cfg = tmp_path / "blogs.yaml"
+    cfg.write_text("""
+defaults:
+  order: desc
+blogs:
+  - id: a
+    url: https://a.example/blog
+  - id: b
+    url: https://b.example/
+    standalone: false
+    group_by: month
+books:
+  - id: digest
+    title: Digest
+    blogs: [a, b]
+    group_by: blog
+    max_posts: 50
+    since: 2025-01-01
+    cover: covers/d.jpg
+""")
+    s = load_config(cfg)
+    books = s.all_books()
+    assert [b.id for b in books] == ["a", "digest"]           # b has no standalone book
+    assert books[0].blogs == ["a"] and books[0].order == "desc"
+    d = s.book("digest")
+    assert d.blogs == ["a", "b"] and d.group_by == "blog" and d.max_posts == 50 and d.since == "2025-01-01"
+    assert d.order == "desc"                                   # defaults apply to books too
+    assert s.blog("b").as_book().group_by == "month"
+    with pytest.raises(ConfigError):
+        s.book("zzz")
+
+
+@pytest.mark.parametrize("body", [
+    "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: d\n    blogs: [nope]\n",     # unknown blog
+    "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: a\n    blogs: [a]\n",        # clashes with blog id
+    "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: d\n    blogs: []\n",         # empty blogs
+    "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: d\n    blogs: [a]\n    group_by: author\n",
+    "blogs:\n  - id: a\n    url: https://a\n    readability: maybe\n",
+])
+def test_invalid_books(tmp_path, body):
+    cfg = tmp_path / "blogs.yaml"
+    cfg.write_text(body)
+    with pytest.raises(ConfigError):
+        load_config(cfg)

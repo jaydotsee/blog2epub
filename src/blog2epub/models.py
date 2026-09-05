@@ -35,7 +35,9 @@ class Post:
     categories: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     excerpt: str | None = None
+    featured_image: str | None = None   # absolute URL of the post's lead/og image, if any
     source: str = ""
+    blog_id: str = ""
     fetched_at: str = field(default_factory=utcnow_iso)
 
     def to_dict(self) -> dict[str, Any]:

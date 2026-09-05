@@ -217,3 +217,12 @@ def test_resolve_source_fails_cleanly():
     b = BlogConfig(id="x", url="https://nothing.example/blog")
     with pytest.raises(SourceError):
         resolve_source(b, FakeClient(lambda u, p: None))
+
+
+def test_store_failed_image_entries(tmp_path):
+    store = BlogStore(tmp_path / "cache", "x")
+    store.mark_image_failed("https://x/a.png", "404")
+    assert store.image_path("https://x/a.png") is None and store.image_failed("https://x/a.png")
+    assert store.image_media_type("https://x/a.png") is None
+    store.put_image("https://x/b.png", b"\x89PNG", "png", "image/png")
+    assert store.image_path("https://x/b.png").name.endswith(".png") and not store.image_failed("https://x/b.png")

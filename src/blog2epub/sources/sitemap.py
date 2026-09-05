@@ -107,7 +107,8 @@ class SitemapSource(Source):
                 continue
             post = Post(key=ref.key, url=ref.url, title=art["title"] or ref.url, html=art["html"],
                         date=art["date"], modified=art["modified"] or ref.modified,
-                        author=art["author"], excerpt=art["excerpt"], source=self.name,
+                        author=art["author"], excerpt=art["excerpt"], featured_image=art["featured_image"],
+                        source=self.name,
                         fetched_at=utcnow_iso())
             # the listing had no dates, so apply since/until now that we know them
             if self.accepts(PostRef(key=post.key, url=post.url, date=post.date)):

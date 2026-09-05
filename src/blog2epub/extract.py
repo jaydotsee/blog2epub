@@ -55,7 +55,7 @@ def _jsonld(doc: html.HtmlElement) -> dict[str, Any]:
 
 
 def extract_article(page_html: str, url: str) -> dict[str, Any]:
-    """Return {title, html, date, modified, author, excerpt} for a blog post page."""
+    """Return {title, html, date, modified, author, excerpt, featured_image} for a blog post page."""
     doc = html.fromstring(page_html)
     ld = _jsonld(doc)
 
@@ -74,6 +74,7 @@ def extract_article(page_html: str, url: str) -> dict[str, Any]:
     modified = ld.get("dateModified") or _meta(doc, "article:modified_time", "dateModified")
     author = ld.get("author") or _meta(doc, "author", "article:author")
     excerpt = _meta(doc, "description", "og:description")
+    featured = _meta(doc, "og:image", "twitter:image")
 
     body_html = ""
     try:
@@ -82,4 +83,42 @@ def extract_article(page_html: str, url: str) -> dict[str, Any]:
     except Exception as exc:  # readability raises a variety of lxml errors on odd pages
         log.warning("readability failed for %s: %s", url, exc)
     return {"title": title, "html": body_html, "date": date, "modified": modified,
-            "author": author, "excerpt": excerpt}
+            "author": author, "excerpt": excerpt, "featured_image": featured}
+
+
+MIN_KEEP_RATIO = 0.6
+
+
+def readability_pass(body_html: str, url: str) -> str:
+    """Run readability over an already-extracted body (API/feed content) to trim boilerplate.
+
+    Readability is tuned for whole pages and can be over-eager on short bodies, so the
+    original is kept whenever the pass would drop more than 40% of the text.
+    """
+    if not body_html or not body_html.strip():
+        return body_html
+    try:
+        before = len(" ".join(html.fromstring(body_html).text_content().split()))
+        page = f"<html><head><title>x</title></head><body><article>{body_html}</article></body></html>"
+        out = _unwrap(Document(page, url=url).summary(html_partial=True))
+        after = len(" ".join(html.fromstring(out).text_content().split())) if out.strip() else 0
+    except Exception as exc:  # lxml / readability errors on odd markup
+        log.debug("readability pass skipped for %s: %s", url, exc)
+        return body_html
+    if not after or (before and after / before < MIN_KEEP_RATIO):
+        log.debug("readability pass would drop %d%% of %s, keeping original",
+                  100 - int(100 * after / before) if before else 100, url)
+        return body_html
+    return out
+
+
+def _unwrap(fragment: str) -> str:
+    """Strip the <body id="readabilityBody"><article> wrappers readability adds around a partial."""
+    if not fragment.strip():
+        return ""
+    root = html.fragment_fromstring(fragment, create_parent="div")
+    while len(root) == 1 and not (root.text or "").strip() and root[0].tag in ("body", "article", "div") \
+            and not (root[0].tail or "").strip():
+        root = root[0]
+    inner = (root.text or "") + "".join(html.tostring(child, encoding="unicode") for child in root)
+    return inner

@@ -45,3 +45,6 @@ nav#toc > ol { margin-left: 0; }
 nav#toc li { margin: 0.3em 0; }
 .cover { text-align: center; margin: 0; padding: 0; }
 .cover img { max-height: 100%; margin: 0 auto; }
+.lead { margin: 0 0 1.2em; }
+.lead img { max-width: 100%; margin: 0 auto; }
+.part-list .excerpt { margin: 0.2em 0 0.6em; font-size: 0.9em; color: #444; }

@@ -126,7 +126,7 @@ class WordPressSource(Source):
         for start in range(0, len(ids), PER_PAGE):
             batch = ids[start:start + PER_PAGE]
             params = self._params(include=",".join(map(str, batch)), _fields=FETCH_FIELDS,
-                                  _embed="author,wp:term")
+                                  _embed="author,wp:term,wp:featuredmedia")
             # `include` must not be combined with date filters, or WP silently drops posts.
             params.pop("after", None)
             params.pop("before", None)
@@ -156,8 +156,21 @@ class WordPressSource(Source):
                     categories.append(name)
                 elif term.get("taxonomy") == "post_tag" and name:
                     tags.append(name)
+        featured = None
+        for media in embedded.get("wp:featuredmedia") or []:
+            if not isinstance(media, dict):
+                continue
+            sizes = (media.get("media_details") or {}).get("sizes") or {}
+            for size in ("large", "medium_large", "full"):
+                if sizes.get(size, {}).get("source_url"):
+                    featured = sizes[size]["source_url"]
+                    break
+            featured = featured or media.get("source_url")
+            if featured:
+                break
         return Post(
             key=f"wp-{item['id']}",
+            featured_image=featured,
             url=item.get("link", ""),
             title=_strip_tags((item.get("title") or {}).get("rendered", "")) or item.get("slug", ""),
             html=(item.get("content") or {}).get("rendered", ""),

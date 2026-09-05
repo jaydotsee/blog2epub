@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
-from urllib.parse import urlsplit
 
 from .clean import extract_image_urls
 from .config import BlogConfig, Settings
@@ -49,23 +47,6 @@ def _needs_fetch(store: BlogStore, ref: PostRef, full: bool) -> bool:
     return False
 
 
-def cover_source(blog: BlogConfig, settings: Settings) -> Path | str | None:
-    if not blog.cover:
-        return None
-    if urlsplit(blog.cover).scheme in ("http", "https"):
-        return blog.cover
-    return settings.config_path.parent / blog.cover
-
-
-def resolve_cover_path(blog: BlogConfig, settings: Settings, store: BlogStore) -> Path | None:
-    src = cover_source(blog, settings)
-    if src is None:
-        return None
-    if isinstance(src, Path):
-        return src if src.exists() else None
-    return store.image_path(src)
-
-
 def sync_blog(blog: BlogConfig, settings: Settings, client: HttpClient, store: BlogStore, *,
               full: bool = False, prune: bool = False) -> SyncResult:
     source = resolve_source(blog, client, hint=store.index.get("source"))
@@ -79,6 +60,7 @@ def sync_blog(blog: BlogConfig, settings: Settings, client: HttpClient, store: B
 
     fetched_keys: set[str] = set()
     for post in source.fetch(to_fetch):
+        post.blog_id = blog.id
         existed = store.has_post(post.key)
         store.put_post(post)
         fetched_keys.add(post.key)
@@ -108,10 +90,9 @@ def sync_blog(blog: BlogConfig, settings: Settings, client: HttpClient, store: B
     if blog.images:
         wanted: list[str] = []
         for post in store.iter_posts():
+            if post.featured_image:
+                wanted.append(post.featured_image)
             wanted.extend(extract_image_urls(post.html, post.url, blog.max_image_width))
-        cover = cover_source(blog, settings)
-        if isinstance(cover, str):
-            wanted.append(cover)
         for url in dict.fromkeys(wanted):
             if store.image_path(url) or store.image_failed(url):
                 continue

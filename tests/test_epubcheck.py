@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from blog2epub.epub import build_epub, sort_posts
+from blog2epub.epub import build_epub, select_entries
 from tests.conftest import PNG_1x1, make_post
 
 pytestmark = pytest.mark.skipif(not os.environ.get("EPUBCHECK_JAR") or not shutil.which("java"),
@@ -25,8 +25,10 @@ def test_generated_epub_passes_epubcheck(tmp_path, blog, store):
     ]
     for p in posts:
         store.put_post(p)
+    store.save()
     out = tmp_path / "check.epub"
-    build_epub(blog, sort_posts(blog, posts), store, out)
+    book = blog.as_book()
+    build_epub(book, select_entries(book, {blog.id: (blog, store)}), out)
     proc = subprocess.run(["java", "-jar", os.environ["EPUBCHECK_JAR"], str(out)],
                           capture_output=True, text=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr

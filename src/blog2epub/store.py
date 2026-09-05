@@ -101,7 +101,7 @@ class BlogStore:
 
     def image_path(self, url: str) -> Path | None:
         entry = self.image_index.get(url)
-        if not entry:
+        if not entry or not entry.get("file"):   # unknown, or recorded as failed
             return None
         path = self.images_dir / entry["file"]
         return path if path.exists() else None

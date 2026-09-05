@@ -12,57 +12,109 @@ class ConfigError(Exception):
     pass
 
 
+_ID_RE = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def _check_choice(owner: str, attr: str, value: str, allowed: set[str]) -> None:
+    if value not in allowed:
+        raise ConfigError(f"{owner}: `{attr}` must be one of {sorted(allowed)}, not {value!r}")
+
+
 @dataclass
-class BlogConfig:
+class BookConfig:
+    """One EPUB (or one EPUB per year when split) built from one or more blogs."""
+
     id: str
-    url: str
+    blogs: list[str]
     title: str = ""
     author: str = ""
     description: str = ""
     publisher: str = ""
     language: str = "en"
+    since: str | None = None
+    until: str | None = None
+    max_posts: int | None = None        # keep only the N most recent posts across all blogs
+    cover: str | None = None            # path (relative to blogs.yaml) or URL of a jpg/png
+    images: bool = True
+    group_by: str = "year"              # year | month | blog | none  -> the "part" level of the TOC
+    order: str = "asc"                  # asc = oldest first (book), desc = newest first (magazine)
+    split: str = "none"                 # none | year
+    demote_headings: bool = True
+    readability: str = "auto"           # auto | always | never
+    excerpts: bool = True               # show excerpts on the part/contents pages
+    featured_images: bool = True        # lead each chapter with the post's featured image
+
+    def __post_init__(self) -> None:
+        if not self.id or not _ID_RE.fullmatch(self.id):
+            raise ConfigError(f"book id {self.id!r} may only contain letters, digits, '.', '_' and '-'")
+        if not self.blogs:
+            raise ConfigError(f"book {self.id!r} needs a non-empty `blogs` list")
+        if not self.title:
+            self.title = self.id
+        _check_choice(f"book {self.id!r}", "group_by", self.group_by, {"year", "month", "blog", "none"})
+        _check_choice(f"book {self.id!r}", "order", self.order, {"asc", "desc"})
+        _check_choice(f"book {self.id!r}", "split", self.split, {"none", "year"})
+        _check_choice(f"book {self.id!r}", "readability", self.readability, {"auto", "always", "never"})
+
+
+# Book-level keys a blog may also carry; they configure the blog's own standalone book.
+_BOOK_OPTS = ("author", "description", "publisher", "language", "since", "until", "max_posts", "cover",
+              "group_by", "order", "split", "demote_headings", "readability", "excerpts", "featured_images")
+
+
+@dataclass
+class BlogConfig:
+    id: str
+    url: str
+    title: str = ""
     source: str = "auto"                 # auto | wordpress | feed | sitemap
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
-    since: str | None = None
-    until: str | None = None
-    max_posts: int | None = None
-    cover: str | None = None             # path or URL to a jpg/png cover image
-    images: bool = True
+    standalone: bool = True              # also build this blog's own EPUB
+    images: bool = True                  # download images at sync time
     max_image_width: int = 1200
     max_image_bytes: int = 8_000_000
-    group_by: str = "year"               # year | month | none
-    order: str = "asc"                   # asc | desc
-    split: str = "none"                  # none | year
-    demote_headings: bool = True
     fetch_full: bool = True              # feed source: fetch the page when the feed body is missing/short
     request_delay: float | None = None
     wordpress: dict[str, Any] = field(default_factory=dict)
     feed: dict[str, Any] = field(default_factory=dict)
     sitemap: dict[str, Any] = field(default_factory=dict)
+    # standalone-book options (see _BOOK_OPTS)
+    author: str = ""
+    description: str = ""
+    publisher: str = ""
+    language: str = "en"
+    since: str | None = None
+    until: str | None = None
+    max_posts: int | None = None
+    cover: str | None = None
+    group_by: str = "year"
+    order: str = "asc"
+    split: str = "none"
+    demote_headings: bool = True
+    readability: str = "auto"
+    excerpts: bool = True
+    featured_images: bool = True
 
     def __post_init__(self) -> None:
-        if not self.id:
-            raise ConfigError("every blog needs an `id`")
-        if not re.fullmatch(r"[A-Za-z0-9._-]+", self.id):
+        if not self.id or not _ID_RE.fullmatch(self.id):
             raise ConfigError(f"blog id {self.id!r} may only contain letters, digits, '.', '_' and '-'")
         if not self.url:
             raise ConfigError(f"blog {self.id!r} needs a `url`")
         if not self.title:
             self.title = self.id
-        for attr, allowed in (
-            ("source", {"auto", "wordpress", "feed", "sitemap"}),
-            ("group_by", {"year", "month", "none"}),
-            ("order", {"asc", "desc"}),
-            ("split", {"none", "year"}),
-        ):
-            if getattr(self, attr) not in allowed:
-                raise ConfigError(f"blog {self.id!r}: `{attr}` must be one of {sorted(allowed)}")
+        _check_choice(f"blog {self.id!r}", "source", self.source, {"auto", "wordpress", "feed", "sitemap"})
         for pattern in self.include + self.exclude:
             try:
                 re.compile(pattern)
             except re.error as exc:
                 raise ConfigError(f"blog {self.id!r}: invalid regex {pattern!r}: {exc}") from exc
+        self.as_book()  # validates the book-level choices
+
+    def as_book(self) -> BookConfig:
+        """The implicit one-blog book this blog builds when `standalone` is true."""
+        return BookConfig(id=self.id, title=self.title, blogs=[self.id],
+                          **{k: getattr(self, k) for k in _BOOK_OPTS})
 
     @property
     def include_re(self) -> list[re.Pattern[str]]:
@@ -89,6 +141,7 @@ class Settings:
     request_delay: float = 0.5
     timeout: int = 30
     blogs: list[BlogConfig] = field(default_factory=list)
+    books: list[BookConfig] = field(default_factory=list)
 
     def blog(self, blog_id: str) -> BlogConfig:
         for b in self.blogs:
@@ -96,9 +149,20 @@ class Settings:
                 return b
         raise ConfigError(f"unknown blog {blog_id!r}; configured: {[b.id for b in self.blogs]}")
 
+    def all_books(self) -> list[BookConfig]:
+        """Standalone blog books first, then the combined books."""
+        return [b.as_book() for b in self.blogs if b.standalone] + list(self.books)
+
+    def book(self, book_id: str) -> BookConfig:
+        for b in self.all_books():
+            if b.id == book_id:
+                return b
+        raise ConfigError(f"unknown book {book_id!r}; configured: {[b.id for b in self.all_books()]}")
+
 
 _SETTINGS_KEYS = {"output_dir", "cache_dir", "user_agent", "request_delay", "timeout"}
 _BLOG_KEYS = {f.name for f in fields(BlogConfig)}
+_BOOK_KEYS = {f.name for f in fields(BookConfig)}
 
 
 def load_config(path: str | Path) -> Settings:
@@ -123,31 +187,54 @@ def load_config(path: str | Path) -> Settings:
         timeout=int(defaults.get("timeout", Settings.timeout)),
     )
 
-    blog_defaults = {k: v for k, v in defaults.items() if k in _BLOG_KEYS}
-    unknown = set(defaults) - _SETTINGS_KEYS - _BLOG_KEYS
+    unknown = set(defaults) - _SETTINGS_KEYS - _BLOG_KEYS - _BOOK_KEYS
     if unknown:
         raise ConfigError(f"unknown keys in `defaults`: {sorted(unknown)}")
+    blog_defaults = {k: v for k, v in defaults.items() if k in _BLOG_KEYS}
+    book_defaults = {k: v for k, v in defaults.items() if k in _BOOK_KEYS}
 
-    blogs_raw = raw.get("blogs") or []
-    if not isinstance(blogs_raw, list):
-        raise ConfigError("`blogs` must be a list")
-    seen: set[str] = set()
-    for entry in blogs_raw:
-        if not isinstance(entry, dict):
-            raise ConfigError("each blog entry must be a mapping")
+    for entry in _list(raw, "blogs"):
         unknown = set(entry) - _BLOG_KEYS
         if unknown:
             raise ConfigError(f"blog {entry.get('id')!r}: unknown keys {sorted(unknown)}")
         merged: dict[str, Any] = {**blog_defaults, **entry}
-        for required in ("id", "url"):
-            if not merged.get(required):
-                raise ConfigError(f"blog entry {entry.get('id') or entry.get('url') or entry!r} is missing `{required}`")
-        for key in ("since", "until"):
-            if merged.get(key) is not None:
-                merged[key] = str(merged[key])
+        _require(merged, entry, "id", "url")
+        _stringify_dates(merged)
         blog = BlogConfig(**merged)
-        if blog.id in seen:
+        if any(b.id == blog.id for b in settings.blogs):
             raise ConfigError(f"duplicate blog id {blog.id!r}")
-        seen.add(blog.id)
         settings.blogs.append(blog)
+
+    for entry in _list(raw, "books"):
+        unknown = set(entry) - _BOOK_KEYS
+        if unknown:
+            raise ConfigError(f"book {entry.get('id')!r}: unknown keys {sorted(unknown)}")
+        merged = {**book_defaults, **entry}
+        _require(merged, entry, "id", "blogs")
+        _stringify_dates(merged)
+        book = BookConfig(**merged)
+        for blog_id in book.blogs:
+            settings.blog(blog_id)  # raises for unknown ids
+        if any(b.id == book.id for b in settings.all_books()):
+            raise ConfigError(f"book id {book.id!r} clashes with another book or a blog id")
+        settings.books.append(book)
     return settings
+
+
+def _list(raw: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    items = raw.get(key) or []
+    if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
+        raise ConfigError(f"`{key}` must be a list of mappings")
+    return items
+
+
+def _require(merged: dict[str, Any], entry: dict[str, Any], *keys: str) -> None:
+    for key in keys:
+        if not merged.get(key):
+            raise ConfigError(f"entry {entry.get('id') or entry!r} is missing `{key}`")
+
+
+def _stringify_dates(merged: dict[str, Any]) -> None:
+    for key in ("since", "until"):
+        if merged.get(key) is not None:
+            merged[key] = str(merged[key])

@@ -286,7 +286,8 @@ def extract_image_urls(raw_html: str, base_url: str, max_image_width: int = 1200
 
 
 def text_of(fragment: str) -> str:
+    """Plain text of an HTML fragment, with a space wherever elements meet."""
     try:
-        return " ".join(html.fromstring(fragment).text_content().split())
+        return " ".join(" ".join(html.fromstring(fragment).itertext()).split())
     except (etree.ParserError, ValueError):
         return ""

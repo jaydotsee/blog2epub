@@ -108,7 +108,7 @@ class FeedSource(Source):
                     body = entry.get("summary", "")
             author = entry.get("author") if entry is not None else None
             tags = [t.get("term") for t in (entry.get("tags") or []) if t.get("term")] if entry else []
-            title, date, modified, excerpt = ref.title, ref.date, ref.modified, None
+            title, date, modified, excerpt, featured = ref.title, ref.date, ref.modified, None, None
 
             if self.blog.fetch_full and len(text_of(body)) < MIN_FULL_BODY_CHARS:
                 try:
@@ -121,8 +121,9 @@ class FeedSource(Source):
                     modified = modified or art["modified"]
                     author = author or art["author"]
                     excerpt = art["excerpt"]
+                    featured = art["featured_image"]
                 except requests.RequestException as exc:
                     log.warning("could not fetch %s, keeping feed body: %s", ref.url, exc)
             yield Post(key=ref.key, url=ref.url, title=title or ref.url, html=body, date=date,
                        modified=modified, author=author, categories=[], tags=tags,
-                       excerpt=excerpt, source=self.name, fetched_at=utcnow_iso())
+                       excerpt=excerpt, featured_image=featured, source=self.name, fetched_at=utcnow_iso())
