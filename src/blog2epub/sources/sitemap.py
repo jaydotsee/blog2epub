@@ -106,7 +106,7 @@ class SitemapSource(Source):
             except requests.RequestException as exc:
                 log.warning("skipping %s: %s", ref.url, exc)
                 continue
-            art = extract_article(page, ref.url)
+            art = extract_article(page, ref.url, keep=self.blog.keep, remove=self.blog.remove)
             if not art["html"]:
                 log.warning("no article body found at %s, skipping", ref.url)
                 continue

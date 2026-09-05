@@ -30,6 +30,7 @@ built output/api-management.epub - 150 posts, 119 images, 36.9 MB
 - [Quick start](#quick-start)
 - [Commands](#commands)
 - [Configuration](#configuration)
+- [Site rules](#site-rules)
 - [Recipes](#recipes)
 - [Keeping books current with GitHub Actions](#keeping-books-current-with-github-actions)
 - [Reading the books](#reading-the-books)
@@ -53,6 +54,10 @@ built output/api-management.epub - 150 posts, 119 images, 36.9 MB
 - **Clean, valid XHTML.** Scripts, styles, forms, tracking attributes, Word pastes, lazy-load
   placeholders and custom elements are handled. Every generated book passes the W3C
   [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
+- **Site rules, Calibre-recipe style.** Per blog, `keep` names the article container and
+  `remove` lists the clutter to drop, as CSS selectors. `extra_css` tunes the look.
+- **Rolling windows.** `since: 7d`, `2w`, `3m` or `1y` on a book gives a "last week" or "last
+  quarter" issue without editing dates.
 - **Real navigation.** EPUB 3 `nav.xhtml` with parts (per year, month or blog) and chapters, a
   `toc.ncx` for older readers, landmarks, and part pages that list each post with its date,
   author and excerpt.
@@ -204,12 +209,15 @@ Any blog or book key may also appear under `defaults`.
 | `source` | `auto` | `auto`, `wordpress`, `feed` or `sitemap`. |
 | `include` | `[]` | Regexes; only post URLs matching one of them are kept. |
 | `exclude` | `[]` | Regexes; matching URLs are dropped. |
-| `since`, `until` | – | Dates (`YYYY-MM-DD`). Limit what is fetched and what the standalone book contains. |
+| `since`, `until` | – | A date (`YYYY-MM-DD`) or a rolling window (`7d`, `2w`, `3m`, `1y`). Limits what is fetched and what the standalone book contains. |
 | `standalone` | `true` | Build this blog's own book. Set `false` for blogs that only feed combined books. |
 | `images` | `true` | Download images during sync. |
 | `max_image_width` | `1200` | Choose the largest `srcset` candidate not wider than this. |
 | `max_image_bytes` | `8000000` | Skip larger images. |
 | `fetch_full` | `true` | Feed source: fetch the page when the feed body is missing or short. |
+| `keep` | `[]` | CSS selectors for the article container(s). When one matches, only that content is kept. See [Site rules](#site-rules). |
+| `remove` | `[]` | CSS selectors for clutter to drop from every post (share bars, newsletter boxes, related posts). |
+| `extra_css` | – | CSS appended to every book that contains this blog. Chapters carry `class="blog-<id>"` for scoping. |
 | `request_delay` | inherits | Per-blog override. |
 | `wordpress` | `{}` | `api` (base URL), `post_type`, `categories` (ids), `params` (extra query params). |
 | `feed` | `{}` | `url` of the feed when discovery fails. |
@@ -224,7 +232,7 @@ Any blog or book key may also appear under `defaults`.
 | `blogs` | required | List of blog ids to combine. |
 | `title` | `id` | Book title. |
 | `author`, `description`, `publisher`, `language` | – / `en` | EPUB metadata; the description also appears on the title page and generated cover. |
-| `since`, `until` | – | Only posts published in this range. |
+| `since`, `until` | – | Only posts published in this range. A date, or a rolling window like `7d`, `2w`, `3m`, `1y` measured from the time of the build. |
 | `max_posts` | – | Keep the N most recent posts across all the book's blogs. |
 | `cover` | – | JPG/PNG path relative to `blogs.yaml`, or a URL (downloaded once). Otherwise a cover is generated. |
 | `images` | `true` | Embed images. `false` gives a text-only edition. |
@@ -235,6 +243,7 @@ Any blog or book key may also appear under `defaults`.
 | `readability` | `auto` | Build-time readability pass: `auto` (feed bodies only), `always`, `never`. |
 | `excerpts` | `true` | Excerpts on the part pages. |
 | `featured_images` | `true` | Lead each chapter with the post's featured image. |
+| `extra_css` | – | CSS appended to this book's stylesheet. |
 
 ### About `readability`
 
@@ -292,6 +301,39 @@ books:
     cover: covers/api-management.jpg
 ```
 
+## Site rules
+
+Calibre news recipes get most of their value from two lists: the tags that hold the article and
+the tags to throw away. blog2epub has the same two knobs, as CSS selectors, on every blog:
+
+```yaml
+  - id: example
+    url: https://example.org/blog
+    keep:
+      - "article.post"             # the article container; only this survives when it matches
+    remove:
+      - ".share-bar"
+      - ".newsletter-signup"
+      - "aside.related"
+      - "div[class*='cookie']"
+    extra_css: |
+      .blog-example blockquote { font-style: italic; }
+```
+
+- `keep` is applied to the full page before readability when a page has to be scraped (feed
+  links without a body, sitemap URLs), so it fixes the cases where readability picks the wrong
+  block. It is applied again to every cached body at build time, so it also trims WordPress API
+  content. When nothing matches, the whole body is kept.
+- `remove` runs after `keep`, at fetch and at build, and also stops the removed images from being
+  downloaded.
+- Selectors are validated when the config loads. Any selector `lxml.cssselect` understands works:
+  classes, ids, attribute matches, descendant and child combinators.
+- `extra_css` on a blog is appended to every book that contains it; use the `.blog-<id>` class
+  to scope it. `extra_css` on a book applies to that book only.
+
+Find selectors by opening a post in the browser's inspector, or run `detect` and look at one of
+the listed URLs.
+
 ## Recipes
 
 **A blog's complete archive, one file per year.** Big archives with images get large (the full
@@ -303,17 +345,20 @@ tyk.io book is about 50 MB). Split it:
     split: year               # output/tyk-2015.epub ... output/tyk-2026.epub
 ```
 
-**A monthly issue.** Newest first, grouped by month, last 90 days:
+**A weekly issue.** Newest first, grouped by blog, always the last seven days at build time:
 
 ```yaml
 books:
-  - id: apim-monthly
-    title: "API Management Monthly"
+  - id: apim-weekly
+    title: "API Management Weekly"
     blogs: [tyk, kong, gravitee, solo, postman]
-    since: "2026-06-01"
-    group_by: month
+    since: 7d
+    group_by: blog
     order: desc
 ```
+
+Rolling windows are measured when the build runs, so the weekly GitHub Action produces a fresh
+issue every Monday. `1y` on a blog limits what gets fetched as well as what the book contains.
 
 **Text only, for a small file.** `images: false` on the book keeps the download cache intact but
 embeds nothing:
@@ -428,6 +473,10 @@ Design notes for contributors:
 - **Book too large**: use `split: year`, lower `max_image_width`, or `images: false`.
 - **A post is missing**: check `include`/`exclude`, `since`/`until`, and whether the source lists
   it (`detect URL --sample 50`).
+- **Articles come with menus or footers**: add a `keep` selector for the article container, or
+  `remove` selectors for the clutter. See [Site rules](#site-rules).
+- **A `keep` selector removes everything**: it matched nothing on some pages and everything was
+  kept, or it matched a wrapper. Test it in the browser inspector on two different posts.
 - **WordPress returns 401/403 for the API**: the site restricts it. Set `source: feed` or
   `source: sitemap`.
 

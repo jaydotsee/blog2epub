@@ -326,6 +326,34 @@ def _is_effectively_empty(el: html.HtmlElement) -> bool:
     return not (el.text or "").strip()
 
 
+def apply_rules(root: html.HtmlElement, keep: list[str] | None, remove: list[str] | None) -> html.HtmlElement:
+    """Site rules in the spirit of Calibre recipes.
+
+    `keep`: CSS selectors naming the article container(s). When any match, only the matched
+    elements survive (in document order). `remove`: selectors for clutter to drop.
+    """
+    if keep:
+        matched: list[html.HtmlElement] = []
+        for sel in keep:
+            matched.extend(e for e in root.cssselect(sel) if e is not root)
+        if matched:
+            # keep outermost matches only, in document order (selectors may match out of order)
+            position = {e: i for i, e in enumerate(root.iter())}
+            outer = sorted(
+                {e for e in matched if not any(a in matched for a in e.iterancestors())},
+                key=lambda e: position.get(e, 0),
+            )
+            container = html.Element("div")
+            for e in outer:
+                container.append(e)
+            root = container
+    for sel in remove or []:
+        for e in root.cssselect(sel):
+            if e is not root and e.getparent() is not None:
+                e.drop_tree()
+    return root
+
+
 def clean_html(
     raw_html: str,
     base_url: str,
@@ -334,6 +362,8 @@ def clean_html(
     link_resolver: LinkResolver | None = None,
     max_image_width: int = 1200,
     demote_headings: bool = True,
+    keep: list[str] | None = None,
+    remove: list[str] | None = None,
 ) -> tuple[str, list[str]]:
     """Return (xhtml_fragment, image_urls_wanted).
 
@@ -346,6 +376,7 @@ def clean_html(
 
     root = html.fragment_fromstring(raw_html, create_parent="div")
     root.make_links_absolute(base_url, resolve_base_href=True)
+    root = apply_rules(root, keep, remove)
     _replace_media(root)
     root = _cleaner.clean_html(root)
 
@@ -439,7 +470,13 @@ def clean_html(
     return xhtml, wanted_images
 
 
-def extract_image_urls(raw_html: str, base_url: str, max_image_width: int = 1200) -> list[str]:
+def extract_image_urls(
+    raw_html: str,
+    base_url: str,
+    max_image_width: int = 1200,
+    keep: list[str] | None = None,
+    remove: list[str] | None = None,
+) -> list[str]:
     """Image URLs a post would want, so sync can prefetch them (same choice logic as clean_html)."""
     urls: list[str] = []
 
@@ -448,7 +485,14 @@ def extract_image_urls(raw_html: str, base_url: str, max_image_width: int = 1200
         return "x"
 
     if raw_html and raw_html.strip():
-        clean_html(raw_html, base_url, image_resolver=collect, max_image_width=max_image_width)
+        clean_html(
+            raw_html,
+            base_url,
+            image_resolver=collect,
+            max_image_width=max_image_width,
+            keep=keep,
+            remove=remove,
+        )
     return list(dict.fromkeys(urls))
 
 

@@ -33,8 +33,11 @@ blogs:
     include:
       - "^https://tyk\\.io/blog/"     # only posts whose URL matches one of these regexes
     exclude: []
-    # since: "2020-01-01"     # optional lower bound on publication date
+    # since: "2020-01-01"     # lower bound on publication date; "1y", "3m", "2w", "7d" work too
     # cover: covers/tyk.jpg   # jpg/png path (relative to this file) or URL; otherwise a cover is generated
+    # keep: ["article.post"]  # CSS selectors: the article container(s), Calibre-recipe style
+    # remove: [".share", ".newsletter-signup"]   # CSS selectors: clutter to drop from every post
+    # extra_css: ".blog-tyk pre { font-size: 0.8em; }"
 
   # Other API management vendors. They only expose feeds (latest ~10 posts each),
   # so the cache fills up over time as the weekly monitor runs.
@@ -42,6 +45,10 @@ blogs:
     title: "Kong Blog"
     url: https://konghq.com/blog
     standalone: false
+    remove:                   # feed bodies carry the page breadcrumbs and "# " heading markers
+      - "[itemtype='https://schema.org/BreadcrumbList']"
+      - "[class*='Breadcrumbs_']"
+      - "span.agent"
   - id: gravitee
     title: "Gravitee Blog"
     url: https://www.gravitee.io/blog
@@ -61,7 +68,7 @@ books:
     description: "Recent posts from API management vendors, in one magazine-style ebook."
     author: "Various"
     blogs: [tyk, kong, gravitee, solo, postman]
-    since: "2025-01-01"
+    since: "2025-01-01"       # a date, or a rolling window such as 3m (last 90 days at build time)
     max_posts: 150            # the 150 most recent posts across all five blogs
     group_by: blog            # one part per blog; try `month` for an issue-like layout
     order: desc               # newest first

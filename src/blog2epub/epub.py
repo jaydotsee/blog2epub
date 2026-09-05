@@ -17,7 +17,7 @@ from .clean import clean_html, normalize_url, text_of
 from .config import BlogConfig, BookConfig
 from .extract import readability_pass
 from .images import MEDIA_TYPES
-from .models import Post, parse_date
+from .models import Post, resolve_date
 from .store import BlogStore
 
 log = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ def _fmt_date(post: Post) -> str:
 # ---- selecting and ordering --------------------------------------------------------
 def select_entries(book: BookConfig, sources: dict[str, tuple[BlogConfig, BlogStore]]) -> list[Entry]:
     """Every cached post of the book's blogs within since/until, sorted, trimmed to max_posts."""
-    since, until = parse_date(book.since), parse_date(book.until)
+    since, until = resolve_date(book.since), resolve_date(book.until)
     entries: list[Entry] = []
     for blog_id in book.blogs:
         blog, store = sources[blog_id]
@@ -167,7 +167,7 @@ def render_chapter(book: BookConfig, ch: Chapter, body_xhtml: str, lead_image: s
     lead = f'<figure class="lead"><img src={_attr(lead_image)} alt=""/></figure>\n' if lead_image else ""
     return (
         XHTML_HEAD.format(lang=_attr(book.language), title=_esc(p.title))
-        + f'<section epub:type="chapter" id={_attr(ch.item_id)}>\n'
+        + f'<section epub:type="chapter" class={_attr("blog-" + ch.entry.blog.id)} id={_attr(ch.item_id)}>\n'
         + '<header class="post-header">\n'
         + f"<h1>{_esc(p.title)}</h1>\n"
         + (f'<p class="byline">{byline}</p>\n' if byline else "")
@@ -466,7 +466,9 @@ def build_epub(
     title = title or book.title
     blogs = list({e.blog.id: e.blog for e in entries}.values())
     uid = "urn:uuid:" + str(uuid.uuid5(uuid.NAMESPACE_URL, f"blog2epub:{book.id}:{title}"))
-    css = resources.files("blog2epub").joinpath("assets/styles.css").read_bytes()
+    css = resources.files("blog2epub").joinpath("assets/styles.css").read_text(encoding="utf-8")
+    for extra in [b.extra_css for b in blogs if b.extra_css] + ([book.extra_css] if book.extra_css else []):
+        css += "\n" + extra.strip() + "\n"
 
     chapters = [
         Chapter(index=i, entry=e, filename=f"Text/ch-{i:04d}.xhtml", item_id=f"ch-{i:04d}")
@@ -513,6 +515,8 @@ def build_epub(
             link_resolver=link_resolver,
             max_image_width=blog.max_image_width,
             demote_headings=book.demote_headings,
+            keep=blog.keep,
+            remove=blog.remove,
         )
         ch.images = imgs
         lead = None
@@ -555,7 +559,7 @@ def build_epub(
     files: dict[str, bytes] = {
         "nav.xhtml": render_nav(book, title, parts).encode("utf-8"),
         "toc.ncx": render_ncx(book, title, uid, parts).encode("utf-8"),
-        "Styles/styles.css": css,
+        "Styles/styles.css": css.encode("utf-8"),
         cover_href: cover_bytes,
         "Text/cover.xhtml": render_cover_page(book, title, cover_href).encode("utf-8"),
         "Text/title.xhtml": render_title_page(book, title, subtitle, chapters, blogs, now).encode("utf-8"),

@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 from ..config import BlogConfig
 from ..http import HttpClient
-from ..models import Post, PostRef, parse_date
+from ..models import Post, PostRef, parse_date, resolve_date
 
 
 class SourceError(Exception):
@@ -42,8 +42,8 @@ class Source(ABC):
             return False
         d = parse_date(ref.date)
         if d is not None:
-            since = parse_date(self.blog.since)
-            until = parse_date(self.blog.until)
+            since = resolve_date(self.blog.since)
+            until = resolve_date(self.blog.until)
             if since and d < since:
                 return False
             if until and d > until:

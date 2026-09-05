@@ -55,7 +55,9 @@ def _jsonld(doc: html.HtmlElement) -> dict[str, Any]:
     return {k: v for k, v in out.items() if v}
 
 
-def extract_article(page_html: str, url: str) -> dict[str, Any]:
+def extract_article(
+    page_html: str, url: str, keep: list[str] | None = None, remove: list[str] | None = None
+) -> dict[str, Any]:
     """Return {title, html, date, modified, author, excerpt, featured_image} for a blog post page."""
     doc = html.fromstring(page_html)
     ld = _jsonld(doc)
@@ -78,11 +80,18 @@ def extract_article(page_html: str, url: str) -> dict[str, Any]:
     featured = _meta(doc, "og:image", "twitter:image")
 
     body_html = ""
-    try:
-        readable = Document(page_html, url=url)
-        body_html = readable.summary(html_partial=True)
-    except Exception as exc:  # readability raises a variety of lxml errors on odd pages
-        log.warning("readability failed for %s: %s", url, exc)
+    if keep:
+        kept = _keep_container(doc, keep)
+        if kept:
+            body_html = kept
+    if not body_html:
+        try:
+            readable = Document(page_html, url=url)
+            body_html = readable.summary(html_partial=True)
+        except Exception as exc:  # readability raises a variety of lxml errors on odd pages
+            log.warning("readability failed for %s: %s", url, exc)
+    if body_html and remove:
+        body_html = _drop(body_html, remove)
     return {
         "title": title,
         "html": body_html,
@@ -137,3 +146,27 @@ def _unwrap(fragment: str) -> str:
         root = root[0]
     inner = (root.text or "") + "".join(html.tostring(child, encoding="unicode") for child in root)
     return inner
+
+
+def _keep_container(doc: html.HtmlElement, keep: list[str]) -> str:
+    """Serialise the elements matched by `keep` selectors, outermost first, document order."""
+    matched: list[html.HtmlElement] = []
+    for sel in keep:
+        matched.extend(doc.cssselect(sel))
+    position = {e: i for i, e in enumerate(doc.iter())}
+    outer = sorted(
+        {e for e in matched if not any(a in matched for a in e.iterancestors())},
+        key=lambda e: position.get(e, 0),
+    )
+    if not outer:
+        return ""
+    return "".join(html.tostring(e, encoding="unicode") for e in outer)
+
+
+def _drop(fragment: str, remove: list[str]) -> str:
+    root = html.fragment_fromstring(fragment, create_parent="div")
+    for sel in remove:
+        for e in root.cssselect(sel):
+            if e is not root and e.getparent() is not None:
+                e.drop_tree()
+    return (root.text or "") + "".join(html.tostring(c, encoding="unicode") for c in root)

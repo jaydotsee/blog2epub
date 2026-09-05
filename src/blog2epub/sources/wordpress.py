@@ -13,7 +13,7 @@ from lxml import html as lxml_html
 
 from ..config import BlogConfig
 from ..http import HttpClient
-from ..models import Post, PostRef, utcnow_iso
+from ..models import Post, PostRef, is_relative_date, resolve_date, utcnow_iso
 from .base import Source, SourceError
 
 log = logging.getLogger(__name__)
@@ -209,6 +209,11 @@ def _gmt(value: str | None) -> str | None:
 
 
 def _iso_day(value: str, end: bool) -> str:
+    """WordPress wants ISO-8601; config values may be dates or rolling windows like 7d."""
+    if is_relative_date(value):
+        d = resolve_date(value)
+        assert d is not None
+        return d.strftime("%Y-%m-%dT%H:%M:%S")
     value = value.strip()
     if "T" in value:
         return value

@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from lxml.cssselect import CSSSelector, SelectorError
+
+from .models import resolve_date
 
 
 class ConfigError(Exception):
@@ -13,6 +16,21 @@ class ConfigError(Exception):
 
 
 _ID_RE = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def _check_date(owner: str, attr: str, value: str | None) -> None:
+    if value is not None and resolve_date(value) is None:
+        raise ConfigError(
+            f"{owner}: `{attr}` must be a date like 2025-01-01 or a window like 7d, 2w, 3m, 1y, not {value!r}"
+        )
+
+
+def _check_selectors(owner: str, attr: str, selectors: list[str]) -> None:
+    for sel in selectors:
+        try:
+            CSSSelector(sel)
+        except SelectorError as exc:
+            raise ConfigError(f"{owner}: `{attr}` has an invalid CSS selector {sel!r}: {exc}") from exc
 
 
 def _check_choice(owner: str, attr: str, value: str, allowed: set[str]) -> None:
@@ -43,6 +61,7 @@ class BookConfig:
     readability: str = "auto"  # auto | always | never
     excerpts: bool = True  # show excerpts on the part/contents pages
     featured_images: bool = True  # lead each chapter with the post's featured image
+    extra_css: str = ""  # appended to the book's stylesheet
 
     def __post_init__(self) -> None:
         if not self.id or not _ID_RE.fullmatch(self.id):
@@ -55,6 +74,8 @@ class BookConfig:
         _check_choice(f"book {self.id!r}", "order", self.order, {"asc", "desc"})
         _check_choice(f"book {self.id!r}", "split", self.split, {"none", "year"})
         _check_choice(f"book {self.id!r}", "readability", self.readability, {"auto", "always", "never"})
+        _check_date(f"book {self.id!r}", "since", self.since)
+        _check_date(f"book {self.id!r}", "until", self.until)
 
 
 # Book-level keys a blog may also carry; they configure the blog's own standalone book.
@@ -90,6 +111,9 @@ class BlogConfig:
     max_image_width: int = 1200
     max_image_bytes: int = 8_000_000
     fetch_full: bool = True  # feed source: fetch the page when the feed body is missing/short
+    keep: list[str] = field(default_factory=list)  # CSS selectors: the article container(s)
+    remove: list[str] = field(default_factory=list)  # CSS selectors: clutter to drop from every post
+    extra_css: str = ""  # appended to the stylesheet of every book containing this blog
     request_delay: float | None = None
     wordpress: dict[str, Any] = field(default_factory=dict)
     feed: dict[str, Any] = field(default_factory=dict)
@@ -124,6 +148,10 @@ class BlogConfig:
                 re.compile(pattern)
             except re.error as exc:
                 raise ConfigError(f"blog {self.id!r}: invalid regex {pattern!r}: {exc}") from exc
+        _check_selectors(f"blog {self.id!r}", "keep", self.keep)
+        _check_selectors(f"blog {self.id!r}", "remove", self.remove)
+        _check_date(f"blog {self.id!r}", "since", self.since)
+        _check_date(f"blog {self.id!r}", "until", self.until)
         self.as_book()  # validates the book-level choices
 
     def as_book(self) -> BookConfig:

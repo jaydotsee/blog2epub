@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dateutil import parser as dtparser
@@ -63,6 +64,32 @@ class Post:
     def month(self) -> str:
         d = self.date_obj
         return d.strftime("%Y-%m") if d else "Undated"
+
+
+_RELATIVE_RE = re.compile(r"^\s*(\d+)\s*([dwmy])\s*$", re.I)
+_UNIT_DAYS = {"d": 1, "w": 7, "m": 30, "y": 365}
+
+
+def resolve_date(value: str | None, now: datetime | None = None) -> datetime | None:
+    """Turn a config date into a datetime.
+
+    Accepts absolute dates ("2025-01-01", "2025-01-01T12:00:00Z") and rolling windows relative
+    to now: "7d", "2w", "3m", "1y" (days, weeks, months of 30 days, years of 365 days).
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    m = _RELATIVE_RE.match(text)
+    if m:
+        now = now or datetime.now(timezone.utc)
+        return now - timedelta(days=int(m.group(1)) * _UNIT_DAYS[m.group(2).lower()])
+    return parse_date(text)
+
+
+def is_relative_date(value: str | None) -> bool:
+    return bool(value) and _RELATIVE_RE.match(str(value)) is not None
 
 
 def parse_date(value: str | None) -> datetime | None:

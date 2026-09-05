@@ -120,7 +120,7 @@ class FeedSource(Source):
             if self.blog.fetch_full and len(text_of(body)) < MIN_FULL_BODY_CHARS:
                 try:
                     page = self.client.get_text(ref.url)
-                    art = extract_article(page, ref.url)
+                    art = extract_article(page, ref.url, keep=self.blog.keep, remove=self.blog.remove)
                     if len(text_of(art["html"])) > len(text_of(body)):
                         body = art["html"]
                     title = title or art["title"]

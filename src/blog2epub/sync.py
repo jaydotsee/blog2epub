@@ -100,7 +100,9 @@ def sync_blog(
         for post in store.iter_posts():
             if post.featured_image:
                 wanted.append(post.featured_image)
-            wanted.extend(extract_image_urls(post.html, post.url, blog.max_image_width))
+            wanted.extend(
+                extract_image_urls(post.html, post.url, blog.max_image_width, blog.keep, blog.remove)
+            )
         for url in dict.fromkeys(wanted):
             if store.image_path(url) or store.image_failed(url):
                 continue
