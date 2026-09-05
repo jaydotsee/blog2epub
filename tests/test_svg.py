@@ -114,3 +114,27 @@ def test_images_are_downscaled_and_reencoded(tmp_path, blog, store):
     original = next(n for n in z2.namelist() if "/Images/" in n and "cover" not in n)
     with Image.open(io.BytesIO(z2.read(original))) as im:
         assert im.width == 3000
+
+
+def test_build_reports_what_optimisation_saved(tmp_path, blog, store):
+    """The saving has to be visible, or a silently huge book looks normal."""
+    # noise, so it compresses like a real photograph rather than to nothing
+    import os
+
+    from PIL import Image
+
+    from blog2epub.cli import _build_line
+    from blog2epub.epub import build_epub, select_entries
+    from tests.conftest import make_post
+
+    big = tmp_path / "big.jpg"
+    Image.frombytes("RGB", (2000, 1500), os.urandom(2000 * 1500 * 3)).save(big, "JPEG", quality=95)
+    url = "https://example.com/img/big.jpg"
+    store.put_image(url, big.read_bytes(), "jpg", "image/jpeg")
+    store.put_post(make_post("wp-1", "2024-01-01T00:00:00+00:00", html=f'<p>x <img src="{url}" alt="b"></p>'))
+    store.save()
+
+    book = blog.as_book()
+    r = build_epub(book, select_entries(book, {blog.id: (blog, store)}), tmp_path / "b.epub")
+    assert r.image_bytes_before > r.image_bytes > 0
+    assert "images optimised" in _build_line(r)

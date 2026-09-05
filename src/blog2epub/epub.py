@@ -94,6 +94,8 @@ class BuildResult:
     images: int
     missing_images: int
     size: int
+    image_bytes: int = 0  # bytes of images actually embedded
+    image_bytes_before: int = 0  # what they weighed as the blogs serve them
 
 
 def _esc(text: str | None) -> str:
@@ -569,6 +571,7 @@ def build_epub(
     image_files: dict[str, tuple[str, Path, str]] = {}  # url -> (href, path, media_type)
     missing: set[str] = set()
     svg_kept: set[str] = set()  # SVGs we wanted to rasterise but could not (cairosvg missing)
+    original_bytes: dict[str, int] = {}  # url -> size as served, for the optimisation report
     widths = {e.blog.id: e.blog.max_image_width for e in entries}
 
     def store_width(store: BlogStore) -> int:
@@ -592,6 +595,7 @@ def build_epub(
                 missing.add(url)
                 return None
             media_type = store.image_media_type(url) or MEDIA_TYPES.get(path.suffix.lstrip("."), "image/jpeg")
+            original_bytes[url] = path.stat().st_size
             if media_type != "image/svg+xml" and book.optimize_images:
                 slimmed = optimize_image(path, store_width(store), book.image_quality)
                 if slimmed:
@@ -703,9 +707,12 @@ def build_epub(
         else:
             for ch in part.chapters:
                 add_chapter(ch)
+    embedded_bytes = 0
     for n, (href, path, media_type) in enumerate(image_files.values(), start=1):
         manifest.append((f"img-{n}", href, media_type, ""))
-        files[href] = path.read_bytes()
+        data = path.read_bytes()
+        embedded_bytes += len(data)
+        files[href] = data
     files["content.opf"] = render_opf(book, title, uid, now, blogs, manifest, spine).encode("utf-8")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -737,6 +744,8 @@ def build_epub(
         images=len(image_files),
         missing_images=len(missing),
         size=out_path.stat().st_size,
+        image_bytes=embedded_bytes,
+        image_bytes_before=sum(original_bytes.get(u, 0) for u in image_files),
     )
 
 

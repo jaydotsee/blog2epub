@@ -88,6 +88,10 @@ exposes.
   content.
 - **Site rules, Calibre-recipe style.** Per blog, `keep` names the article container and
   `remove` lists the clutter to drop, as CSS selectors. `extra_css` tunes the look.
+- **E-reader-sized images.** Every build downscales images to `max_image_width` and re-encodes
+  them, flattening heavy transparent PNGs onto white. Blogs serve images sized for desktop
+  retina screens; without this step a complete archive is several times larger than it needs to
+  be (Kong: 705 MB as served, 236 MB built).
 - **Clean, valid XHTML.** Scripts, styles, forms, tracking attributes, Word pastes, lazy-load
   placeholders and custom elements are handled. Every generated book passes epubcheck with zero
   errors and warnings.
@@ -162,10 +166,10 @@ python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 ```
 
-Java is only needed for `make epubcheck` and the optional validator test. Cover rendering needs
-the `covers` extra (Playwright) and a Chromium. SVG rasterisation needs the `svg` extra (cairosvg,
-which needs the cairo library: `libcairo2` on Debian and Ubuntu, `cairo` on Homebrew); `make setup`
-installs it.
+Image downscaling is part of a plain install. Java is only needed for `make epubcheck` and the
+optional validator test. Cover rendering needs the `covers` extra (Playwright) and a Chromium.
+SVG rasterisation needs the `svg` extra (cairosvg, which needs the cairo library: `libcairo2` on
+Debian and Ubuntu, `cairo` on Homebrew); `make setup` installs it.
 
 ## Quick start
 
@@ -295,7 +299,7 @@ Any blog or book key may also appear under `defaults`.
 | `excerpts` | `true` | Excerpts on the part pages. |
 | `featured_images` | `true` | Lead each chapter with the post's featured image. |
 | `extra_css` | – | CSS appended to this book's stylesheet. |
-| `optimize_images` | `true` | Downscale images to `max_image_width` and re-encode them at build time (needs the `images` extra, Pillow). Blogs serve desktop-sized images; Kong's archive is 705 MB as served and 236 MB optimised. |
+| `optimize_images` | `true` | Downscale images to `max_image_width` and re-encode them at build time. A standard step: blogs serve desktop-sized images, and Kong's archive is 705 MB as served against 236 MB optimised. Turn it off only to keep originals. |
 | `image_quality` | `82` | JPEG quality used when re-encoding. |
 | `svg_images` | `raster` | What to do with SVG images: `raster` converts them to PNG (needs the `svg` extra, cairosvg), `keep` embeds them as is, `drop` replaces them with their alt text. Kindle's converter falls back to a fixed layout when it meets SVG, so `raster` is the default. |
 
@@ -636,9 +640,9 @@ HTTP client.
 - **A blog is unreachable**: it is reported as an error and the run continues with the other blogs;
   the exit code is 2 so CI notices. Books that include the failed blog are still built from what
   the cache holds.
-- **Book too large**: images dominate. Check the `images` extra is installed (without Pillow
-  nothing is downscaled), then lower `max_image_width` or `image_quality`, or use `split: year`
-  or `images: false`.
+- **Book too large**: images dominate. Every build reports what optimisation saved; if it says
+  nothing, check the log for a Pillow error. Then lower `max_image_width` or `image_quality`, or
+  use `split: year` or `images: false`.
 - **Kindle shows "original layout preserved" / no font size control**: the converter met SVG. Make
   sure the `svg` extra is installed (the build warns when it is not) or set `svg_images: drop`.
 - **A post is missing**: check `include`/`exclude`, `since`/`until`, and whether the source lists

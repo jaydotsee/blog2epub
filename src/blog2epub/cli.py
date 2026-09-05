@@ -69,6 +69,13 @@ def _build(settings: Settings, book: BookConfig, sources) -> list[BuildResult]:
 
 def _build_line(r: BuildResult) -> str:
     line = f"built {r.path} - {r.posts} posts, {r.images} images, {r.size / 1e6:.1f} MB"
+    saved = r.image_bytes_before - r.image_bytes
+    if saved > 100_000:
+        scale, unit = (1e6, "MB") if r.image_bytes_before > 1e6 else (1e3, "kB")
+        line += (
+            f" (images optimised: {r.image_bytes_before / scale:.1f} -> {r.image_bytes / scale:.1f} "
+            f"{unit}, -{100 * saved / r.image_bytes_before:.0f}%)"
+        )
     if r.missing_images:
         line += f" ({r.missing_images} image references had no cached file)"
     return line

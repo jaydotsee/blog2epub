@@ -35,13 +35,13 @@ dependencies = [
     "readability-lxml>=0.8",
     "feedparser>=6.0",
     "python-dateutil>=2.8",
+    "Pillow>=10.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.10", "types-requests", "types-PyYAML", "cairosvg>=2.7", "Pillow>=10.0"]
+dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.10", "types-requests", "types-PyYAML", "cairosvg>=2.7"]
 covers = ["playwright>=1.45"]
 svg = ["cairosvg>=2.7"]
-images = ["Pillow>=10.0"]
 
 [project.urls]
 Homepage = "https://github.com/jaydotsee/blog2epub"

@@ -4,6 +4,7 @@ import io
 import logging
 import re
 import time
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -102,7 +103,16 @@ def pick_srcset_candidate(src: str | None, srcset: str | None, max_width: int) -
     return src or candidates[0][1]
 
 
-PNG_ALPHA_BUDGET = 150_000  # above this, a transparent PNG is flattened onto white as JPEG
+PNG_ALPHA_BUDGET = 150_000
+
+
+@lru_cache(maxsize=1)
+def _warn_no_pillow() -> None:
+    """Loud, once: without Pillow a book comes out several times larger than it should."""
+    log.error(
+        "Pillow is not installed, so images cannot be downscaled and this book will be several "
+        "times larger than it should be. Reinstall blog2epub to pull it in."
+    )  # above this, a transparent PNG is flattened onto white as JPEG
 
 
 def optimize_image(path: Path, max_width: int, quality: int = 82) -> tuple[Path, str] | None:
@@ -115,8 +125,9 @@ def optimize_image(path: Path, max_width: int, quality: int = 82) -> tuple[Path,
     Returns (path, media_type) for the optimised file, or None to keep the original.
     """
     try:
-        from PIL import Image  # noqa: PLC0415  (optional: the `images` extra)
-    except ImportError:
+        from PIL import Image  # noqa: PLC0415
+    except ImportError:  # pragma: no cover - Pillow is a hard dependency
+        _warn_no_pillow()
         return None
 
     suffix = ".opt.jpg"

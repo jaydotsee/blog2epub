@@ -35,7 +35,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install
-        run: pip install -e ".[svg,images]"
+        run: pip install -e ".[svg]"
 
       # The cache key is unique per run so the *newest* cache is always saved;
       # restore-keys picks up the previous run's cache.
@@ -52,7 +52,7 @@ jobs:
       - name: Render covers
         continue-on-error: true
         run: |
-          pip install -e ".[covers,svg,images]"
+          pip install -e ".[covers,svg]"
           python -m playwright install --with-deps chromium
           blog2epub -v sync
           python scripts/render_cover.py --all

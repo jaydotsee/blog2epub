@@ -9,6 +9,10 @@ non-obvious traps.
 
 - `make check` (ruff, ruff format, mypy, pytest) must pass before every commit. CI runs the same
   on Python 3.10 and 3.12.
+- **Images are downscaled on every build.** Blogs serve desktop-sized images and a complete
+  archive of them is unreadably large, so optimisation is a standard step rather than an option:
+  Pillow is a core dependency and `optimize_images` defaults to on. Each build reports what it
+  saved; a build that reports nothing is a bug worth chasing.
 - **Every generated book passes epubcheck with zero errors *and* zero warnings.** Warnings are not
   acceptable here: they are how Kindle and other converters decide a book is malformed. Validate
   with `make epubcheck`.
@@ -196,7 +200,7 @@ release regardless.
 | Kindle says "original layout preserved" | SVG images in the book | `svg_images: raster` (the default) with the `svg` extra |
 | Every sitemap URL 404s | Sitemap lists `/slug/`, server serves `/slug` | Handled: `HttpClient.get_text_tolerant` |
 | epubcheck NAV-011 warnings | A TOC link points backwards past earlier chapters | Section pages go in the spine right before their chapters |
-| Book too large to email | Images, almost always | Install the `images` extra so downscaling runs, then lower `max_image_width` / `image_quality`, or `split: year` |
+| Book too large to email | Images, almost always | Downscaling is standard and every build reports its saving; if it reports none, look for a Pillow error, then lower `max_image_width` / `image_quality`, or `split: year` |
 | Chapters are lists of links | `include` matched index pages | Tighten the regex to the post depth |
 | `include` matches nothing at all | The URL given is a **tag page**, not a section | Find where posts really live (see below) |
 | The feed is "not available" but you know it exists | It is on another host | Set `feed.url` explicitly |
