@@ -1,7 +1,8 @@
 # Build one book and publish it as a dated GitHub release.
 #
-# Two ways to run it:
-#   git tag tyk-2026.09.05 && git push origin tyk-2026.09.05     (tag = <book>-<YYYY.MM.DD>)
+# Three ways to run it (all produce the release tag <book>-<YYYY.MM.DD>):
+#   git tag tyk-2026.09.05 && git push origin tyk-2026.09.05
+#   git push origin main:release/tyk-2026.09.05          (a throwaway branch, for hosts that block tag pushes)
 #   Actions tab -> "Release a book" -> Run workflow with the book id
 name: Release a book
 
@@ -9,6 +10,8 @@ on:
   push:
     tags:
       - "*-[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]"
+    branches:
+      - "release/*-[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]"
   workflow_dispatch:
     inputs:
       book:
@@ -41,7 +44,8 @@ jobs:
         id: which
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            book="${GITHUB_REF_NAME%-*}"; issue="${GITHUB_REF_NAME##*-}"
+            name="${GITHUB_REF_NAME#release/}"
+            book="${name%-*}"; issue="${name##*-}"
           else
             book="${{ steps.which.outputs.book }}"; issue="$(date -u +%Y.%m.%d)"
           fi
@@ -84,6 +88,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.which.outputs.book }}-${{ steps.which.outputs.issue }}
+          target_commitish: ${{ github.sha }}
           name: "${{ steps.build.outputs.title }} — Issue ${{ steps.which.outputs.issue }}"
           body: |
             ${{ steps.build.outputs.title }}, built ${{ steps.which.outputs.issue }} by blog2epub.
