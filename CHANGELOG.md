@@ -11,9 +11,13 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   `max_image_width` and re-encoded; transparent PNGs above 150 KB are flattened onto white and
   encoded as JPEG, which is what dominates a large archive. The Kong book went from 705 MB to
   236 MB with no visible change on an e-reader.
-- The complete **Axway** archive (1,968 posts, 2011 to 2026) — the longest here — and the
-  complete **Gravitee** archive (656 posts), each with a cover in its brand palette.
-  Gravitee publishes through HubSpot, so its entry reads that sitemap rather than the site's own.
+- The complete **Axway** archive (1,968 posts, 2011 to 2026) — the longest here, and the first
+  book to use `split: year`, because 291 MB in one file is past Send to Kindle's limit — and the
+  complete **Gravitee** archive (656 posts). Both have covers in their brand palette. Gravitee
+  publishes through HubSpot, so its entry reads that sitemap rather than the site's own.
+- Per-blog `title_strip`: regexes matched against the end of a post title and dropped, applied
+  at build time so a rule can change without re-fetching. For a stale brand the generic rules
+  cannot know about, such as the Ambassador Labs naming a migration left on ten Gravitee posts.
 - `AGENTS.md`: how to work on the repository and the recipe pattern for adding a blog, with the
   gotchas learned building the Tyk and Kong archives.
 - `scripts/probe_blog.py`: works out a new blog's recipe in one command — sources and their post
@@ -37,6 +41,18 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   book; `make cover` and the monitor workflow use it.
 
 ### Fixed
+- Block elements are lifted out of the paragraphs that cannot legally contain them. WordPress
+  drops a `figure` or a video-embed `div` straight into a `<p>`; browsers close the paragraph
+  silently, epubcheck does not. This was 170 errors across the Axway archive. The repair now
+  covers every phrasing-only element (`p`, `h1`-`h6`, `dt` and the inline tags), replacing the
+  narrower inline-only version.
+- A `dl` carrying terms but no descriptions (WordPress galleries emit `dl > dt` alone) becomes
+  plain blocks rather than an invalid definition list.
+- An href may carry only one `#`. A broken markdown link produced two, which epubcheck rejects;
+  the fragment is now percent-encoded like the path and query already were.
+- SVGs cairosvg cannot parse are retried with `light-dark()` and `var()` colours resolved to
+  their light-theme value, which is what draw.io emits and what a book wants. The warning for
+  SVGs left unrasterised no longer blames a missing cairosvg when cairosvg is installed.
 - Placeholder publication dates are ignored. HubSpot writes `1970-01-01T00:00:00.000Z` when the
   field is unset and puts the real date on a second JSON-LD node; three Gravitee posts were
   landing in a 1970 chapter. A date now has to be 1995 or later to count, and an unusable one no

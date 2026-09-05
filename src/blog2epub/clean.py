@@ -284,15 +284,6 @@ def _valid_href(href: str) -> str | None:
     )
 
 
-def _unwrap_inline_around_blocks(root: html.HtmlElement) -> None:
-    """<b><p>..</p></b> and friends are invalid XHTML; drop the inline wrapper, keep its content."""
-    for el in list(root.iter(*_INLINE_TAGS)):
-        if el.getparent() is None:
-            continue
-        if any(isinstance(d.tag, str) and d.tag in _BLOCK_TAGS for d in el.iterdescendants()):
-            el.drop_tag()
-
-
 def _shift_headings(root: html.HtmlElement) -> None:
     if root.find(".//h1") is None:
         return
@@ -370,6 +361,31 @@ def _fix_lists(root: html.HtmlElement) -> None:
         parent = li.getparent()
         if parent is not None and parent.tag not in ("ul", "ol"):
             li.tag = "div"  # an item with no list around it is just a block
+    # A `dl` must pair terms with descriptions. WordPress galleries emit `dl > dt` alone, which
+    # is a list of blocks in everything but name, so that is what it becomes.
+    for dl in list(root.iter("dl")):
+        if dl.find("dd") is None:
+            for dt in dl.findall("dt"):
+                dt.tag = "div"
+            dl.tag = "div"
+
+
+# These may hold phrasing content only; a block inside one is invalid however browsers render it.
+_PHRASING_ONLY = _INLINE_TAGS | {"p", "h1", "h2", "h3", "h4", "h5", "h6", "dt"}
+
+
+def _unwrap_blocks_out_of_phrasing(root: html.HtmlElement) -> None:
+    """Lift a block element out of a `p` (or inline tag) that cannot legally contain it.
+
+    WordPress drops a `figure` or a video-embed `div` straight into a paragraph. Browsers
+    silently close the paragraph; epubcheck reports it. Unwrapping the paragraph keeps every
+    word and image and leaves the blocks as siblings, which is what the browser renders anyway.
+    """
+    for el in list(root.iter(*_PHRASING_ONLY)):
+        if el is root or el.getparent() is None:
+            continue
+        if any(isinstance(d.tag, str) and d.tag in _BLOCK_TAGS for d in el.iterdescendants()):
+            el.drop_tag()
 
 
 def _unnest_links(root: html.HtmlElement) -> None:
@@ -456,8 +472,8 @@ def clean_html(
                 continue
             el.drop_tag()
 
-    _unwrap_inline_around_blocks(root)
     _fix_lists(root)
+    _unwrap_blocks_out_of_phrasing(root)
     _unnest_links(root)
 
     if demote_headings:

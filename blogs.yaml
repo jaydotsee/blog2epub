@@ -76,6 +76,9 @@ blogs:
     source: wordpress        # the REST API returns posts only, so no include regex is needed
     order: desc              # newest post first
     group_by: year-month     # contents: year -> month -> posts
+    # 1968 posts of screenshots come to 291 MB as one file, past Send to Kindle's 200 MB
+    # limit and awkward on any reader. Per-year volumes keep full image quality.
+    split: year
     cover: covers/axway.jpg  # rendered by `make cover`
   - id: brunopedro
     title: "Bruno Pedro"
