@@ -137,6 +137,9 @@ tests/                         pytest; tests/test_epubcheck.py runs W3C epubchec
 - Feeds usually list only the most recent posts. The first sync of a feed-only blog gets what
   the feed offers; from then on the cache accumulates, so nothing is lost as long as the monitor
   keeps running. A sitemap source lists the whole archive when one exists.
+- A whole archive with images can get big (the full tyk.io book with all images is tens of
+  megabytes). Use `split: year` for one file per year, lower `max_image_width`, or set
+  `images: false` for a text-only edition.
 - Generated covers are SVG, which every EPUB 3 reader renders but Kindle conversions may not.
   Set `cover:` to a JPG or PNG for those.
 - Embedded video and iframes are replaced by a link to the original. Inline SVG and forms are
