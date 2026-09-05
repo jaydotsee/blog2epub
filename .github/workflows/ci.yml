@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: ["**"]
+    tags-ignore: ["**"]
   pull_request:
 
 jobs:
@@ -27,5 +28,11 @@ jobs:
           curl -sSL -o epubcheck.zip https://github.com/w3c/epubcheck/releases/download/v5.2.1/epubcheck-5.2.1.zip
           unzip -q epubcheck.zip
           echo "EPUBCHECK_JAR=$PWD/epubcheck-5.2.1/epubcheck.jar" >> "$GITHUB_ENV"
+      - name: Lint
+        run: |
+          ruff check src tests
+          ruff format --check src tests
+      - name: Type-check
+        run: mypy src
       - name: Test
         run: pytest -q

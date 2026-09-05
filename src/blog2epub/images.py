@@ -13,11 +13,20 @@ log = logging.getLogger(__name__)
 
 # EPUB 3.3 core media types for images.
 MEDIA_TYPES = {
-    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
-    "gif": "image/gif", "svg": "image/svg+xml", "webp": "image/webp",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "gif": "image/gif",
+    "svg": "image/svg+xml",
+    "webp": "image/webp",
 }
-_EXT_FOR_TYPE = {"image/jpeg": "jpg", "image/png": "png", "image/gif": "gif",
-                 "image/svg+xml": "svg", "image/webp": "webp"}
+_EXT_FOR_TYPE = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/svg+xml": "svg",
+    "image/webp": "webp",
+}
 
 
 def sniff_media_type(data: bytes, content_type: str | None, url: str) -> str | None:

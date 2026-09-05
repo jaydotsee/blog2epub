@@ -6,7 +6,9 @@ from tests.test_sources import FakeClient, FakeResponse
 
 
 def _settings(tmp_path):
-    return SimpleNamespace(config_path=tmp_path / "blogs.yaml", cache_dir=tmp_path / "cache", output_dir=tmp_path / "out")
+    return SimpleNamespace(
+        config_path=tmp_path / "blogs.yaml", cache_dir=tmp_path / "cache", output_dir=tmp_path / "out"
+    )
 
 
 def test_cover_local_path(tmp_path):
@@ -19,7 +21,9 @@ def test_cover_local_path(tmp_path):
 
 def test_cover_url_is_downloaded_once(tmp_path):
     url = "https://cdn.example/cover.png"
-    client = FakeClient(lambda u, p: FakeResponse(200, PNG_1x1, {"Content-Type": "image/png"}) if u == url else None)
+    client = FakeClient(
+        lambda u, p: FakeResponse(200, PNG_1x1, {"Content-Type": "image/png"}) if u == url else None
+    )
     path = resolve_cover(url, _settings(tmp_path), client)
     assert path is not None and path.read_bytes() == PNG_1x1 and path.suffix == ".png"
     again = resolve_cover(url, _settings(tmp_path), client)

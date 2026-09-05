@@ -39,8 +39,15 @@ class HttpClient:
         if wait > 0:
             time.sleep(wait)
 
-    def get(self, url: str, *, params: dict[str, Any] | None = None, stream: bool = False,
-            allow_404: bool = False, **kwargs: Any) -> requests.Response:
+    def get(
+        self,
+        url: str,
+        *,
+        params: dict[str, Any] | None = None,
+        stream: bool = False,
+        allow_404: bool = False,
+        **kwargs: Any,
+    ) -> requests.Response:
         self._throttle()
         log.debug("GET %s %s", url, params or "")
         resp = self.session.get(url, params=params, timeout=self.timeout, stream=stream, **kwargs)

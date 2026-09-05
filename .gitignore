@@ -12,3 +12,8 @@ dist/
 .venv/
 venv/
 .pytest_cache/
+.tools/
+.mypy_cache/
+.ruff_cache/
+covers/*
+!covers/README.md

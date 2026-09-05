@@ -25,7 +25,9 @@ def resolve_source(blog: BlogConfig, client: HttpClient, hint: str | None = None
     if wanted:
         src = SOURCES[wanted].detect(blog, client)
         if src is None:
-            raise SourceError(f"blog {blog.id!r}: configured source {wanted!r} is not available at {blog.url}")
+            raise SourceError(
+                f"blog {blog.id!r}: configured source {wanted!r} is not available at {blog.url}"
+            )
         return src
     order = list(DETECT_ORDER)
     if hint in order:
@@ -39,4 +41,4 @@ def resolve_source(blog: BlogConfig, client: HttpClient, hint: str | None = None
     raise SourceError(f"blog {blog.id!r}: could not detect a WordPress API, feed or sitemap at {blog.url}")
 
 
-__all__ = ["Source", "SourceError", "resolve_source", "SOURCES"]
+__all__ = ["SOURCES", "Source", "SourceError", "resolve_source"]

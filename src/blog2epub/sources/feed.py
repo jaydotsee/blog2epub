@@ -1,4 +1,5 @@
 """RSS / Atom feed source, with optional full-page fetch for truncated feeds."""
+
 from __future__ import annotations
 
 import hashlib
@@ -84,7 +85,9 @@ class FeedSource(Source):
             key = "feed-" + hashlib.sha1((entry.get("id") or url).encode("utf-8")).hexdigest()[:16]
             keys = set(entry.keys())  # feedparser warns on .get() of a missing *_parsed key
             ref = PostRef(
-                key=key, url=url, title=entry.get("title", ""),
+                key=key,
+                url=url,
+                title=entry.get("title", ""),
                 date=_struct_to_iso(entry["published_parsed"]) if "published_parsed" in keys else None,
                 modified=_struct_to_iso(entry["updated_parsed"]) if "updated_parsed" in keys else None,
             )
@@ -128,6 +131,18 @@ class FeedSource(Source):
                     featured = art["featured_image"]
                 except requests.RequestException as exc:
                     log.warning("could not fetch %s, keeping feed body: %s", ref.url, exc)
-            yield Post(key=ref.key, url=ref.url, title=title or ref.url, html=body, date=date,
-                       modified=modified, author=author, categories=[], tags=tags,
-                       excerpt=excerpt, featured_image=featured, source=self.name, fetched_at=utcnow_iso())
+            yield Post(
+                key=ref.key,
+                url=ref.url,
+                title=title or ref.url,
+                html=body,
+                date=date,
+                modified=modified,
+                author=author,
+                categories=[],
+                tags=tags,
+                excerpt=excerpt,
+                featured_image=featured,
+                source=self.name,
+                fetched_at=utcnow_iso(),
+            )

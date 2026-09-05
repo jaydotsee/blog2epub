@@ -1,4 +1,5 @@
 """Pull an article body and its metadata out of a full HTML page (for non-API sources)."""
+
 from __future__ import annotations
 
 import json
@@ -59,7 +60,7 @@ def extract_article(page_html: str, url: str) -> dict[str, Any]:
     doc = html.fromstring(page_html)
     ld = _jsonld(doc)
 
-    title = (ld.get("headline") or _meta(doc, "og:title", "twitter:title") or "")
+    title = ld.get("headline") or _meta(doc, "og:title", "twitter:title") or ""
     if not title:
         h1 = doc.find(".//h1")
         title = h1.text_content().strip() if h1 is not None else ""
@@ -82,8 +83,15 @@ def extract_article(page_html: str, url: str) -> dict[str, Any]:
         body_html = readable.summary(html_partial=True)
     except Exception as exc:  # readability raises a variety of lxml errors on odd pages
         log.warning("readability failed for %s: %s", url, exc)
-    return {"title": title, "html": body_html, "date": date, "modified": modified,
-            "author": author, "excerpt": excerpt, "featured_image": featured}
+    return {
+        "title": title,
+        "html": body_html,
+        "date": date,
+        "modified": modified,
+        "author": author,
+        "excerpt": excerpt,
+        "featured_image": featured,
+    }
 
 
 MIN_KEEP_RATIO = 0.6
@@ -106,8 +114,11 @@ def readability_pass(body_html: str, url: str) -> str:
         log.debug("readability pass skipped for %s: %s", url, exc)
         return body_html
     if not after or (before and after / before < MIN_KEEP_RATIO):
-        log.debug("readability pass would drop %d%% of %s, keeping original",
-                  100 - int(100 * after / before) if before else 100, url)
+        log.debug(
+            "readability pass would drop %d%% of %s, keeping original",
+            100 - int(100 * after / before) if before else 100,
+            url,
+        )
         return body_html
     return out
 
@@ -117,8 +128,12 @@ def _unwrap(fragment: str) -> str:
     if not fragment.strip():
         return ""
     root = html.fragment_fromstring(fragment, create_parent="div")
-    while len(root) == 1 and not (root.text or "").strip() and root[0].tag in ("body", "article", "div") \
-            and not (root[0].tail or "").strip():
+    while (
+        len(root) == 1
+        and not (root.text or "").strip()
+        and root[0].tag in ("body", "article", "div")
+        and not (root[0].tail or "").strip()
+    ):
         root = root[0]
     inner = (root.text or "") + "".join(html.tostring(child, encoding="unicode") for child in root)
     return inner

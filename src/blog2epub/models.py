@@ -4,6 +4,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from dateutil import parser as dtparser
+
 
 def utcnow_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -16,7 +18,7 @@ class PostRef:
     key: str
     url: str
     title: str = ""
-    date: str | None = None      # ISO-8601 publication date, if the listing knows it
+    date: str | None = None  # ISO-8601 publication date, if the listing knows it
     modified: str | None = None  # ISO-8601 last-modified, if the listing knows it
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -35,7 +37,7 @@ class Post:
     categories: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
     excerpt: str | None = None
-    featured_image: str | None = None   # absolute URL of the post's lead/og image, if any
+    featured_image: str | None = None  # absolute URL of the post's lead/og image, if any
     source: str = ""
     blog_id: str = ""
     fetched_at: str = field(default_factory=utcnow_iso)
@@ -45,7 +47,7 @@ class Post:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Post:
-        known = {f for f in cls.__dataclass_fields__}
+        known = set(cls.__dataclass_fields__)
         return cls(**{k: v for k, v in data.items() if k in known})
 
     @property
@@ -67,8 +69,6 @@ def parse_date(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        from dateutil import parser as dtparser
-
         d = dtparser.parse(value)
     except (ValueError, OverflowError, TypeError):
         return None

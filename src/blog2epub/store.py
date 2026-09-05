@@ -44,8 +44,14 @@ class BlogStore:
                 log.warning("cache index version mismatch for %s, starting fresh", self.root)
             except json.JSONDecodeError:
                 log.warning("corrupt cache index %s, starting fresh", self.index_path)
-        return {"version": INDEX_VERSION, "source": None, "last_sync": None,
-                "last_build": None, "posts": {}, "images": {}}
+        return {
+            "version": INDEX_VERSION,
+            "source": None,
+            "last_sync": None,
+            "last_build": None,
+            "posts": {},
+            "images": {},
+        }
 
     def save(self) -> None:
         tmp = self.index_path.with_suffix(".json.tmp")
@@ -70,10 +76,14 @@ class BlogStore:
 
     def put_post(self, post: Post) -> None:
         self._post_path(post.key).write_text(
-            json.dumps(post.to_dict(), ensure_ascii=False, indent=1), encoding="utf-8")
+            json.dumps(post.to_dict(), ensure_ascii=False, indent=1), encoding="utf-8"
+        )
         self.post_index[post.key] = {
-            "url": post.url, "title": post.title, "date": post.date,
-            "modified": post.modified, "fetched_at": post.fetched_at,
+            "url": post.url,
+            "title": post.title,
+            "date": post.date,
+            "modified": post.modified,
+            "fetched_at": post.fetched_at,
         }
 
     def get_post(self, key: str) -> Post | None:
@@ -101,7 +111,7 @@ class BlogStore:
 
     def image_path(self, url: str) -> Path | None:
         entry = self.image_index.get(url)
-        if not entry or not entry.get("file"):   # unknown, or recorded as failed
+        if not entry or not entry.get("file"):  # unknown, or recorded as failed
             return None
         path = self.images_dir / entry["file"]
         return path if path.exists() else None

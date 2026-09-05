@@ -1,4 +1,5 @@
 """Source tests with a fake HTTP client (no network)."""
+
 from __future__ import annotations
 
 import json
@@ -30,6 +31,7 @@ class FakeResponse:
     def raise_for_status(self):
         if self.status_code >= 400:
             import requests
+
             raise requests.HTTPError(f"{self.status_code}", response=self)
 
     def iter_content(self, n):
@@ -66,17 +68,28 @@ class FakeClient:
         return resp if resp.status_code == 200 else None
 
 
-BLOG_HTML = '<html><head><link rel="https://api.w.org/" href="https://example.com/wp-json/" />' \
-            '<link rel="alternate" type="application/rss+xml" href="/feed/"/></head><body/></html>'
+BLOG_HTML = (
+    '<html><head><link rel="https://api.w.org/" href="https://example.com/wp-json/" />'
+    '<link rel="alternate" type="application/rss+xml" href="/feed/"/></head><body/></html>'
+)
 
 
 def wp_item(i, date="2024-01-01T00:00:00", modified=None, link=None):
-    return {"id": i, "date_gmt": date, "modified_gmt": modified or date, "slug": f"p{i}",
-            "link": link or f"https://example.com/blog/p{i}/", "title": {"rendered": f"Post &amp; {i}"},
-            "content": {"rendered": f"<p>content {i}</p><img src='/img{i}.png'>"},
-            "excerpt": {"rendered": "<p>ex</p>"}, "author": 1,
-            "_embedded": {"author": [{"name": "Ann"}], "wp:term": [[{"taxonomy": "category", "name": "Cat"}],
-                                                                   [{"taxonomy": "post_tag", "name": "T1"}]]}}
+    return {
+        "id": i,
+        "date_gmt": date,
+        "modified_gmt": modified or date,
+        "slug": f"p{i}",
+        "link": link or f"https://example.com/blog/p{i}/",
+        "title": {"rendered": f"Post &amp; {i}"},
+        "content": {"rendered": f"<p>content {i}</p><img src='/img{i}.png'>"},
+        "excerpt": {"rendered": "<p>ex</p>"},
+        "author": 1,
+        "_embedded": {
+            "author": [{"name": "Ann"}],
+            "wp:term": [[{"taxonomy": "category", "name": "Cat"}], [{"taxonomy": "post_tag", "name": "T1"}]],
+        },
+    }
 
 
 def make_wp_routes(items, images=True):
@@ -89,13 +102,16 @@ def make_wp_routes(items, images=True):
                 return FakeResponse(200, json.dumps([i for i in items if i["id"] in ids]))
             page = int(params.get("page", 1))
             per = int(params.get("per_page", 100))
-            chunk = items[(page - 1) * per: page * per]
+            chunk = items[(page - 1) * per : page * per]
             if page > 1 and not chunk:
                 return FakeResponse(400, "{}")
-            return FakeResponse(200, json.dumps(chunk), {"X-WP-TotalPages": str(max(1, -(-len(items) // per)))})
+            return FakeResponse(
+                200, json.dumps(chunk), {"X-WP-TotalPages": str(max(1, -(-len(items) // per)))}
+            )
         if url.startswith("https://example.com/img") and images:
             return FakeResponse(200, b"\x89PNG\r\n\x1a\n" + b"\0" * 20, {"Content-Type": "image/png"})
         return None
+
     return routes
 
 
@@ -110,13 +126,15 @@ def test_wordpress_detect_discover_fetch(blog):
     posts = list(src.fetch(refs))
     assert posts[0].author == "Ann" and posts[0].categories == ["Cat"] and posts[0].tags == ["T1"]
     assert posts[0].date == "2024-01-01T00:00:00+00:00"
-    fetch_call = [c for c in client.calls if "include" in c[1]][0]
+    fetch_call = next(c for c in client.calls if "include" in c[1])
     assert fetch_call[1]["include"] == "1,3" and "after" not in fetch_call[1]
 
 
 def test_wordpress_since_filter_sent_as_after(blog):
     blog.since = "2024-01-02"
-    client = FakeClient(make_wp_routes([wp_item(1, date="2024-01-01T00:00:00"), wp_item(2, date="2024-01-03T00:00:00")]))
+    client = FakeClient(
+        make_wp_routes([wp_item(1, date="2024-01-01T00:00:00"), wp_item(2, date="2024-01-03T00:00:00")])
+    )
     src = WordPressSource.detect(blog, client)
     refs = src.discover()
     assert [r.key for r in refs] == ["wp-2"]
@@ -124,8 +142,9 @@ def test_wordpress_since_filter_sent_as_after(blog):
 
 
 def test_sync_is_incremental_and_detects_modified(tmp_path, blog):
-    settings = SimpleNamespace(config_path=tmp_path / "blogs.yaml", cache_dir=tmp_path / "cache",
-                               output_dir=tmp_path / "out")
+    settings = SimpleNamespace(
+        config_path=tmp_path / "blogs.yaml", cache_dir=tmp_path / "cache", output_dir=tmp_path / "out"
+    )
     items = [wp_item(1), wp_item(2)]
     client = FakeClient(make_wp_routes(items))
     store = BlogStore(settings.cache_dir, blog.id)
@@ -139,7 +158,7 @@ def test_sync_is_incremental_and_detects_modified(tmp_path, blog):
     store2 = BlogStore(settings.cache_dir, blog.id)
     r2 = sync_blog(blog, settings, client2, store2)
     assert (r2.new, r2.updated, r2.removed) == (1, 1, 0)
-    fetched = [c for c in client2.calls if "include" in c[1]][0][1]["include"]
+    fetched = next(c for c in client2.calls if "include" in c[1])[1]["include"]
     assert fetched == "2,3"
     assert r2.images_fetched == 1  # only the new post's image
 
@@ -157,11 +176,15 @@ RSS = """<?xml version="1.0"?><rss version="2.0"><channel><title>x</title>
 <pubDate>Mon, 01 Jan 2024 00:00:00 GMT</pubDate><description>short</description></item>
 </channel></rss>"""
 
-PAGE = """<html><head><title>Feed post - Site</title>
+PAGE = (
+    """<html><head><title>Feed post - Site</title>
 <meta property="article:published_time" content="2024-01-01T00:00:00+00:00"/>
 <meta name="author" content="Bob"/></head><body><nav>menu menu menu</nav>
-<article><h1>Feed post</h1>""" + "<p>Real paragraph of article text that is long enough to be picked up. </p>" * 20 + """
+<article><h1>Feed post</h1>"""
+    + "<p>Real paragraph of article text that is long enough to be picked up. </p>" * 20
+    + """
 </article><footer>foot</footer></body></html>"""
+)
 
 
 def test_feed_source_fetches_full_page_when_body_is_short(blog):
@@ -198,7 +221,9 @@ def test_sitemap_source(blog):
 
     def routes(url, params):
         return {
-            "https://example.com/robots.txt": FakeResponse(200, "Sitemap: https://example.com/sitemap_index.xml\n"),
+            "https://example.com/robots.txt": FakeResponse(
+                200, "Sitemap: https://example.com/sitemap_index.xml\n"
+            ),
             "https://example.com/sitemap_index.xml": FakeResponse(200, SITEMAP_INDEX),
             "https://example.com/post-sitemap.xml": FakeResponse(200, SITEMAP),
             "https://example.com/blog/f1/": FakeResponse(200, PAGE),
@@ -214,6 +239,7 @@ def test_sitemap_source(blog):
 
 def test_resolve_source_fails_cleanly():
     from blog2epub.sources import SourceError
+
     b = BlogConfig(id="x", url="https://nothing.example/blog")
     with pytest.raises(SourceError):
         resolve_source(b, FakeClient(lambda u, p: None))
@@ -225,4 +251,6 @@ def test_store_failed_image_entries(tmp_path):
     assert store.image_path("https://x/a.png") is None and store.image_failed("https://x/a.png")
     assert store.image_media_type("https://x/a.png") is None
     store.put_image("https://x/b.png", b"\x89PNG", "png", "image/png")
-    assert store.image_path("https://x/b.png").name.endswith(".png") and not store.image_failed("https://x/b.png")
+    assert store.image_path("https://x/b.png").name.endswith(".png") and not store.image_failed(
+        "https://x/b.png"
+    )

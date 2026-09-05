@@ -1,4 +1,5 @@
 """Turn arbitrary blog HTML into a well-formed XHTML fragment that e-readers accept."""
+
 from __future__ import annotations
 
 import re
@@ -20,30 +21,136 @@ _TAG_ATTRS = {
     "ol": {"start"},
     "blockquote": {"cite"},
     "q": {"cite"},
-    "abbr": {},
+    "abbr": set(),
     "time": {"datetime"},
 }
 _KEEP_CLASS_ON = {"pre", "code", "figure", "figcaption", "blockquote", "table", "div", "p", "span"}
-_UNWRAP_TAGS = {"font", "center", "noscript", "picture", "section", "article", "main",
-                "header", "footer", "nav", "aside", "details", "summary", "span"}
-_DROP_TAGS = {"source", "track", "svg", "canvas", "map", "area", "template", "dialog",
-              "button", "input", "select", "textarea", "label", "form", "object", "embed",
-              "applet", "param", "link", "meta", "style", "script", "head", "title", "base"}
+_UNWRAP_TAGS = {
+    "font",
+    "center",
+    "noscript",
+    "picture",
+    "section",
+    "article",
+    "main",
+    "header",
+    "footer",
+    "nav",
+    "aside",
+    "details",
+    "summary",
+    "span",
+}
+_DROP_TAGS = {
+    "source",
+    "track",
+    "svg",
+    "canvas",
+    "map",
+    "area",
+    "template",
+    "dialog",
+    "button",
+    "input",
+    "select",
+    "textarea",
+    "label",
+    "form",
+    "object",
+    "embed",
+    "applet",
+    "param",
+    "link",
+    "meta",
+    "style",
+    "script",
+    "head",
+    "title",
+    "base",
+}
 _MEDIA_TAGS = {"iframe", "video", "audio"}
 _KNOWN_TAGS = {
-    "a", "abbr", "address", "b", "bdi", "bdo", "blockquote", "br", "caption", "cite", "code", "col",
-    "colgroup", "dd", "del", "dfn", "div", "dl", "dt", "em", "figcaption", "figure", "h1", "h2", "h3",
-    "h4", "h5", "h6", "hr", "i", "img", "ins", "kbd", "li", "mark", "ol", "p", "pre", "q", "rp", "rt",
-    "ruby", "s", "samp", "small", "span", "strong", "sub", "sup", "table", "tbody", "td", "tfoot", "th",
-    "thead", "time", "tr", "u", "ul", "var", "wbr",
+    "a",
+    "abbr",
+    "address",
+    "b",
+    "bdi",
+    "bdo",
+    "blockquote",
+    "br",
+    "caption",
+    "cite",
+    "code",
+    "col",
+    "colgroup",
+    "dd",
+    "del",
+    "dfn",
+    "div",
+    "dl",
+    "dt",
+    "em",
+    "figcaption",
+    "figure",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "i",
+    "img",
+    "ins",
+    "kbd",
+    "li",
+    "mark",
+    "ol",
+    "p",
+    "pre",
+    "q",
+    "rp",
+    "rt",
+    "ruby",
+    "s",
+    "samp",
+    "small",
+    "span",
+    "strong",
+    "sub",
+    "sup",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "time",
+    "tr",
+    "u",
+    "ul",
+    "var",
+    "wbr",
 }
 _EMPTY_OK = {"img", "br", "hr", "td", "th", "col"}
 
 _cleaner = Cleaner(
-    scripts=True, javascript=True, comments=True, style=True, inline_style=True,
-    links=True, meta=True, page_structure=False, processing_instructions=True,
-    embedded=False, frames=False, forms=True, annoying_tags=True, remove_unknown_tags=False,
-    safe_attrs_only=False, kill_tags=["script", "style", "noembed", "object", "applet"],
+    scripts=True,
+    javascript=True,
+    comments=True,
+    style=True,
+    inline_style=True,
+    links=True,
+    meta=True,
+    page_structure=False,
+    processing_instructions=True,
+    embedded=False,
+    frames=False,
+    forms=True,
+    annoying_tags=True,
+    remove_unknown_tags=False,
+    safe_attrs_only=False,
+    kill_tags=["script", "style", "noembed", "object", "applet"],
 )
 
 LinkResolver = Callable[[str], str | None]
@@ -53,8 +160,11 @@ ImageResolver = Callable[[str], str | None]
 def normalize_url(url: str) -> str:
     """Canonical form used to match links between posts: no scheme/fragment/tracking/trailing slash."""
     parts = urlsplit(url.strip())
-    query = "&".join(q for q in parts.query.split("&")
-                     if q and not q.lower().startswith(("utm_", "fbclid", "gclid", "ref=")))
+    query = "&".join(
+        q
+        for q in parts.query.split("&")
+        if q and not q.lower().startswith(("utm_", "fbclid", "gclid", "ref="))
+    )
     path = parts.path.rstrip("/") or "/"
     host = parts.netloc.lower()
     if host.startswith("www."):
@@ -81,17 +191,54 @@ def _replace_media(root: html.HtmlElement) -> None:
         el.getparent().replace(el, placeholder)
 
 
-_BLOCK_TAGS = {"p", "div", "ul", "ol", "table", "pre", "blockquote", "figure", "hr", "dl",
-               "h1", "h2", "h3", "h4", "h5", "h6", "address"}
-_INLINE_TAGS = {"a", "b", "i", "em", "strong", "span", "code", "small", "u", "s", "sub", "sup",
-                "mark", "q", "cite", "abbr", "kbd", "del", "ins", "label"}
+_BLOCK_TAGS = {
+    "p",
+    "div",
+    "ul",
+    "ol",
+    "table",
+    "pre",
+    "blockquote",
+    "figure",
+    "hr",
+    "dl",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "address",
+}
+_INLINE_TAGS = {
+    "a",
+    "b",
+    "i",
+    "em",
+    "strong",
+    "span",
+    "code",
+    "small",
+    "u",
+    "s",
+    "sub",
+    "sup",
+    "mark",
+    "q",
+    "cite",
+    "abbr",
+    "kbd",
+    "del",
+    "ins",
+    "label",
+}
 _HOST_RE = re.compile(r"^[A-Za-z0-9.\-_~:\[\]@]+$")
 
 
 def _valid_host(netloc: str) -> bool:
     if not _HOST_RE.match(netloc):
         return False
-    host = netloc.rsplit("@", 1)[-1].split(":")[0]
+    host = netloc.rsplit("@", 1)[-1].split(":", maxsplit=1)[0]
     for label in host.split("."):
         if label.lower().startswith("xn--"):
             try:
@@ -206,9 +353,7 @@ def clean_html(
     for el in list(root.iter()):
         if el is root or el.getparent() is None:
             continue
-        if not isinstance(el.tag, str):  # comments, PIs
-            el.drop_tree()
-        elif ":" in el.tag or el.tag in _DROP_TAGS:
+        if not isinstance(el.tag, str) or ":" in el.tag or el.tag in _DROP_TAGS:  # comments, PIs
             el.drop_tree()
     for el in list(root.iter()):
         if not isinstance(el.tag, str) or el is root or el.getparent() is None:
@@ -231,7 +376,7 @@ def clean_html(
         if chosen and chosen.startswith("data:"):
             chosen = None
         local = image_resolver(chosen) if chosen else None
-        if local is None:
+        if local is None or chosen is None:
             alt = (img.get("alt") or "").strip()
             if alt:
                 span = html.Element("span")

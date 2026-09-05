@@ -1,4 +1,5 @@
 """Orchestration: discover -> fetch new/changed posts -> fetch their images -> update the cache."""
+
 from __future__ import annotations
 
 import logging
@@ -33,22 +34,29 @@ class SyncResult:
         return bool(self.new or self.updated or self.removed)
 
     def summary(self) -> str:
-        return (f"{self.blog_id}: {self.discovered} posts listed via {self.source}; "
-                f"{self.new} new, {self.updated} updated, {self.removed} removed, {self.stale} no longer listed; "
-                f"{self.images_fetched} images fetched, {self.images_failed} failed")
+        return (
+            f"{self.blog_id}: {self.discovered} posts listed via {self.source}; "
+            f"{self.new} new, {self.updated} updated, {self.removed} removed, {self.stale} no longer listed; "
+            f"{self.images_fetched} images fetched, {self.images_failed} failed"
+        )
 
 
 def _needs_fetch(store: BlogStore, ref: PostRef, full: bool) -> bool:
     if full or not store.has_post(ref.key):
         return True
     cached = store.post_index[ref.key]
-    if ref.modified and cached.get("modified") and ref.modified != cached["modified"]:
-        return True
-    return False
+    return bool(ref.modified and cached.get("modified") and ref.modified != cached["modified"])
 
 
-def sync_blog(blog: BlogConfig, settings: Settings, client: HttpClient, store: BlogStore, *,
-              full: bool = False, prune: bool = False) -> SyncResult:
+def sync_blog(
+    blog: BlogConfig,
+    settings: Settings,
+    client: HttpClient,
+    store: BlogStore,
+    *,
+    full: bool = False,
+    prune: bool = False,
+) -> SyncResult:
     source = resolve_source(blog, client, hint=store.index.get("source"))
     result = SyncResult(blog_id=blog.id, source=source.describe())
 

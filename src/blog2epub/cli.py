@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from . import __version__
 from .config import BlogConfig, BookConfig, ConfigError, Settings, load_config
@@ -51,8 +53,11 @@ def _build(settings: Settings, book: BookConfig, sources) -> list[BuildResult]:
     results = build_book(book, sources, settings.output_dir, cover)
     for blog_id in book.blogs:
         store = sources[blog_id][1]
-        store.index.setdefault("builds", {})[book.id] = {"at": utcnow_iso(), "files": [str(r.path) for r in results],
-                                                         "posts": sum(r.posts for r in results)}
+        store.index.setdefault("builds", {})[book.id] = {
+            "at": utcnow_iso(),
+            "files": [str(r.path) for r in results],
+            "posts": sum(r.posts for r in results),
+        }
         store.save()
     return results
 
@@ -73,10 +78,19 @@ def cmd_list(settings: Settings, args: argparse.Namespace) -> int:
         print(f"  {b.id:14} {b.title:32} {b.url}  [{b.source}] cached={len(store.post_index)}{flag}")
     print("books:")
     for bk in settings.all_books():
-        span = " ".join(x for x in (f"since {bk.since}" if bk.since else "", f"until {bk.until}" if bk.until else "",
-                                    f"max {bk.max_posts}" if bk.max_posts else "") if x)
-        print(f"  {bk.id:14} {bk.title:32} blogs={','.join(bk.blogs)} by {bk.group_by} {bk.order}"
-              + (f"  {span}" if span else ""))
+        span = " ".join(
+            x
+            for x in (
+                f"since {bk.since}" if bk.since else "",
+                f"until {bk.until}" if bk.until else "",
+                f"max {bk.max_posts}" if bk.max_posts else "",
+            )
+            if x
+        )
+        print(
+            f"  {bk.id:14} {bk.title:32} blogs={','.join(bk.blogs)} by {bk.group_by} {bk.order}"
+            + (f"  {span}" if span else "")
+        )
     return 0
 
 
@@ -91,23 +105,23 @@ def cmd_detect(settings: Settings, args: argparse.Namespace) -> int:
     refs = source.discover()
     print(f"source: {source.describe()}")
     print(f"posts:  {len(refs)}")
-    for r in refs[:args.sample]:
+    for r in refs[: args.sample]:
         print(f"  {r.date or '----------':>25}  {r.title[:60]:60}  {r.url}")
     if refs:
         print("\nsuggested blogs.yaml entry:\n")
-        print(f"  - id: {args.id or _suggest_id(args.url)}\n    title: \"...\"\n    url: {args.url}\n"
-              f"    source: {source.name}\n    include:\n      - \"^{_prefix_regex(args.url)}\"")
+        print(
+            f'  - id: {args.id or _suggest_id(args.url)}\n    title: "..."\n    url: {args.url}\n'
+            f'    source: {source.name}\n    include:\n      - "^{_prefix_regex(args.url)}"'
+        )
     return 0
 
 
 def _suggest_id(url: str) -> str:
-    from urllib.parse import urlsplit
     host = urlsplit(url).netloc.lower().removeprefix("www.")
-    return host.split(".")[0]
+    return host.split(".", 1)[0]
 
 
 def _prefix_regex(url: str) -> str:
-    import re
     return re.escape(url.rstrip("/") + "/").replace("\\", "\\\\")
 
 
@@ -116,7 +130,9 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
     for blog in _select_blogs(settings, args.ids):
         store = BlogStore(settings.cache_dir, blog.id)
         try:
-            result = sync_blog(blog, settings, _client(settings, blog), store, full=args.full, prune=args.prune)
+            result = sync_blog(
+                blog, settings, _client(settings, blog), store, full=args.full, prune=args.prune
+            )
         except SourceError as exc:
             log.error("%s: %s", blog.id, exc)
             rc = 2
@@ -150,7 +166,9 @@ def cmd_run(settings: Settings, args: argparse.Namespace) -> int:
         store = BlogStore(settings.cache_dir, blog.id)
         entry: dict = {"id": blog.id, "title": blog.title, "url": blog.url}
         try:
-            result = sync_blog(blog, settings, _client(settings, blog), store, full=args.full, prune=args.prune)
+            result = sync_blog(
+                blog, settings, _client(settings, blog), store, full=args.full, prune=args.prune
+            )
         except SourceError as exc:
             log.error("%s: %s", blog.id, exc)
             entry["error"] = str(exc)
@@ -158,16 +176,26 @@ def cmd_run(settings: Settings, args: argparse.Namespace) -> int:
             rc = 2
             continue
         print(result.summary())
-        entry.update({"source": result.source, "discovered": result.discovered, "new": result.new,
-                      "updated": result.updated, "removed": result.removed, "errors": result.errors,
-                      "cached": len(store.post_index)})
+        entry.update(
+            {
+                "source": result.source,
+                "discovered": result.discovered,
+                "new": result.new,
+                "updated": result.updated,
+                "removed": result.removed,
+                "errors": result.errors,
+                "cached": len(store.post_index),
+            }
+        )
         if result.changed:
             changed_blogs.add(blog.id)
         report["blogs"].append(entry)
 
     sources = _sources(settings)
     for book in _select_books(settings, args.ids):
-        existing = sorted(settings.output_dir.glob(f"{book.id}.epub")) + sorted(settings.output_dir.glob(f"{book.id}-*.epub"))
+        existing = sorted(settings.output_dir.glob(f"{book.id}.epub")) + sorted(
+            settings.output_dir.glob(f"{book.id}-*.epub")
+        )
         touched = bool(changed_blogs & set(book.blogs))
         entry = {"id": book.id, "title": book.title, "blogs": book.blogs, "built": []}
         if touched or args.force or not existing:
@@ -178,8 +206,16 @@ def cmd_run(settings: Settings, args: argparse.Namespace) -> int:
                 entry["error"] = str(exc)
                 rc = 2
             else:
-                entry["built"] = [{"path": str(r.path), "title": r.title, "posts": r.posts,
-                                   "images": r.images, "bytes": r.size} for r in results]
+                entry["built"] = [
+                    {
+                        "path": str(r.path),
+                        "title": r.title,
+                        "posts": r.posts,
+                        "images": r.images,
+                        "bytes": r.size,
+                    }
+                    for r in results
+                ]
                 report["changed"] = report["changed"] or touched or not existing
                 for r in results:
                     print(_build_line(r))
@@ -200,10 +236,15 @@ def cmd_status(settings: Settings, args: argparse.Namespace) -> int:
         print(f"blog {blog.id} ({blog.title})")
         print(f"  source:     {idx.get('source') or 'not synced yet'}")
         print(f"  last sync:  {idx.get('last_sync') or '-'}")
-        print(f"  posts:      {len(store.post_index)}" + (f"  ({dates[0][:10]} .. {dates[-1][:10]})" if dates else ""))
+        print(
+            f"  posts:      {len(store.post_index)}"
+            + (f"  ({dates[0][:10]} .. {dates[-1][:10]})" if dates else "")
+        )
         print(f"  images:     {ok} cached, {len(store.image_index) - ok} failed")
     for book in settings.all_books():
-        outputs = sorted(settings.output_dir.glob(f"{book.id}.epub")) + sorted(settings.output_dir.glob(f"{book.id}-*.epub"))
+        outputs = sorted(settings.output_dir.glob(f"{book.id}.epub")) + sorted(
+            settings.output_dir.glob(f"{book.id}-*.epub")
+        )
         print(f"book {book.id} ({book.title}) <- {', '.join(book.blogs)}")
         for p in outputs:
             print(f"  output:     {p} ({p.stat().st_size / 1e6:.1f} MB)")
@@ -229,14 +270,18 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--sample", type=int, default=5, help="how many discovered posts to print")
     d.set_defaults(func=cmd_detect)
 
-    for name, func, help_ in (("sync", cmd_sync, "fetch new and changed posts into the cache"),
-                              ("build", cmd_build, "write EPUB(s) from the cache"),
-                              ("run", cmd_run, "sync, then build every book whose blogs changed")):
+    for name, func, help_ in (
+        ("sync", cmd_sync, "fetch new and changed posts into the cache"),
+        ("build", cmd_build, "write EPUB(s) from the cache"),
+        ("run", cmd_run, "sync, then build every book whose blogs changed"),
+    ):
         s = sub.add_parser(name, help=help_)
         s.add_argument("ids", nargs="*", help="blog or book ids (default: all)")
         if name != "build":
             s.add_argument("--full", action="store_true", help="re-fetch every post, retry failed images")
-            s.add_argument("--prune", action="store_true", help="drop cached posts the source no longer lists")
+            s.add_argument(
+                "--prune", action="store_true", help="drop cached posts the source no longer lists"
+            )
         if name == "run":
             s.add_argument("--force", action="store_true", help="rebuild even when nothing changed")
             s.add_argument("--report", metavar="FILE", help="write a JSON summary (used by CI)")

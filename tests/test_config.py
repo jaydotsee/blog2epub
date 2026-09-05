@@ -31,15 +31,18 @@ blogs:
         s.blog("zzz")
 
 
-@pytest.mark.parametrize("body", [
-    "blogs:\n  - url: https://x\n",                       # missing id
-    "blogs:\n  - id: x\n",                                # missing url
-    "blogs:\n  - id: x\n    url: https://x\n    order: sideways\n",
-    "blogs:\n  - id: x\n    url: https://x\n    bogus: 1\n",
-    "blogs:\n  - id: x\n    url: https://x\n  - id: x\n    url: https://y\n",
-    "blogs:\n  - id: x\n    url: https://x\n    include: ['(']\n",
-    "defaults:\n  nope: 1\nblogs: []\n",
-])
+@pytest.mark.parametrize(
+    "body",
+    [
+        "blogs:\n  - url: https://x\n",  # missing id
+        "blogs:\n  - id: x\n",  # missing url
+        "blogs:\n  - id: x\n    url: https://x\n    order: sideways\n",
+        "blogs:\n  - id: x\n    url: https://x\n    bogus: 1\n",
+        "blogs:\n  - id: x\n    url: https://x\n  - id: x\n    url: https://y\n",
+        "blogs:\n  - id: x\n    url: https://x\n    include: ['(']\n",
+        "defaults:\n  nope: 1\nblogs: []\n",
+    ],
+)
 def test_invalid_config(tmp_path, body):
     cfg = tmp_path / "blogs.yaml"
     cfg.write_text(body)
@@ -77,23 +80,26 @@ books:
 """)
     s = load_config(cfg)
     books = s.all_books()
-    assert [b.id for b in books] == ["a", "digest"]           # b has no standalone book
+    assert [b.id for b in books] == ["a", "digest"]  # b has no standalone book
     assert books[0].blogs == ["a"] and books[0].order == "desc"
     d = s.book("digest")
     assert d.blogs == ["a", "b"] and d.group_by == "blog" and d.max_posts == 50 and d.since == "2025-01-01"
-    assert d.order == "desc"                                   # defaults apply to books too
+    assert d.order == "desc"  # defaults apply to books too
     assert s.blog("b").as_book().group_by == "month"
     with pytest.raises(ConfigError):
         s.book("zzz")
 
 
-@pytest.mark.parametrize("body", [
-    "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: d\n    blogs: [nope]\n",     # unknown blog
-    "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: a\n    blogs: [a]\n",        # clashes with blog id
-    "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: d\n    blogs: []\n",         # empty blogs
-    "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: d\n    blogs: [a]\n    group_by: author\n",
-    "blogs:\n  - id: a\n    url: https://a\n    readability: maybe\n",
-])
+@pytest.mark.parametrize(
+    "body",
+    [
+        "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: d\n    blogs: [nope]\n",  # unknown blog
+        "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: a\n    blogs: [a]\n",  # clashes with blog id
+        "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: d\n    blogs: []\n",  # empty blogs
+        "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: d\n    blogs: [a]\n    group_by: author\n",
+        "blogs:\n  - id: a\n    url: https://a\n    readability: maybe\n",
+    ],
+)
 def test_invalid_books(tmp_path, body):
     cfg = tmp_path / "blogs.yaml"
     cfg.write_text(body)

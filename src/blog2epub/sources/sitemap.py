@@ -1,4 +1,5 @@
 """Sitemap source: crawl sitemap.xml, keep URLs that match the blog, extract with readability."""
+
 from __future__ import annotations
 
 import hashlib
@@ -43,8 +44,12 @@ class SitemapSource(Source):
             if robots is not None:
                 candidates += re.findall(r"(?im)^\s*sitemap:\s*(\S+)", robots.text)
             base = blog.url if blog.url.endswith("/") else blog.url + "/"
-            candidates += [urljoin(base, "sitemap.xml"), f"{origin}/sitemap.xml",
-                           f"{origin}/sitemap_index.xml", f"{origin}/sitemap-index.xml"]
+            candidates += [
+                urljoin(base, "sitemap.xml"),
+                f"{origin}/sitemap.xml",
+                f"{origin}/sitemap_index.xml",
+                f"{origin}/sitemap-index.xml",
+            ]
         for url in dict.fromkeys(candidates):
             resp = client.try_get(url)
             if resp is None:
@@ -105,11 +110,19 @@ class SitemapSource(Source):
             if not art["html"]:
                 log.warning("no article body found at %s, skipping", ref.url)
                 continue
-            post = Post(key=ref.key, url=ref.url, title=art["title"] or ref.url, html=art["html"],
-                        date=art["date"], modified=art["modified"] or ref.modified,
-                        author=art["author"], excerpt=art["excerpt"], featured_image=art["featured_image"],
-                        source=self.name,
-                        fetched_at=utcnow_iso())
+            post = Post(
+                key=ref.key,
+                url=ref.url,
+                title=art["title"] or ref.url,
+                html=art["html"],
+                date=art["date"],
+                modified=art["modified"] or ref.modified,
+                author=art["author"],
+                excerpt=art["excerpt"],
+                featured_image=art["featured_image"],
+                source=self.name,
+                fetched_at=utcnow_iso(),
+            )
             # the listing had no dates, so apply since/until now that we know them
             if self.accepts(PostRef(key=post.key, url=post.url, date=post.date)):
                 yield post

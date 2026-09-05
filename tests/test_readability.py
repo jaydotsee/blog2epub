@@ -4,7 +4,10 @@ from blog2epub.extract import readability_pass
 from tests.conftest import make_post
 
 BOILERPLATE = "<p>The post <a href='x'>Title</a> appeared first on <a href='y'>Site</a>.</p>"
-ARTICLE = "".join(f"<p>Paragraph {i} with a reasonable amount of running text to score well in readability.</p>" for i in range(12))
+ARTICLE = "".join(
+    f"<p>Paragraph {i} with a reasonable amount of running text to score well in readability.</p>"
+    for i in range(12)
+)
 
 
 def test_readability_pass_keeps_article_text():
@@ -24,7 +27,7 @@ def test_readability_pass_unwraps_and_falls_back(monkeypatch):
             return '<body id="readabilityBody"><article><p>Tiny.</p></article></body>'
 
     monkeypatch.setattr("blog2epub.extract.Document", Gutted)
-    assert readability_pass(ARTICLE, "https://example.com/p/") == ARTICLE   # would drop >40% of the text
+    assert readability_pass(ARTICLE, "https://example.com/p/") == ARTICLE  # would drop >40% of the text
 
 
 def test_wants_readability_modes():

@@ -1,4 +1,5 @@
 """WordPress REST API source (wp-json/wp/v2/posts)."""
+
 from __future__ import annotations
 
 import logging
@@ -19,7 +20,9 @@ log = logging.getLogger(__name__)
 
 PER_PAGE = 100
 LIST_FIELDS = "id,date_gmt,modified_gmt,slug,link,title"
-FETCH_FIELDS = "id,date_gmt,modified_gmt,slug,link,title,content,excerpt,author,categories,tags,_links,_embedded"
+FETCH_FIELDS = (
+    "id,date_gmt,modified_gmt,slug,link,title,content,excerpt,author,categories,tags,_links,_embedded"
+)
 
 
 def _strip_tags(text: str) -> str:
@@ -58,8 +61,8 @@ class WordPressSource(Source):
             candidates.append(f"{origin}/wp-json/wp/v2")
             candidates.append(f"{origin}/?rest_route=/wp/v2")
         seen: set[str] = set()
-        for api in candidates:
-            api = api.rstrip("/")
+        for candidate in candidates:
+            api = candidate.rstrip("/")
             if api in seen:
                 continue
             seen.add(api)
@@ -77,7 +80,12 @@ class WordPressSource(Source):
 
     # ---- listing -------------------------------------------------------------
     def _params(self, **extra: Any) -> dict[str, Any]:
-        params: dict[str, Any] = {"per_page": PER_PAGE, "orderby": "date", "order": "desc", "status": "publish"}
+        params: dict[str, Any] = {
+            "per_page": PER_PAGE,
+            "orderby": "date",
+            "order": "desc",
+            "status": "publish",
+        }
         if self.blog.since:
             params["after"] = _iso_day(self.blog.since, end=False)
         if self.blog.until:
@@ -95,8 +103,9 @@ class WordPressSource(Source):
         total_pages = 1
         while page <= total_pages:
             try:
-                resp = self.client.get(_join(self.api_base, self.post_type),
-                                       params=self._params(page=page, _fields=LIST_FIELDS))
+                resp = self.client.get(
+                    _join(self.api_base, self.post_type), params=self._params(page=page, _fields=LIST_FIELDS)
+                )
             except requests.HTTPError as exc:
                 # WordPress answers 400 (rest_post_invalid_page_number) when we page past the end
                 if exc.response is not None and exc.response.status_code == 400 and page > 1:
@@ -124,9 +133,12 @@ class WordPressSource(Source):
     def fetch(self, refs: list[PostRef]) -> Iterator[Post]:
         ids = [r.extra["id"] for r in refs]
         for start in range(0, len(ids), PER_PAGE):
-            batch = ids[start:start + PER_PAGE]
-            params = self._params(include=",".join(map(str, batch)), _fields=FETCH_FIELDS,
-                                  _embed="author,wp:term,wp:featuredmedia")
+            batch = ids[start : start + PER_PAGE]
+            params = self._params(
+                include=",".join(map(str, batch)),
+                _fields=FETCH_FIELDS,
+                _embed="author,wp:term,wp:featuredmedia",
+            )
             # `include` must not be combined with date filters, or WP silently drops posts.
             params.pop("after", None)
             params.pop("before", None)

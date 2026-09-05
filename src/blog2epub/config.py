@@ -33,16 +33,16 @@ class BookConfig:
     language: str = "en"
     since: str | None = None
     until: str | None = None
-    max_posts: int | None = None        # keep only the N most recent posts across all blogs
-    cover: str | None = None            # path (relative to blogs.yaml) or URL of a jpg/png
+    max_posts: int | None = None  # keep only the N most recent posts across all blogs
+    cover: str | None = None  # path (relative to blogs.yaml) or URL of a jpg/png
     images: bool = True
-    group_by: str = "year"              # year | month | blog | none  -> the "part" level of the TOC
-    order: str = "asc"                  # asc = oldest first (book), desc = newest first (magazine)
-    split: str = "none"                 # none | year
+    group_by: str = "year"  # year | month | blog | none  -> the "part" level of the TOC
+    order: str = "asc"  # asc = oldest first (book), desc = newest first (magazine)
+    split: str = "none"  # none | year
     demote_headings: bool = True
-    readability: str = "auto"           # auto | always | never
-    excerpts: bool = True               # show excerpts on the part/contents pages
-    featured_images: bool = True        # lead each chapter with the post's featured image
+    readability: str = "auto"  # auto | always | never
+    excerpts: bool = True  # show excerpts on the part/contents pages
+    featured_images: bool = True  # lead each chapter with the post's featured image
 
     def __post_init__(self) -> None:
         if not self.id or not _ID_RE.fullmatch(self.id):
@@ -58,8 +58,23 @@ class BookConfig:
 
 
 # Book-level keys a blog may also carry; they configure the blog's own standalone book.
-_BOOK_OPTS = ("author", "description", "publisher", "language", "since", "until", "max_posts", "cover",
-              "group_by", "order", "split", "demote_headings", "readability", "excerpts", "featured_images")
+_BOOK_OPTS = (
+    "author",
+    "description",
+    "publisher",
+    "language",
+    "since",
+    "until",
+    "max_posts",
+    "cover",
+    "group_by",
+    "order",
+    "split",
+    "demote_headings",
+    "readability",
+    "excerpts",
+    "featured_images",
+)
 
 
 @dataclass
@@ -67,14 +82,14 @@ class BlogConfig:
     id: str
     url: str
     title: str = ""
-    source: str = "auto"                 # auto | wordpress | feed | sitemap
+    source: str = "auto"  # auto | wordpress | feed | sitemap
     include: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
-    standalone: bool = True              # also build this blog's own EPUB
-    images: bool = True                  # download images at sync time
+    standalone: bool = True  # also build this blog's own EPUB
+    images: bool = True  # download images at sync time
     max_image_width: int = 1200
     max_image_bytes: int = 8_000_000
-    fetch_full: bool = True              # feed source: fetch the page when the feed body is missing/short
+    fetch_full: bool = True  # feed source: fetch the page when the feed body is missing/short
     request_delay: float | None = None
     wordpress: dict[str, Any] = field(default_factory=dict)
     feed: dict[str, Any] = field(default_factory=dict)
@@ -113,8 +128,9 @@ class BlogConfig:
 
     def as_book(self) -> BookConfig:
         """The implicit one-blog book this blog builds when `standalone` is true."""
-        return BookConfig(id=self.id, title=self.title, blogs=[self.id],
-                          **{k: getattr(self, k) for k in _BOOK_OPTS})
+        return BookConfig(
+            id=self.id, title=self.title, blogs=[self.id], **{k: getattr(self, k) for k in _BOOK_OPTS}
+        )
 
     @property
     def include_re(self) -> list[re.Pattern[str]]:
@@ -127,9 +143,7 @@ class BlogConfig:
     def accepts_url(self, url: str) -> bool:
         if self.include_re and not any(p.search(url) for p in self.include_re):
             return False
-        if any(p.search(url) for p in self.exclude_re):
-            return False
-        return True
+        return not any(p.search(url) for p in self.exclude_re)
 
 
 @dataclass

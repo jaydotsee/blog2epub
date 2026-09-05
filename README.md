@@ -1,183 +1,445 @@
 # blog2epub
 
-Point it at blog root URLs. It keeps an eye on each of them and turns them into EPUB books for
-your e-reader: a cover (yours or a generated one), a title page, a nested table of contents
-(one *part* per year, month or blog, one *chapter* per post, with excerpts), readability-cleaned
-post bodies with embedded images and lead images, and cross-links between posts that stay inside
-the book. A book can be one blog's whole archive, or a magazine-style digest that combines
-several blogs with a date range and a post limit.
+Turn the blogs you follow into books for your e-reader.
+
+Point `blogs.yaml` at blog root URLs. blog2epub monitors them, caches every post, and writes
+EPUB 3 files: a cover, a title page, a nested table of contents with excerpts, readability-cleaned
+articles with their images, and cross-links that stay inside the book. A book can be one blog's
+complete archive or a magazine-style digest that combines several blogs with a date range and a
+post limit. A weekly GitHub Action keeps the books current.
 
 The idea comes from Facundo Olano's
-[Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/): an
-EPUB is just zipped XHTML plus a manifest, so all you need is a way to get post bodies and a
-template for the boilerplate. That post builds a book from a blog's *source files* with a static
-site generator. This project does the same for blogs you **don't** own: it fetches posts through
-whatever the site exposes, caches them, and writes the EPUB directly.
+[Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/): an EPUB
+is zipped XHTML plus a manifest, so all you need is the post bodies and a little boilerplate. That
+post builds a book from a blog's *own source files* with a static site generator. blog2epub does
+the same for blogs you **don't** own, by fetching posts through whatever the site exposes.
 
-The first configured blog is [tyk.io/blog](https://tyk.io/blog).
+```
+$ blog2epub run
+tyk: 627 posts listed via wordpress (https://tyk.io/wp-json/wp/v2/posts); 0 new, 0 updated ...
+kong: 10 posts listed via feed (https://konghq.com/feed/); 2 new, 0 updated ...
+built output/tyk.epub - 627 posts, 956 images, 52.1 MB
+built output/api-management.epub - 150 posts, 119 images, 36.9 MB
+```
+
+## Contents
+
+- [Features](#features)
+- [How it works](#how-it-works)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Commands](#commands)
+- [Configuration](#configuration)
+- [Recipes](#recipes)
+- [Keeping books current with GitHub Actions](#keeping-books-current-with-github-actions)
+- [Reading the books](#reading-the-books)
+- [Project layout](#project-layout)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Limitations](#limitations)
+- [License](#license)
+
+## Features
+
+- **Three ways in, picked automatically.** WordPress REST API (full HTML, dates, authors,
+  categories, featured images), RSS/Atom feeds (with a page fetch when the feed is truncated),
+  and `sitemap.xml` crawling. The richest one that answers wins.
+- **Incremental monitoring.** Each sync lists what the source knows, fetches only new and
+  modified posts plus missing images, and keeps everything in a per-blog cache. Building is
+  offline.
+- **Readability.** Scraped pages go through readability to isolate the article. An optional
+  build-time pass cleans feed and API bodies too, with a safety net that never drops a post's
+  content.
+- **Clean, valid XHTML.** Scripts, styles, forms, tracking attributes, Word pastes, lazy-load
+  placeholders and custom elements are handled. Every generated book passes the W3C
+  [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
+- **Real navigation.** EPUB 3 `nav.xhtml` with parts (per year, month or blog) and chapters, a
+  `toc.ncx` for older readers, landmarks, and part pages that list each post with its date,
+  author and excerpt.
+- **Magazine digests.** Combine any number of blogs into one book, newest first, with a lead
+  image per article and the blog name in every byline.
+- **Your cover or a generated one.** Point `cover:` at a JPG/PNG (path or URL).
+- **Scriptable.** A plain CLI, a JSON report for automation, and a ready-made GitHub Actions
+  workflow that publishes rebuilt books to a rolling release.
 
 ## How it works
 
 ```
-blogs.yaml ──► sync ──► cache/<blog>/ ──► build ──► output/<book>.epub
-  blogs = sources       posts/*.json     books = outputs   (or <book>-<year>.epub)
-  books = outputs       images/*
-                │
-                └── source auto-detected per blog:
-                    1. WordPress REST API   (/wp-json/wp/v2/posts: full HTML, dates, authors, categories, featured image)
-                    2. RSS / Atom feed      (+ page fetch and readability when the feed is truncated)
-                    3. sitemap.xml          (+ readability extraction and meta/JSON-LD for dates)
+blogs.yaml
+  blogs: sources          books: outputs
+      │                       │
+      ▼                       ▼
+  ┌────────┐   cache/<blog>/   ┌────────┐
+  │  sync  │ ───────────────▶ │ build  │ ───▶ output/<book>.epub
+  └────────┘   index.json     └────────┘        (or <book>-<year>.epub)
+      │        posts/*.json        │
+      │        images/*            └─ select (since/until/max_posts) → sort → group into parts
+      │                               → readability pass → clean to XHTML → resolve images/links
+      └─ detect source:               → render cover, title, nav, ncx, parts, chapters → zip
+         1. WordPress REST API
+         2. RSS / Atom feed (+ page fetch + readability when truncated)
+         3. sitemap.xml (+ readability, meta and JSON-LD for dates and authors)
 ```
 
-- **Sources.** Each blog gets the richest source that answers. tyk.io is WordPress, so the REST
-  API delivers all 627 posts in seven requests with clean rendered HTML and metadata, and no
-  scraping of the page chrome is needed. Feeds and sitemaps cover everything else.
-- **Monitoring.** `sync` lists what the source knows, compares it with the cache, and fetches
-  only new posts and posts whose `modified` stamp changed. Posts that vanish from the source stay
-  in the cache unless you pass `--prune`. `run` syncs and then rebuilds only blogs that changed.
-- **Readability.** Pages fetched from a feed link or a sitemap go through
-  [readability](https://github.com/buriy/python-readability) to isolate the article. The
-  `readability` option controls a second pass at build time: `auto` (default) runs it on feed
-  bodies, which often carry "this post appeared first on" footers; `always` runs it on every
-  post, including WordPress API content; `never` skips it. The pass keeps the original whenever
-  readability would throw away more than 40% of the text, so image-only figures and short posts
-  are safe.
-- **Cleaning.** Post HTML is normalised into well-formed XHTML: scripts, styles, forms,
-  tracking attributes and Word pastes are stripped; iframes and videos become links; the best
-  `srcset` candidate under `max_image_width` is chosen; lazy-load placeholders are resolved;
-  headings are demoted so the post title is the only `h1`; links to other posts in the same
-  book are rewritten to point inside the book.
-- **Books.** A book is one or more blogs plus a selection (`since`, `until`, `max_posts`) and a
-  layout (`group_by`, `order`, `split`). Every blog builds its own book unless it says
-  `standalone: false`; the `books` list adds combined ones. Each chapter opens with the post's
-  featured image when it has one, and every part page lists its posts with date, author and
-  excerpt, which is what makes the combined books read like a magazine issue.
-- **Building.** A dependency-free EPUB 3 writer produces `content.opf`, `nav.xhtml` (nested
-  parts and chapters, plus landmarks), a `toc.ncx` for older readers, a title page with stats
-  and sources, and the cover: your JPG/PNG (a path next to `blogs.yaml` or a URL) or a generated
-  SVG. Output passes [epubcheck](https://github.com/w3c/epubcheck) with zero warnings.
+**Sources.** For every blog, `sync` tries the WordPress REST API first (`/wp-json/wp/v2/posts`),
+then the feed advertised in the page or at the usual paths, then the sitemap from `robots.txt`.
+The choice is remembered in the cache. WordPress is by far the best source: tyk.io's 627 posts
+arrive in seven requests with rendered HTML and full metadata. Feeds usually carry only the latest
+ten or so posts, so a feed-only blog fills its cache over time as the monitor keeps running.
+Sitemaps list whole archives but need readability to extract each page.
+
+**Cache.** `cache/<blog>/index.json` records every known post (URL, title, dates) and every image
+(or the reason it failed). Posts live one per JSON file, images by URL hash. A post is re-fetched
+only when the source reports a newer `modified` stamp. Posts that disappear from the source stay
+cached unless you pass `--prune`.
+
+**Cleaning.** Post HTML becomes a well-formed XHTML fragment: iframes and videos turn into links,
+the best `srcset` candidate not wider than `max_image_width` is chosen, lazy-load `data-src`
+attributes win over placeholders, inline wrappers around block content are unwrapped, unknown and
+custom elements are unwrapped, invalid hrefs and ids are dropped, headings are demoted so the post
+title is the only `h1`, and links to other posts in the same book are rewritten to chapter files.
+
+**Books.** A book is one or more blogs plus a selection and a layout. Every blog builds its own
+book unless it sets `standalone: false`; the `books` list adds combined ones. Chapters open with
+the post's featured image when the body does not already contain it, and each part page lists its
+posts with date, author, blog and excerpt.
+
+## Installation
+
+Requires Python 3.10 or newer.
+
+```bash
+git clone https://github.com/jaydotsee/blog2epub.git
+cd blog2epub
+make setup            # creates .venv and installs blog2epub with the dev tools
+```
+
+or, without the Makefile:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+```
+
+Java is only needed for `make epubcheck` and the optional validator test.
 
 ## Quick start
 
 ```bash
-make setup                 # venv + editable install
-make test
-.venv/bin/blog2epub list
+.venv/bin/blog2epub list                    # what is configured
 .venv/bin/blog2epub run tyk                 # sync + build → output/tyk.epub
 .venv/bin/blog2epub run api-management      # sync its five blogs, build the digest
-.venv/bin/blog2epub status
+.venv/bin/blog2epub status                  # cache and output state
 ```
 
-Every command takes `-c path/to/blogs.yaml` and `-v`/`-vv` for progress output.
+To add a blog, let blog2epub probe it first:
+
+```
+$ .venv/bin/blog2epub detect https://konghq.com/blog
+source: feed (https://konghq.com/feed/)
+posts:  10
+  2026-09-03T15:02:11+00:00  Kong Gateway Now Supports FIPS 140-3  https://konghq.com/blog/product-releases/kong-gateway-fips-140-3
+
+suggested blogs.yaml entry:
+
+  - id: konghq
+    title: "..."
+    url: https://konghq.com/blog
+    source: feed
+    include:
+      - "^https://konghq\\.com/blog/"
+```
+
+Paste the entry into `blogs.yaml`, set a title, and run `blog2epub run konghq`.
+
+## Commands
+
+Every command accepts `-c FILE` (default `./blogs.yaml`) and `-v` / `-vv` for progress output.
 
 | Command | What it does |
 | --- | --- |
-| `list` | Show configured blogs, books, and how many posts are cached. |
-| `detect URL` | Probe a URL, say which source would be used, list a few posts and print a ready-made config entry. |
-| `sync [ids] [--full] [--prune]` | Fetch new and changed posts and their images into `cache/`. Ids are blogs or books. |
-| `build [ids]` | Write EPUB(s) from the cache. Works offline (except a cover URL on first use). |
-| `run [ids] [--force] [--report FILE]` | `sync`, then `build` every book whose blogs changed. `--report` writes a JSON summary (used by CI). |
-| `status` | Cache size, date range, last sync, output files per book. |
+| `list` | Show configured blogs and books, with cached post counts. |
+| `detect URL [--source S] [--sample N]` | Probe a URL, report which source works, list posts, print a config entry. |
+| `sync [ids] [--full] [--prune]` | Fetch new and changed posts and their images into `cache/`. Ids can be blogs or books (the book's blogs are synced). `--full` re-fetches everything and retries failed images. |
+| `build [ids]` | Write EPUB(s) from the cache. Works offline (a cover URL is fetched once). |
+| `run [ids] [--force] [--report FILE] [--full] [--prune]` | `sync`, then `build` every book whose blogs changed or whose output is missing. `--report` writes a JSON summary. |
+| `status` | Per blog: source, last sync, post and image counts. Per book: output files. |
+
+Exit codes: `0` success, `1` configuration error, `2` a blog or book failed (the others still run).
+
+The JSON report written by `run --report` looks like this and drives the GitHub Action:
+
+```json
+{
+  "changed": true,
+  "blogs": [{"id": "tyk", "source": "wordpress (...)", "discovered": 627, "new": 1, "updated": 0, "cached": 627, "errors": []}],
+  "books": [{"id": "tyk", "built": [{"path": "output/tyk.epub", "posts": 627, "images": 956, "bytes": 52105534}]}]
+}
+```
 
 ## Configuration
 
-```bash
-.venv/bin/blog2epub detect https://example.org/blog
-```
+`blogs.yaml` has three sections. Keys under `defaults` apply to every blog and book unless the
+entry overrides them.
 
-prints which source works for a URL and a ready-made entry to paste into `blogs.yaml`.
-Everything under `defaults` applies to every blog and book unless overridden.
+### `defaults`
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `output_dir` | `output` | Where `.epub` files are written (relative to `blogs.yaml`). |
+| `cache_dir` | `cache` | Per-blog download cache. |
+| `user_agent` | `blog2epub/0.1` | Sent with every request. Put a contact URL in it. |
+| `request_delay` | `0.5` | Seconds between requests. Be polite. |
+| `timeout` | `30` | Request timeout in seconds. |
+
+Any blog or book key may also appear under `defaults`.
+
+### `blogs` (sources)
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `id` | required | Short name: `cache/<id>/`, `output/<id>.epub`. Letters, digits, `.`, `_`, `-`. |
+| `url` | required | Blog root URL. |
+| `title` | `id` | Shown in bylines, part pages and the book title. |
+| `source` | `auto` | `auto`, `wordpress`, `feed` or `sitemap`. |
+| `include` | `[]` | Regexes; only post URLs matching one of them are kept. |
+| `exclude` | `[]` | Regexes; matching URLs are dropped. |
+| `since`, `until` | – | Dates (`YYYY-MM-DD`). Limit what is fetched and what the standalone book contains. |
+| `standalone` | `true` | Build this blog's own book. Set `false` for blogs that only feed combined books. |
+| `images` | `true` | Download images during sync. |
+| `max_image_width` | `1200` | Choose the largest `srcset` candidate not wider than this. |
+| `max_image_bytes` | `8000000` | Skip larger images. |
+| `fetch_full` | `true` | Feed source: fetch the page when the feed body is missing or short. |
+| `request_delay` | inherits | Per-blog override. |
+| `wordpress` | `{}` | `api` (base URL), `post_type`, `categories` (ids), `params` (extra query params). |
+| `feed` | `{}` | `url` of the feed when discovery fails. |
+| `sitemap` | `{}` | `url` of the sitemap when discovery fails. |
+| book keys | see below | `author`, `description`, `publisher`, `language`, `max_posts`, `cover`, `group_by`, `order`, `split`, `demote_headings`, `readability`, `excerpts`, `featured_images` configure the blog's standalone book. |
+
+### `books` (outputs)
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `id` | required | Output name: `output/<id>.epub`. Must not clash with a blog id. |
+| `blogs` | required | List of blog ids to combine. |
+| `title` | `id` | Book title. |
+| `author`, `description`, `publisher`, `language` | – / `en` | EPUB metadata; the description also appears on the title page and generated cover. |
+| `since`, `until` | – | Only posts published in this range. |
+| `max_posts` | – | Keep the N most recent posts across all the book's blogs. |
+| `cover` | – | JPG/PNG path relative to `blogs.yaml`, or a URL (downloaded once). Otherwise a cover is generated. |
+| `images` | `true` | Embed images. `false` gives a text-only edition. |
+| `group_by` | `year` | Part level of the TOC: `year`, `month`, `blog` or `none`. |
+| `order` | `asc` | `asc` reads oldest to newest like a book; `desc` is magazine order. |
+| `split` | `none` | `year` writes one EPUB per year (`<id>-<year>.epub`). |
+| `demote_headings` | `true` | Shift headings inside posts down so the post title is the only `h1`. |
+| `readability` | `auto` | Build-time readability pass: `auto` (feed bodies only), `always`, `never`. |
+| `excerpts` | `true` | Excerpts on the part pages. |
+| `featured_images` | `true` | Lead each chapter with the post's featured image. |
+
+### About `readability`
+
+Pages that had to be scraped (feed links without a full body, sitemap URLs) always go through
+[readability](https://github.com/buriy/python-readability) when they are fetched. The
+`readability` option controls a second pass at build time:
+
+- `auto` runs it on bodies that came straight out of a feed, which often carry "this post
+  appeared first on" footers and sharing widgets.
+- `always` runs it on everything, including WordPress API content.
+- `never` skips it.
+
+The pass keeps the original whenever readability would drop more than 40% of the text, so short
+posts and image-only figures are never lost.
+
+### Full example
 
 ```yaml
 defaults:
   output_dir: output
   cache_dir: cache
-  request_delay: 0.5        # seconds between requests: be polite
-  images: true              # download images (blog) / embed them (book)
-  max_image_width: 1200     # largest srcset candidate not above this width
-  max_image_bytes: 8000000
-  group_by: year            # year | month | blog | none → the "part" level of the TOC
-  order: asc                # asc reads oldest → newest like a book; desc is magazine order
-  split: none               # none | year → one EPUB, or one per year
-  demote_headings: true
-  readability: auto         # auto | always | never
-  excerpts: true            # excerpts on the part/contents pages
-  featured_images: true     # lead image per chapter
+  user_agent: "blog2epub/0.1 (+https://github.com/jaydotsee/blog2epub)"
+  request_delay: 0.5
+  group_by: year
+  order: asc
+  readability: auto
 
-blogs:                      # sources; each also builds its own book unless standalone: false
-  - id: tyk                 # file names: output/tyk.epub, cache/tyk/
+blogs:
+  - id: tyk
     title: "Tyk Blog"
     url: https://tyk.io/blog
     author: "Tyk Technologies"
     description: "Every post from the Tyk API management blog, collected as an ebook."
-    source: auto            # auto | wordpress | feed | sitemap
-    include: ["^https://tyk\\.io/blog/"]   # only URLs matching one of these are posts
-    exclude: []
-    # since: "2020-01-01"   # and/or until:  (also limits what gets fetched)
-    # max_posts: 200        # keep only the most recent N in the standalone book
-    # cover: covers/tyk.jpg # jpg/png path next to blogs.yaml, or a URL
-    # wordpress: { api: https://tyk.io/wp-json/wp/v2, categories: [12, 15] }
-    # feed:      { url: https://example.org/feed.xml }
-    # sitemap:   { url: https://example.org/sitemap.xml }
+    include: ["^https://tyk\\.io/blog/"]
+    # cover: covers/tyk.jpg
+
   - id: kong
     title: "Kong Blog"
     url: https://konghq.com/blog
-    standalone: false       # only used inside combined books
+    standalone: false               # only used inside combined books
+  - id: gravitee
+    title: "Gravitee Blog"
+    url: https://www.gravitee.io/blog
+    standalone: false
 
-books:                      # combined outputs
-  - id: api-management      # → output/api-management.epub
+books:
+  - id: api-management
     title: "API Management Digest"
-    blogs: [tyk, kong, gravitee, solo, postman]
+    description: "Recent posts from API management vendors, in one magazine-style ebook."
+    blogs: [tyk, kong, gravitee]
     since: "2025-01-01"
-    max_posts: 150          # the 150 most recent posts across all blogs
-    group_by: blog          # one part per blog (or month for an issue-like layout)
+    max_posts: 150
+    group_by: blog
     order: desc
     cover: covers/api-management.jpg
 ```
 
-## Monitoring with GitHub Actions
+## Recipes
 
-`.github/workflows/monitor.yml` runs every Monday (and on demand):
+**A blog's complete archive, one file per year.** Big archives with images get large (the full
+tyk.io book is about 50 MB). Split it:
 
-1. restores `cache/` from the previous run, so only new posts are fetched;
+```yaml
+  - id: tyk
+    url: https://tyk.io/blog
+    split: year               # output/tyk-2015.epub ... output/tyk-2026.epub
+```
+
+**A monthly issue.** Newest first, grouped by month, last 90 days:
+
+```yaml
+books:
+  - id: apim-monthly
+    title: "API Management Monthly"
+    blogs: [tyk, kong, gravitee, solo, postman]
+    since: "2026-06-01"
+    group_by: month
+    order: desc
+```
+
+**Text only, for a small file.** `images: false` on the book keeps the download cache intact but
+embeds nothing:
+
+```yaml
+books:
+  - id: tyk-text
+    blogs: [tyk]
+    images: false
+```
+
+**Only some categories of a WordPress blog.** Find category ids at
+`https://<site>/wp-json/wp/v2/categories`, then:
+
+```yaml
+  - id: tyk-engineering
+    url: https://tyk.io/blog
+    wordpress: { categories: [12, 15] }
+```
+
+**A blog whose feed is not discoverable:**
+
+```yaml
+  - id: example
+    url: https://example.org/writing
+    source: feed
+    feed: { url: https://example.org/writing/index.xml }
+```
+
+## Keeping books current with GitHub Actions
+
+`.github/workflows/monitor.yml` runs every Monday at 06:00 UTC and on demand:
+
+1. restores `cache/` from the previous run with `actions/cache`, so only new posts are fetched;
 2. runs `blog2epub run --report report.json`, which rebuilds every book whose blogs changed;
-3. uploads all EPUBs as a workflow artifact;
-4. when anything changed, refreshes the rolling **`latest`** GitHub release so the newest books
-   are always at `https://github.com/<you>/blog2epub/releases/tag/latest`.
+3. uploads all EPUBs as a workflow artifact (kept 30 days);
+4. when something changed, refreshes the rolling **`latest`** GitHub release, so the newest books
+   are always at `https://github.com/<you>/blog2epub/releases/tag/latest`;
+5. writes a summary to the job page.
 
-`workflow_dispatch` accepts `force` (rebuild everything) and `full` (ignore the cache).
-Nothing generated is committed to the repository; `cache/` and `output/` are git-ignored.
+"Run workflow" accepts two switches: `force` rebuilds every book, `full` ignores the cache and
+re-fetches everything. Nothing generated is committed; `cache/` and `output/` are git-ignored.
 
-## Layout
+To run somewhere else, any scheduler that can call `blog2epub run` works: the cache directory is
+the only state.
+
+## Reading the books
+
+- **Kobo, PocketBook, Tolino, Boox, Apple Books, Calibre:** copy the `.epub` over as is.
+- **Kindle:** Send to Kindle accepts EPUB up to 200 MB via the web and app, 25 MB via email.
+  Set `cover:` to a JPG or PNG for Kindle; generated covers are SVG, which Kindle conversion may
+  not render.
+- The table of contents shows parts and chapters; part pages give the date, author and an excerpt
+  for every post; every chapter links back to the original URL.
+
+## Project layout
 
 ```
-blogs.yaml                     configuration
+blogs.yaml                     configuration (blogs = sources, books = outputs)
+covers/                        your cover images (git-ignored except the README)
 src/blog2epub/
-  cli.py                       commands
-  config.py                    YAML → BlogConfig / BookConfig / Settings
-  sources/                     wordpress.py, feed.py, sitemap.py, base.py (+ auto-detection)
-  extract.py                   readability (page extraction and the build-time pass), meta/JSON-LD
-  clean.py                     HTML → XHTML fragment, image/link rewriting
-  images.py                    srcset selection, download, sniffing
-  covers.py                    cover image from a path or URL
+  cli.py                       list, detect, sync, build, run, status
+  config.py                    YAML → BlogConfig / BookConfig / Settings, validation
+  http.py                      polite HTTP client: retries, backoff, delay between requests
+  sources/
+    __init__.py                auto-detection order: wordpress → feed → sitemap
+    base.py                    Source interface, URL/date filtering
+    wordpress.py               WordPress REST API listing + batched fetch with embeds
+    feed.py                    RSS/Atom via feedparser, page fetch for truncated bodies
+    sitemap.py                 sitemap index crawl, per-page extraction
+  extract.py                   readability + meta/JSON-LD extraction; build-time readability pass
+  clean.py                     HTML → valid XHTML fragment; images, links, ids, headings
+  images.py                    srcset parsing, download, media-type sniffing
+  covers.py                    cover from a local path or a URL
   store.py                     cache/<blog>/index.json, posts/, images/
-  sync.py                      discover → fetch changed → fetch images
-  epub.py                      EPUB 3 writer (opf, nav, ncx, parts with excerpts, chapters, cover)
+  sync.py                      discover → fetch changed → fetch images → save index
+  epub.py                      selection, grouping, page renderers, EPUB 3 packaging
   assets/styles.css            e-reader friendly stylesheet
-tests/                         pytest; tests/test_epubcheck.py runs W3C epubcheck when EPUBCHECK_JAR is set
+tests/                         pytest suite (sources with a fake HTTP client, cleaner, builder, config)
+.github/workflows/ci.yml       ruff, mypy, pytest + epubcheck on every push
+.github/workflows/monitor.yml  weekly sync/build/release
 ```
 
-## Notes and limitations
+## Development
 
-- Feeds usually list only the most recent posts. The first sync of a feed-only blog gets what
-  the feed offers; from then on the cache accumulates, so nothing is lost as long as the monitor
-  keeps running. A sitemap source lists the whole archive when one exists.
-- A whole archive with images can get big (the full tyk.io book with all images is tens of
-  megabytes). Use `split: year` for one file per year, lower `max_image_width`, or set
-  `images: false` for a text-only edition.
-- Generated covers are SVG, which every EPUB 3 reader renders but Kindle conversions may not.
-  Set `cover:` to a JPG or PNG for those.
-- Embedded video and iframes are replaced by a link to the original. Inline SVG and forms are
+```bash
+make check            # ruff (lint + format check), mypy, pytest
+make format           # apply ruff fixes and formatting
+make test
+make epubcheck        # build everything, then validate with the W3C checker (needs Java)
+EPUBCHECK_JAR=path/to/epubcheck.jar make test   # also runs the validator inside the test suite
+```
+
+Design notes for contributors:
+
+- Sources return `PostRef`s from `discover()` and `Post`s from `fetch()`. A new source is a class
+  with `detect`, `discover`, `fetch` and `describe`, registered in `sources/__init__.py`.
+- `clean.clean_html` is the only place that turns untrusted HTML into XHTML. Anything epubcheck
+  complains about is fixed there, with a regression test in `tests/test_clean.py`.
+- The EPUB writer has no dependencies; every page is a small render function in `epub.py`, and
+  `tests/test_epub.py` parses the generated OPF, nav and NCX to check structure.
+- `tests/test_sources.py` drives the sources with a fake HTTP client, so the suite runs offline.
+
+## Troubleshooting
+
+- **`no usable source`**: the site has no WordPress API, feed or sitemap that answers. Pass the
+  feed or sitemap URL explicitly with `feed: { url: ... }` or `sitemap: { url: ... }`.
+- **Only ten posts**: the blog is feed-only. The cache accumulates with every sync; run the monitor
+  weekly and the archive grows from now on.
+- **`N image references had no cached file`**: images that failed to download (too large, not an
+  image, server error). `sync --full` retries them; `status` shows the counts.
+- **Book too large**: use `split: year`, lower `max_image_width`, or `images: false`.
+- **A post is missing**: check `include`/`exclude`, `since`/`until`, and whether the source lists
+  it (`detect URL --sample 50`).
+- **WordPress returns 401/403 for the API**: the site restricts it. Set `source: feed` or
+  `source: sitemap`.
+
+## Limitations
+
+- Feeds list only recent posts; sitemaps list everything but need extraction per page.
+- Embedded video and iframes become links to the original. Inline SVG, forms and scripts are
   dropped.
-- The books are for personal reading. The content stays the property of its authors; the title
-  page says so and every chapter links back to the original URL.
+- Comments are never included.
+- The books are for personal reading. Content remains the property of its authors; the title page
+  says so and every chapter links back to the original URL.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
