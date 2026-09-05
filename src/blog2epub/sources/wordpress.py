@@ -106,9 +106,10 @@ class WordPressSource(Source):
                 resp = self.client.get(
                     _join(self.api_base, self.post_type), params=self._params(page=page, _fields=LIST_FIELDS)
                 )
-            except requests.HTTPError as exc:
+            except requests.RequestException as exc:
                 # WordPress answers 400 (rest_post_invalid_page_number) when we page past the end
-                if exc.response is not None and exc.response.status_code == 400 and page > 1:
+                resp_ = getattr(exc, "response", None)
+                if resp_ is not None and resp_.status_code == 400 and page > 1:
                     break
                 raise SourceError(f"listing posts failed: {exc}") from exc
             total_pages = int(resp.headers.get("X-WP-TotalPages", total_pages) or 1)
@@ -145,7 +146,7 @@ class WordPressSource(Source):
             params.pop("categories", None)
             try:
                 items = self.client.get_json(_join(self.api_base, self.post_type), params=params)
-            except requests.HTTPError as exc:
+            except requests.RequestException as exc:
                 raise SourceError(f"fetching posts {batch[:3]}... failed: {exc}") from exc
             for item in items:
                 yield self._to_post(item)

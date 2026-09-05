@@ -19,7 +19,7 @@ from ..config import BlogConfig
 from ..extract import extract_article
 from ..http import HttpClient
 from ..models import Post, PostRef, utcnow_iso
-from .base import Source
+from .base import Source, SourceError
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +76,10 @@ class FeedSource(Source):
         return None
 
     def discover(self) -> list[PostRef]:
-        parsed = feedparser.parse(self.client.get(self.feed_url).content)
+        try:
+            parsed = feedparser.parse(self.client.get(self.feed_url).content)
+        except requests.RequestException as exc:
+            raise SourceError(f"fetching feed {self.feed_url} failed: {exc}") from exc
         refs: list[PostRef] = []
         for entry in parsed.entries:
             url = entry.get("link")

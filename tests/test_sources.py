@@ -6,6 +6,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+import requests
 
 from blog2epub.config import BlogConfig
 from blog2epub.sources import resolve_source
@@ -64,7 +65,10 @@ class FakeClient:
         return self.get(url, **kw).json()
 
     def try_get(self, url, **kw):
-        resp = self.get(url, allow_404=True, **kw)
+        try:
+            resp = self.get(url, allow_404=True, **kw)
+        except requests.RequestException:  # mirrors HttpClient.try_get
+            return None
         return resp if resp.status_code == 200 else None
 
 

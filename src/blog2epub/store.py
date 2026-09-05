@@ -4,14 +4,16 @@ import hashlib
 import json
 import logging
 from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from .models import Post, utcnow_iso
+from .models import Post, parse_date, utcnow_iso
 
 log = logging.getLogger(__name__)
 
 INDEX_VERSION = 1
+FAILED_IMAGE_RETRY_DAYS = 3  # transient image failures are retried after this long
 
 
 class BlogStore:
@@ -116,9 +118,22 @@ class BlogStore:
         path = self.images_dir / entry["file"]
         return path if path.exists() else None
 
-    def image_failed(self, url: str) -> bool:
+    def image_failed(self, url: str, retry_after_days: float = FAILED_IMAGE_RETRY_DAYS) -> bool:
+        """True if a download failed and should not be retried yet.
+
+        Permanent failures (404, not an image, too large) are never retried without --full.
+        Transient ones (timeouts, 5xx, connection errors) are retried once the record is older
+        than `retry_after_days`.
+        """
         entry = self.image_index.get(url)
-        return bool(entry and entry.get("error"))
+        if not entry or not entry.get("error"):
+            return False
+        if entry.get("permanent"):
+            return True
+        failed_at = parse_date(entry.get("fetched_at"))
+        if failed_at is None:
+            return False
+        return datetime.now(timezone.utc) - failed_at < timedelta(days=retry_after_days)
 
     def put_image(self, url: str, data: bytes, ext: str, media_type: str) -> Path:
         name = f"{self.image_key(url)}.{ext}"
@@ -127,8 +142,8 @@ class BlogStore:
         self.image_index[url] = {"file": name, "media_type": media_type, "fetched_at": utcnow_iso()}
         return path
 
-    def mark_image_failed(self, url: str, reason: str) -> None:
-        self.image_index[url] = {"error": reason, "fetched_at": utcnow_iso()}
+    def mark_image_failed(self, url: str, reason: str, permanent: bool = False) -> None:
+        self.image_index[url] = {"error": reason, "permanent": permanent, "fetched_at": utcnow_iso()}
 
     def image_media_type(self, url: str) -> str | None:
         entry = self.image_index.get(url)

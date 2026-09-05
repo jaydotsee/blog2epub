@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from urllib.parse import urlparse
 
 import requests
@@ -41,10 +42,11 @@ def sniff_media_type(data: bytes, content_type: str | None, url: str) -> str | N
         return "image/webp"
     if b"<svg" in data[:2048].lower():
         return "image/svg+xml"
-    if content_type:
-        ct = content_type.split(";")[0].strip().lower()
-        if ct in _EXT_FOR_TYPE:
-            return ct
+    ct = (content_type or "").split(";")[0].strip().lower()
+    if ct in _EXT_FOR_TYPE:
+        return ct
+    if ct and not ct.endswith("octet-stream"):
+        return None  # the server says it is not an image (an HTML error page, say); trust it
     ext = urlparse(url).path.rsplit(".", 1)[-1].lower()
     return MEDIA_TYPES.get(ext)
 
@@ -98,32 +100,66 @@ def pick_srcset_candidate(src: str | None, srcset: str | None, max_width: int) -
     return src or candidates[0][1]
 
 
+PERMANENT_STATUSES = {400, 401, 403, 404, 410, 451}
+BODY_RETRY_PAUSE = 2.0  # seconds before re-downloading an image whose body read failed
+
+
+def _is_permanent(exc: requests.RequestException) -> bool:
+    resp = getattr(exc, "response", None)
+    return resp is not None and resp.status_code in PERMANENT_STATUSES
+
+
+def _download(client: HttpClient, url: str, max_bytes: int) -> tuple[bytes, str | None] | str:
+    """Return (data, content_type), or a failure reason string for oversize files."""
+    resp = client.get(url, stream=True)
+    length = resp.headers.get("Content-Length")
+    if length and int(length) > max_bytes:
+        return f"too large ({length} bytes)"
+    chunks: list[bytes] = []
+    size = 0
+    for chunk in resp.iter_content(65536):
+        size += len(chunk)
+        if size > max_bytes:
+            return f"too large (> {max_bytes} bytes)"
+        chunks.append(chunk)
+    return b"".join(chunks), resp.headers.get("Content-Type")
+
+
 def fetch_image(client: HttpClient, store: BlogStore, url: str, max_bytes: int) -> bool:
-    """Download `url` into the store unless it is already there (or already known to fail)."""
+    """Download `url` into the store unless it is already there (or a failure is still fresh).
+
+    The HTTP client retries connection errors, timeouts before the headers and 5xx responses.
+    A failure while the body streams is not covered by that, so the whole download is tried
+    once more after a short pause. Failures are recorded as permanent (4xx, oversize, not an
+    image) or transient (everything else, retried after FAILED_IMAGE_RETRY_DAYS).
+    """
     if store.image_path(url) or store.image_failed(url):
         return store.image_path(url) is not None
-    try:
-        resp = client.get(url, stream=True)
-        length = resp.headers.get("Content-Length")
-        if length and int(length) > max_bytes:
-            store.mark_image_failed(url, f"too large ({length} bytes)")
-            return False
-        chunks: list[bytes] = []
-        size = 0
-        for chunk in resp.iter_content(65536):
-            size += len(chunk)
-            if size > max_bytes:
-                store.mark_image_failed(url, f"too large (> {max_bytes} bytes)")
+    result: tuple[bytes, str | None] | str | None = None
+    for attempt in (1, 2):
+        try:
+            result = _download(client, url, max_bytes)
+            break
+        except requests.RequestException as exc:
+            if _is_permanent(exc):
+                log.warning("image %s: %s", url, exc)
+                store.mark_image_failed(url, str(exc)[:200], permanent=True)
                 return False
-            chunks.append(chunk)
-        data = b"".join(chunks)
-    except requests.RequestException as exc:
-        log.warning("image %s: %s", url, exc)
-        store.mark_image_failed(url, str(exc)[:200])
+            if attempt == 1:
+                log.info("image %s: %s, retrying once", url, exc)
+                time.sleep(BODY_RETRY_PAUSE)
+                continue
+            log.warning("image %s: %s", url, exc)
+            store.mark_image_failed(url, str(exc)[:200])
+            return False
+    assert result is not None
+    if isinstance(result, str):
+        store.mark_image_failed(url, result, permanent=True)
         return False
-    media_type = sniff_media_type(data, resp.headers.get("Content-Type"), url)
+    data, content_type = result
+    media_type = sniff_media_type(data, content_type, url)
     if not media_type or not data:
-        store.mark_image_failed(url, "not an image")
+        store.mark_image_failed(url, "not an image", permanent=True)
         return False
     store.put_image(url, data, _EXT_FOR_TYPE[media_type], media_type)
     return True

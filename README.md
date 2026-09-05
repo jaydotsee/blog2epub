@@ -47,7 +47,8 @@ built output/api-management.epub - 150 posts, 119 images, 36.9 MB
   and `sitemap.xml` crawling. The richest one that answers wins.
 - **Incremental monitoring.** Each sync lists what the source knows, fetches only new and
   modified posts plus missing images, and keeps everything in a per-blog cache. Building is
-  offline.
+  offline. Requests retry with backoff, image downloads get a second attempt, and one unreachable
+  blog never stops the others.
 - **Readability.** Scraped pages go through readability to isolate the article. An optional
   build-time pass cleans feed and API bodies too, with a safety net that never drops a post's
   content.
@@ -523,8 +524,13 @@ Design notes for contributors:
   feed or sitemap URL explicitly with `feed: { url: ... }` or `sitemap: { url: ... }`.
 - **Only ten posts**: the blog is feed-only. The cache accumulates with every sync; run the monitor
   weekly and the archive grows from now on.
-- **`N image references had no cached file`**: images that failed to download (too large, not an
-  image, server error). `sync --full` retries them; `status` shows the counts.
+- **`N image references had no cached file`**: images that failed to download. Permanent failures
+  (404, not an image, too large) are remembered; transient ones (timeouts, server errors) are
+  retried automatically three days later, or immediately with `sync --full`. `status` shows the
+  counts.
+- **A blog is unreachable**: it is reported as an error and the run continues with the other blogs;
+  the exit code is 2 so CI notices. Books that include the failed blog are still built from what
+  the cache holds.
 - **Book too large**: use `split: year`, lower `max_image_width`, or `images: false`.
 - **A post is missing**: check `include`/`exclude`, `since`/`until`, and whether the source lists
   it (`detect URL --sample 50`).

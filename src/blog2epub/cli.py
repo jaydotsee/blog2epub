@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import requests
+
 from . import __version__
 from .config import BlogConfig, BookConfig, ConfigError, Settings, load_config
 from .covers import resolve_cover
@@ -99,7 +101,7 @@ def cmd_detect(settings: Settings, args: argparse.Namespace) -> int:
     client = _client(settings, blog)
     try:
         source = resolve_source(blog, client)
-    except SourceError as exc:
+    except (SourceError, requests.RequestException) as exc:
         print(f"no usable source: {exc}")
         return 2
     refs = source.discover()
@@ -133,7 +135,7 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
             result = sync_blog(
                 blog, settings, _client(settings, blog), store, full=args.full, prune=args.prune
             )
-        except SourceError as exc:
+        except (SourceError, requests.RequestException) as exc:
             log.error("%s: %s", blog.id, exc)
             rc = 2
             continue
@@ -169,7 +171,7 @@ def cmd_run(settings: Settings, args: argparse.Namespace) -> int:
             result = sync_blog(
                 blog, settings, _client(settings, blog), store, full=args.full, prune=args.prune
             )
-        except SourceError as exc:
+        except (SourceError, requests.RequestException) as exc:
             log.error("%s: %s", blog.id, exc)
             entry["error"] = str(exc)
             report["blogs"].append(entry)
