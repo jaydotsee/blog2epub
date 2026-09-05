@@ -1,26 +1,57 @@
-# blog2epub
+<p align="center">
+  <img src="docs/social-preview.png" alt="blog2epub: navigable EPUB books and monthly digests from the blogs you read" width="100%">
+</p>
 
-Turn the blogs you follow into books for your e-reader.
+<h1 align="center">blog2epub</h1>
 
-Point `blogs.yaml` at blog root URLs. blog2epub monitors them, caches every post, and writes
-EPUB 3 files: a cover, a title page, a nested table of contents with excerpts, readability-cleaned
-articles with their images, and cross-links that stay inside the book. A book can be one blog's
-complete archive or a magazine-style digest that combines several blogs with a date range and a
-post limit. A weekly GitHub Action keeps the books current.
+<p align="center">
+  Point it at the blogs you read. Get navigable EPUB books and monthly digests for your e-reader, kept current by a weekly workflow.
+</p>
 
-The idea comes from Facundo Olano's
-[Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/): an EPUB
-is zipped XHTML plus a manifest, so all you need is the post bodies and a little boilerplate. That
-post builds a book from a blog's *own source files* with a static site generator. blog2epub does
-the same for blogs you **don't** own, by fetching posts through whatever the site exposes.
+<p align="center">
+  <a href="https://github.com/jaydotsee/blog2epub/actions/workflows/ci.yml"><img src="https://github.com/jaydotsee/blog2epub/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/jaydotsee/blog2epub/actions/workflows/monitor.yml"><img src="https://github.com/jaydotsee/blog2epub/actions/workflows/monitor.yml/badge.svg" alt="Monitor"></a>
+  <a href="https://github.com/jaydotsee/blog2epub/releases"><img src="https://img.shields.io/github/v/release/jaydotsee/blog2epub?include_prereleases&label=release" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue" alt="Python 3.10 to 3.13">
+  <img src="https://img.shields.io/badge/EPUB%203-epubcheck%20clean-2ea44f" alt="EPUB 3, epubcheck clean">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-lightgrey" alt="MIT license"></a>
+</p>
 
-```
-$ blog2epub run
-tyk: 627 posts listed via wordpress (https://tyk.io/wp-json/wp/v2/posts); 0 new, 0 updated ...
-kong: 10 posts listed via feed (https://konghq.com/feed/); 2 new, 0 updated ...
-built output/tyk.epub - 627 posts, 956 images, 52.1 MB
-built output/api-management.epub - 150 posts, 119 images, 36.9 MB
-```
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="#the-api-management-digest">The digest</a> ·
+  <a href="#keeping-books-current-with-github-actions">Automation</a> ·
+  <a href="https://github.com/jaydotsee/blog2epub/releases">Download books</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+---
+
+**blog2epub** monitors blogs, caches every post, and writes EPUB 3 files with a cover, a title
+page, a nested table of contents with excerpts, readability-cleaned articles with their images,
+and cross-links that stay inside the book. A book can be one blog's complete archive or a
+magazine-style digest that combines several blogs over a date range. Every book it produces passes
+the W3C [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
+
+It ships configured with two books: the complete [Tyk blog](https://tyk.io/blog) archive
+(627 posts, 2015 to today) and the **API Management Digest**, a monthly issue drawn from eleven
+API-management blogs. Both are published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
+
+The idea comes from Facundo Olano's [Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/):
+an EPUB is zipped XHTML plus a manifest. That post builds a book from a blog's *own source files*.
+blog2epub does the same for blogs you **don't** own, by fetching posts through whatever the site
+exposes.
+
+## What it looks like on the reader
+
+<p align="center">
+  <img src="docs/screenshots/contents.png" width="24%" alt="Table of contents: years, months, posts">
+  <img src="docs/screenshots/part.png" width="24%" alt="A year page listing its months and posts with excerpts">
+  <img src="docs/screenshots/month.png" width="24%" alt="A month page with dates, authors and excerpts">
+  <img src="docs/screenshots/chapter.png" width="24%" alt="A chapter with byline, source link and images">
+</p>
+<p align="center"><sub>Contents · year page · month page · chapter. Rendered at a 6-inch e-reader viewport from the generated Tyk book.</sub></p>
 
 ## Contents
 
@@ -32,13 +63,15 @@ built output/api-management.epub - 150 posts, 119 images, 36.9 MB
 - [Configuration](#configuration)
 - [Site rules](#site-rules)
 - [Recipes](#recipes)
+- [The API Management Digest](#the-api-management-digest)
+- [Magazine covers](#magazine-covers)
 - [Keeping books current with GitHub Actions](#keeping-books-current-with-github-actions)
 - [Reading the books](#reading-the-books)
 - [Project layout](#project-layout)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
 - [Limitations](#limitations)
-- [License](#license)
+- [Contributing and license](#contributing-and-license)
 
 ## Features
 
@@ -52,23 +85,21 @@ built output/api-management.epub - 150 posts, 119 images, 36.9 MB
 - **Readability.** Scraped pages go through readability to isolate the article. An optional
   build-time pass cleans feed and API bodies too, with a safety net that never drops a post's
   content.
-- **Clean, valid XHTML.** Scripts, styles, forms, tracking attributes, Word pastes, lazy-load
-  placeholders and custom elements are handled. Every generated book passes the W3C
-  [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
 - **Site rules, Calibre-recipe style.** Per blog, `keep` names the article container and
   `remove` lists the clutter to drop, as CSS selectors. `extra_css` tunes the look.
-- **Rolling windows.** `since: 7d`, `2w`, `3m` or `1y` on a book gives a "last week" or "last
-  quarter" issue without editing dates.
+- **Clean, valid XHTML.** Scripts, styles, forms, tracking attributes, Word pastes, lazy-load
+  placeholders and custom elements are handled. Every generated book passes epubcheck with zero
+  errors and warnings.
 - **Real navigation.** EPUB 3 `nav.xhtml` with parts (per year, month or blog), optional month
   sub-sections inside each year, and chapters; a `toc.ncx` for older readers; landmarks; and
   part pages that list each post with its date, author and excerpt.
 - **Magazine digests.** Combine any number of blogs into one book, newest first, with a lead
-  image per article and the blog name in every byline.
-- **Your cover or a generated one.** Point `cover:` at a JPG/PNG (path or URL). The Tyk book
-  ships with a magazine-style cover rendered from an HTML template with live cover lines
-  (`make cover`, see `covers/README.md`).
-- **Scriptable.** A plain CLI, a JSON report for automation, and a ready-made GitHub Actions
-  workflow that publishes rebuilt books to a rolling release.
+  image per article and the blog name in every byline. Rolling windows (`since: 7d`, `1m`, `1y`)
+  give a fresh issue on every build.
+- **Covers with live cover lines.** HTML templates rendered to JPG, with the newest post titles,
+  the post count and an issue number. Or point `cover:` at your own image.
+- **Scriptable and automated.** A plain CLI, a JSON report, a weekly GitHub Actions monitor
+  publishing to a rolling release, and an on-demand workflow for dated releases.
 
 ## How it works
 
@@ -99,7 +130,8 @@ Sitemaps list whole archives but need readability to extract each page.
 **Cache.** `cache/<blog>/index.json` records every known post (URL, title, dates) and every image
 (or the reason it failed). Posts live one per JSON file, images by URL hash. A post is re-fetched
 only when the source reports a newer `modified` stamp. Posts that disappear from the source stay
-cached unless you pass `--prune`.
+cached unless you pass `--prune`. Transient image failures are retried after three days;
+permanent ones (404, not an image, too large) only with `--full`.
 
 **Cleaning.** Post HTML becomes a well-formed XHTML fragment: iframes and videos turn into links,
 the best `srcset` candidate not wider than `max_image_width` is chosen, lazy-load `data-src`
@@ -129,14 +161,15 @@ python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 ```
 
-Java is only needed for `make epubcheck` and the optional validator test.
+Java is only needed for `make epubcheck` and the optional validator test. Cover rendering needs
+the `covers` extra (Playwright) and a Chromium.
 
 ## Quick start
 
 ```bash
 .venv/bin/blog2epub list                    # what is configured
 .venv/bin/blog2epub run tyk                 # sync + build → output/tyk.epub
-.venv/bin/blog2epub run api-management      # sync its five blogs, build the digest
+.venv/bin/blog2epub run api-management      # sync its eleven blogs, build the digest
 .venv/bin/blog2epub status                  # cache and output state
 ```
 
@@ -222,7 +255,7 @@ Any blog or book key may also appear under `defaults`.
 | `remove` | `[]` | CSS selectors for clutter to drop from every post (share bars, newsletter boxes, related posts). |
 | `extra_css` | – | CSS appended to every book that contains this blog. Chapters carry `class="blog-<id>"` for scoping. |
 | `request_delay` | inherits | Per-blog override. |
-| `wordpress` | `{}` | `api` (base URL), `post_type`, `categories` (ids), `params` (extra query params). |
+| `wordpress` | `{}` | `api` (base URL), `post_type`, `categories` (ids), `params` (extra query params such as `author`). |
 | `feed` | `{}` | `url` of the feed when discovery fails. |
 | `sitemap` | `{}` | `url` of the sitemap when discovery fails. |
 | book keys | see below | `author`, `description`, `publisher`, `language`, `max_posts`, `cover`, `group_by`, `order`, `split`, `demote_headings`, `readability`, `excerpts`, `featured_images` configure the blog's standalone book. |
@@ -281,24 +314,22 @@ blogs:
     author: "Tyk Technologies"
     description: "Every post from the Tyk API management blog, collected as an ebook."
     include: ["^https://tyk\\.io/blog/"]
-    # cover: covers/tyk.jpg
+    order: desc
+    group_by: year-month
+    cover: covers/tyk.jpg
 
   - id: kong
     title: "Kong Blog"
     url: https://konghq.com/blog
     standalone: false               # only used inside combined books
-  - id: gravitee
-    title: "Gravitee Blog"
-    url: https://www.gravitee.io/blog
-    standalone: false
+    since: 3m
+    remove: ["[itemtype='https://schema.org/BreadcrumbList']", "span.agent"]
 
 books:
   - id: api-management
     title: "API Management Digest"
-    description: "Recent posts from API management vendors, in one magazine-style ebook."
-    blogs: [tyk, kong, gravitee]
-    since: "2025-01-01"
-    max_posts: 150
+    blogs: [tyk, kong]
+    since: 1m
     group_by: blog
     order: desc
     cover: covers/api-management.jpg
@@ -366,7 +397,7 @@ tyk.io book is about 50 MB). Split it:
 books:
   - id: apim-weekly
     title: "API Management Weekly"
-    blogs: [tyk, kong, gravitee, solo, postman]
+    blogs: [tyk, kong, gravitee, nordicapis, postman]
     since: 7d
     group_by: blog
     order: desc
@@ -385,13 +416,16 @@ books:
     images: false
 ```
 
-**Only some categories of a WordPress blog.** Find category ids at
-`https://<site>/wp-json/wp/v2/categories`, then:
+**Only some authors or categories of a WordPress blog.** Any query parameter of the posts endpoint
+can be passed; APIDAYS' articles on API Scene are selected this way in the shipped config:
 
 ```yaml
-  - id: tyk-engineering
-    url: https://tyk.io/blog
-    wordpress: { categories: [12, 15] }
+  - id: apidays
+    url: https://www.apiscene.io/author/apidays-conferences/
+    wordpress: { api: https://www.apiscene.io/wp-json/wp/v2, params: { author: 3 } }
+  - id: apiscene
+    url: https://apiscene.io
+    wordpress: { params: { author_exclude: 3 } }
 ```
 
 **A blog whose feed is not discoverable:**
@@ -420,6 +454,12 @@ Because the window rolls, the weekly workflow always produces a fresh issue; the
 
 ## Magazine covers
 
+<p align="center">
+  <img src="covers/tyk.jpg" width="30%" alt="Tyk Blog cover">
+  &nbsp;&nbsp;
+  <img src="covers/api-management.jpg" width="30%" alt="API Management Digest cover">
+</p>
+
 `covers/tyk.jpg` and `covers/api-management.jpg` are rendered from the HTML templates next to them
 by `scripts/render_cover.py`. The Tyk cover uses Tyk's brand palette with a masthead, three
 kicker-plus-title cover lines taken from the newest cached posts, a hexagon badge with the post
@@ -433,28 +473,34 @@ make cover        # installs the `covers` extra (Playwright) and renders both co
 
 The cover carries an issue number, the render date as `2026.09.05`, and the title page inside the
 book repeats it as `Issue 2026.09.05` from the build date. The weekly workflow re-renders the cover
-before building, so both stay current. Copy the template to make a cover for another blog; the
-placeholders (`$count`, `$issue`, `$issue_number`, `$kicker1`, `$title1`, ...) work for any blog id. Fonts are bundled under `covers/fonts/`
-(SIL Open Font License), so rendering is identical everywhere and needs no network.
+before building, so both stay current. Copy a template to make a cover for another blog or book;
+the placeholders (`$count`, `$issue`, `$issue_number`, `$month`, `$kicker1`, `$title1`, ...) work
+for any id. Fonts are bundled under `covers/fonts/` (SIL Open Font License), so rendering is
+identical everywhere and needs no network.
 
 ## Keeping books current with GitHub Actions
 
 `.github/workflows/monitor.yml` runs every Monday at 06:00 UTC and on demand:
 
 1. restores `cache/` from the previous run with `actions/cache`, so only new posts are fetched;
-2. runs `blog2epub run --report report.json`, which rebuilds every book whose blogs changed;
-3. uploads all EPUBs as a workflow artifact (kept 30 days);
-4. when something changed, refreshes the rolling **`latest`** GitHub release, so the newest books
-   are always at `https://github.com/<you>/blog2epub/releases/tag/latest`;
-5. writes a summary to the job page.
+2. re-renders the covers so cover lines and issue numbers match this run;
+3. runs `blog2epub run --report report.json`, which rebuilds every book whose blogs changed;
+4. uploads all EPUBs as a workflow artifact (kept 30 days);
+5. when something changed, refreshes the rolling **`latest`** GitHub release, so the newest books
+   are always at `https://github.com/jaydotsee/blog2epub/releases/tag/latest`;
+6. writes a summary to the job page.
 
 "Run workflow" accepts two switches: `force` rebuilds every book, `full` ignores the cache and
 re-fetches everything. Nothing generated is committed; `cache/` and `output/` are git-ignored.
 
-`.github/workflows/release.yml` publishes one book as a **dated release** on demand: run it from
-the Actions tab with a book id and it syncs that book's blogs, renders its cover, builds it, and
-creates a release tagged `<book>-<YYYY.MM.DD>` (for example `tyk-2026.09.05`) with the EPUB
-attached.
+`.github/workflows/release.yml` publishes one book as a **dated release**. Three ways to run it,
+all producing the tag `<book>-<YYYY.MM.DD>` with the EPUB attached:
+
+```bash
+git tag -a tyk-2026.09.05 -m "Tyk Blog, issue 2026.09.05" && git push origin tyk-2026.09.05
+git push origin main:release/tyk-2026.09.05        # for hosts that block tag pushes
+# or: Actions tab → "Release a book" → Run workflow → book id
+```
 
 To run somewhere else, any scheduler that can call `blog2epub run` works: the cache directory is
 the only state.
@@ -463,8 +509,8 @@ the only state.
 
 - **Kobo, PocketBook, Tolino, Boox, Apple Books, Calibre:** copy the `.epub` over as is.
 - **Kindle:** Send to Kindle accepts EPUB up to 200 MB via the web and app, 25 MB via email.
-  Set `cover:` to a JPG or PNG for Kindle; generated covers are SVG, which Kindle conversion may
-  not render.
+  The shipped covers are JPG; generated fallback covers are SVG, which Kindle conversion may not
+  render, so set `cover:` for Kindle.
 - The table of contents shows parts and chapters; part pages give the date, author and an excerpt
   for every post; every chapter links back to the original URL.
 
@@ -472,8 +518,10 @@ the only state.
 
 ```
 blogs.yaml                     configuration (blogs = sources, books = outputs)
-covers/                        cover images, the Tyk cover template and bundled fonts
-scripts/render_cover.py        renders an HTML cover template to JPG with Playwright
+covers/                        cover images, their HTML templates and bundled fonts
+docs/                          README assets (screenshots, social preview)
+scripts/render_cover.py        renders a cover template to JPG with Playwright
+scripts/render_docs.py         renders the README screenshots and social preview
 src/blog2epub/
   cli.py                       list, detect, sync, build, run, status
   config.py                    YAML → BlogConfig / BookConfig / Settings, validation
@@ -485,17 +533,17 @@ src/blog2epub/
     feed.py                    RSS/Atom via feedparser, page fetch for truncated bodies
     sitemap.py                 sitemap index crawl, per-page extraction
   extract.py                   readability + meta/JSON-LD extraction; build-time readability pass
-  clean.py                     HTML → valid XHTML fragment; images, links, ids, headings
-  images.py                    srcset parsing, download, media-type sniffing
+  clean.py                     HTML → valid XHTML fragment; site rules, images, links, ids
+  images.py                    srcset parsing, download with retry, media-type sniffing
   covers.py                    cover from a local path or a URL
   store.py                     cache/<blog>/index.json, posts/, images/
   sync.py                      discover → fetch changed → fetch images → save index
   epub.py                      selection, grouping, page renderers, EPUB 3 packaging
   assets/styles.css            e-reader friendly stylesheet
-tests/                         pytest suite (sources with a fake HTTP client, cleaner, builder, config)
+tests/                         pytest suite; runs offline with a fake HTTP client
 .github/workflows/ci.yml       ruff, mypy, pytest + epubcheck on every push
 .github/workflows/monitor.yml  weekly sync/build/release
-.github/workflows/release.yml  on-demand dated release of one book
+.github/workflows/release.yml  dated release of one book
 ```
 
 ## Development
@@ -508,15 +556,11 @@ make epubcheck        # build everything, then validate with the W3C checker (ne
 EPUBCHECK_JAR=path/to/epubcheck.jar make test   # also runs the validator inside the test suite
 ```
 
-Design notes for contributors:
-
-- Sources return `PostRef`s from `discover()` and `Post`s from `fetch()`. A new source is a class
-  with `detect`, `discover`, `fetch` and `describe`, registered in `sources/__init__.py`.
-- `clean.clean_html` is the only place that turns untrusted HTML into XHTML. Anything epubcheck
-  complains about is fixed there, with a regression test in `tests/test_clean.py`.
-- The EPUB writer has no dependencies; every page is a small render function in `epub.py`, and
-  `tests/test_epub.py` parses the generated OPF, nav and NCX to check structure.
-- `tests/test_sources.py` drives the sources with a fake HTTP client, so the suite runs offline.
+Design notes for contributors are in [CONTRIBUTING.md](CONTRIBUTING.md). In short: sources are
+small classes with `detect`, `discover` and `fetch`; `clean.clean_html` is the only place that
+turns untrusted HTML into XHTML; the EPUB writer has no dependencies and its output is checked
+structurally and with epubcheck in the tests; and the whole suite runs offline against a fake
+HTTP client.
 
 ## Troubleshooting
 
@@ -550,6 +594,10 @@ Design notes for contributors:
 - The books are for personal reading. Content remains the property of its authors; the title page
   says so and every chapter links back to the original URL.
 
-## License
+## Contributing and license
 
-MIT. See [LICENSE](LICENSE).
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md) and
+[SECURITY.md](SECURITY.md). Changes are tracked in [CHANGELOG.md](CHANGELOG.md).
+
+MIT, see [LICENSE](LICENSE). Bundled fonts (Bebas Neue, Barlow, Barlow Condensed) are under the
+SIL Open Font License 1.1.

@@ -1,0 +1,27 @@
+name: Bug report
+description: Something is wrong with a generated book or the tool itself
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you run, what did you expect, what did you get?
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant blogs.yaml entry
+      render: yaml
+  - type: textarea
+    id: output
+    attributes:
+      label: Command output
+      description: Run the command again with `-vv` and paste the relevant part. Include epubcheck output if the book fails validation.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: blog2epub version and Python version
+      placeholder: "blog2epub 0.2.0, Python 3.12, Linux"

@@ -1,0 +1,37 @@
+# Changelog
+
+All notable changes to blog2epub. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+## [0.2.0] – 2026-09-05
+
+### Added
+- Combined **books** from any number of blogs (`books:` in `blogs.yaml`), with `since`/`until`,
+  `max_posts`, `group_by: blog | year | year-month | month | none`, `order`, `split`.
+- Rolling date windows (`7d`, `2w`, `3m`, `1y`) for blogs and books.
+- Site rules per blog: `keep`, `remove` (CSS selectors) and `extra_css`.
+- Build-time readability pass (`readability: auto | always | never`).
+- Featured/lead images, excerpts on contents pages, issue numbers on covers and title pages.
+- Year → month → post navigation (`group_by: year-month`) with month pages in reading order.
+- Magazine covers rendered from HTML templates (`scripts/render_cover.py`, `make cover`), with
+  bundled OFL fonts; covers for the Tyk archive and the API Management Digest.
+- The **API Management Digest**: a monthly book from eleven API-management blogs.
+- Weekly monitor workflow with a rolling `latest` release; on-demand `release.yml` publishing a
+  dated release from a tag, a `release/<book>-<date>` branch, or the Actions tab.
+- Network robustness: per-blog failure isolation, whole-file image retries, transient vs
+  permanent image failures with automatic retry after three days.
+
+### Changed
+- Media-type sniffing trusts an explicit non-image Content-Type over the URL extension.
+
+## [0.1.0] – 2026-09-05
+
+### Added
+- Initial release: WordPress REST, RSS/Atom and sitemap sources with auto-detection, incremental
+  per-blog cache, XHTML cleaner, dependency-free EPUB 3 writer with `nav.xhtml` and `toc.ncx`,
+  CLI (`list`, `detect`, `sync`, `build`, `run`, `status`), CI with epubcheck.
+
+[Unreleased]: https://github.com/jaydotsee/blog2epub/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jaydotsee/blog2epub/releases/tag/v0.2.0
+[0.1.0]: https://github.com/jaydotsee/blog2epub/commits/20669e6

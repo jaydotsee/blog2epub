@@ -1,0 +1,29 @@
+name: Blog not working
+description: A blog that blog2epub cannot detect, sync, or render well
+labels: ["source"]
+body:
+  - type: input
+    id: url
+    attributes:
+      label: Blog URL
+    validations:
+      required: true
+  - type: textarea
+    id: detect
+    attributes:
+      label: Output of `blog2epub detect <url>`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong?
+      description: Not detected at all, wrong posts listed, menus and footers in the articles, missing images, ...
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: Any `keep` / `remove` selectors you tried
+      render: yaml

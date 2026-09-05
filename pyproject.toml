@@ -4,11 +4,28 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blog2epub"
-version = "0.1.0"
-description = "Monitor blogs and turn each of them into a navigable EPUB book"
+version = "0.2.0"
+description = "Monitor blogs and turn them into navigable EPUB books and monthly digests for your e-reader"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+authors = [{ name = "jaydotsee" }]
+keywords = ["epub", "ebook", "blog", "rss", "wordpress", "readability", "e-reader", "kindle", "kobo", "digest"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Text Processing :: Markup :: HTML",
+    "Topic :: Utilities",
+]
 dependencies = [
     "requests>=2.31",
     "PyYAML>=6.0",
@@ -23,6 +40,13 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6", "mypy>=1.10", "types-requests", "types-PyYAML"]
 covers = ["playwright>=1.45"]
+
+[project.urls]
+Homepage = "https://github.com/jaydotsee/blog2epub"
+Repository = "https://github.com/jaydotsee/blog2epub"
+Issues = "https://github.com/jaydotsee/blog2epub/issues"
+Changelog = "https://github.com/jaydotsee/blog2epub/blob/main/CHANGELOG.md"
+Releases = "https://github.com/jaydotsee/blog2epub/releases"
 
 [project.scripts]
 blog2epub = "blog2epub.cli:main"
