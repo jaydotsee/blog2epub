@@ -34,10 +34,11 @@ and cross-links that stay inside the book. A book can be one blog's complete arc
 magazine-style digest that combines several blogs over a date range. Every book it produces passes
 the W3C [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
 
-It ships configured with three books: the complete [Tyk blog](https://tyk.io/blog) archive
-(627 posts, 2015 to today), the complete [Kong blog](https://konghq.com/blog) archive
-(900 posts, 2018 to today), and the **API Management Digest**, a monthly issue drawn from eleven
-API-management blogs. All are published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
+It ships configured with four books: three complete archives — [Tyk](https://tyk.io/blog)
+(627 posts), [Kong](https://konghq.com/blog) (900 posts) and
+[Apigee](https://cloud.google.com/blog/products/apigee) (244 posts, back to 2011) — and the
+**API Management Digest**, a monthly issue drawn from eleven API-management blogs. All are
+published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
 
 The idea comes from Facundo Olano's [Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/):
 an EPUB is zipped XHTML plus a manifest. That post builds a book from a blog's *own source files*.
@@ -482,11 +483,15 @@ their own covers:
 | --- | --- | --- | --- |
 | `tyk` | WordPress REST API | 627 | The API delivers every post with full metadata in seven requests. |
 | `kong` | `sitemaps/blogs.xml` | 900 | The feed carries only the latest ten, so the sitemap is used instead. |
+| `apigee` | Google's `cloudblog` sitemap | 244 | The URL given is a tag page, not a section; posts live under other product paths. |
 
 Kong's pages prerender twenty related-post cards into every article, which readability alone
 mistakes for part of the story, so the entry uses a `keep` selector for the article body plus
 `remove` selectors for the surrounding furniture. It is the worked example for
-[Site rules](#site-rules) on a modern JavaScript-rendered site.
+[Site rules](#site-rules) on a modern JavaScript-rendered site. Apigee is the worked example of a
+blog URL that is a tag page: nothing lives under `/blog/products/apigee`, so the entry matches
+where the posts really are and walks only the English partitions of Google's 1058-file sitemap
+index.
 
 ```bash
 .venv/bin/blog2epub run kong     # sync + build → output/kong.epub

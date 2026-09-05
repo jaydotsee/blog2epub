@@ -25,6 +25,8 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   answering 200 with an error page) never become chapters.
 - `scripts/probe_blog.py --from-config --id <blog>` probes a blog through its configured source
   and rules, for iterating on an entry that auto-detection cannot reach.
+- The complete **Apigee** archive (244 posts, 2011 to 2026) from Google Cloud's blog, with a
+  cover in Google's palette.
 - The complete **Kong blog** archive as a second standalone book (901 posts): sourced from Kong's
   blog sitemap because the feed carries only the latest ten, with `keep`/`remove` rules for the
   related-post cards Kong prerenders into every page, and its own cover in Kong's palette.
