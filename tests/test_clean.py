@@ -105,3 +105,13 @@ def test_srcset_with_data_uri_placeholder_and_lazy_attrs():
     xhtml, imgs = _clean(html, max_image_width=800)
     assert imgs == ["https://example.com/lazy-300.jpg"]
     assert "data-src" not in xhtml
+
+
+def test_wordpress_lazy_placeholder_with_broken_protocol_relative_src():
+    html = ('<p><img loading="lazy" alt="" class="size-medium" data-lazy-src="https://tyk.io/wp-content/uploads/2023/04/x-934x678.png" '
+            'height="678" src="//www.w3.org/2000/svg\'%20viewBox=\'0%200%20934%20678\'%3E%3C/svg%3E" width="934" /></p>')
+    _, imgs = _clean(html)
+    assert imgs == ["https://tyk.io/wp-content/uploads/2023/04/x-934x678.png"]
+    html2 = '<img src="//www.w3.org/2000/svg\'%20viewBox=\'0%200%201%201\'%3E%3C/svg%3E" alt="broken only">'
+    xhtml, imgs2 = _clean(html2)
+    assert imgs2 == [] and "[image: broken only]" in xhtml

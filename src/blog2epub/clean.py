@@ -94,20 +94,30 @@ _LAZY_SRC = ("data-src", "data-lazy-src", "data-original", "data-orig-file", "da
 _LAZY_SRCSET = ("data-srcset", "data-lazy-srcset")
 
 
+def _looks_broken(url: str | None) -> bool:
+    return not url or url.startswith("data:") or any(c in url for c in ("'", "<", "%3C", " "))
+
+
 def _lazy_aware(img: html.HtmlElement) -> tuple[str | None, str | None]:
-    """Lazy-load plugins park the real image in data-* attributes and a placeholder in src."""
+    """Lazy-load plugins park the real image in data-* attributes and a placeholder in src.
+
+    When a lazy attribute is present it wins; a placeholder src (data: URI, inline SVG,
+    anything with quotes or spaces in it) is never fetched.
+    """
     src = img.get("src")
     srcset = img.get("srcset")
-    if not src or src.startswith("data:") or "placeholder" in src or "lazy" in src.lower():
-        for attr in _LAZY_SRC:
-            if img.get(attr) and not img.get(attr).startswith("data:"):
-                src = img.get(attr)
-                break
-    if not srcset or srcset.startswith("data:"):
-        for attr in _LAZY_SRCSET:
-            if img.get(attr):
-                srcset = img.get(attr)
-                break
+    for attr in _LAZY_SRC:
+        value = img.get(attr)
+        if value and not _looks_broken(value):
+            src = value
+            break
+    for attr in _LAZY_SRCSET:
+        value = img.get(attr)
+        if value and "data:" not in value:
+            srcset = value
+            break
+    if _looks_broken(src):
+        src = None
     return src, srcset
 
 
