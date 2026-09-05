@@ -136,6 +136,7 @@ blogs:
     author: "Google Cloud"
     description: "Apigee and API management posts from the Google Cloud blog."
     source: sitemap
+    request_delay: 1.5        # cloud.google.com throttles bulk sitemap reads; take it slowly
     sitemap:
       url: https://cloud.google.com/transform/sitemapsummary/cloudblog
       include: ["/cloudblog/en/"]
