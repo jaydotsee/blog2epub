@@ -18,7 +18,14 @@ from blog2epub.sources.sitemap import SitemapSource
 from blog2epub.sources.wordpress import WordPressSource
 from blog2epub.sync import SyncResult
 from tests.conftest import PNG_1x1
-from tests.test_sources import BLOG_HTML, PAGE, FakeClient, FakeResponse, wp_item
+from tests.test_sources import (
+    BLOG_HTML,
+    PAGE,
+    FakeClient,
+    FakeResponse,
+    make_wp_routes,
+    wp_item,
+)
 
 PNG_HEADERS = {"Content-Type": "image/png"}
 PAGE_RESPONSE = FakeResponse(200, PAGE)
@@ -105,7 +112,8 @@ def test_wordpress_listing_timeout_is_a_source_error(blog):
         src.discover()
 
 
-def test_wordpress_fetch_connection_error_is_a_source_error(blog):
+def test_wordpress_fetch_batch_failure_is_survivable(blog):
+    """Listing failures are fatal; a single failed batch of posts is not."""
     items = [wp_item(1)]
 
     def routes(url, params):
@@ -120,8 +128,7 @@ def test_wordpress_fetch_connection_error_is_a_source_error(blog):
 
     src = WordPressSource(blog, Client(routes), "https://example.com/wp-json/wp/v2")
     refs = src.discover()
-    with pytest.raises(SourceError):
-        list(src.fetch(refs))
+    assert list(src.fetch(refs)) == []  # skipped, not raised
 
 
 def test_feed_listing_timeout_is_a_source_error(blog):
@@ -241,3 +248,69 @@ def test_soft_404_pages_are_not_stored_as_posts(tmp_path, blog):
     blog.min_chars = 0  # a link blog with genuinely tiny posts can switch the guard off
     store2 = BlogStore(settings.cache_dir, blog.id)
     assert sync_blog(blog, settings, FakeClient(lambda u, p: routes.get(u)), store2).new == 1
+
+
+def test_a_failed_batch_does_not_lose_the_whole_archive(tmp_path, blog):
+    """A long sync is many batches; one connection failure must not discard the rest."""
+    from types import SimpleNamespace
+
+    from blog2epub.store import BlogStore
+    from blog2epub.sync import sync_blog
+
+    settings = SimpleNamespace(
+        config_path=tmp_path / "blogs.yaml", cache_dir=tmp_path / "cache", output_dir=tmp_path / "out"
+    )
+    items = [wp_item(i) for i in range(1, 4)]
+    routes = make_wp_routes(items)
+    calls = {"n": 0}
+
+    def flaky(url, params):
+        if "include" in params:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise requests.ConnectionError("connection reset mid-archive")
+        return routes(url, params)
+
+    class Client(FakeClient):
+        def get(self, url, params=None, allow_404=False, stream=False, **kw):
+            self.requests_made += 1
+            resp = self.routes(url, params or {})
+            if resp is None:
+                resp = FakeResponse(404)
+            resp.raise_for_status()
+            return resp
+
+    store = BlogStore(settings.cache_dir, blog.id)
+    result = sync_blog(blog, settings, Client(flaky), store)
+    # the batch failed, so nothing was stored, but the sync completed and said which posts
+    assert result.new == 0 and len(result.errors) == 3
+    assert all("not fetched" in e for e in result.errors)
+
+    # the next run picks them up
+    store2 = BlogStore(settings.cache_dir, blog.id)
+    assert sync_blog(blog, settings, Client(flaky), store2).new == 3
+
+
+def test_long_syncs_checkpoint_their_progress(tmp_path, blog, monkeypatch):
+    """Posts fetched before a failure have to survive it."""
+    from types import SimpleNamespace
+
+    from blog2epub import sync as sync_mod
+    from blog2epub.store import BlogStore
+
+    monkeypatch.setattr(sync_mod, "SAVE_EVERY_POSTS", 2)
+    settings = SimpleNamespace(
+        config_path=tmp_path / "blogs.yaml", cache_dir=tmp_path / "cache", output_dir=tmp_path / "out"
+    )
+    items = [wp_item(i) for i in range(1, 6)]
+    store = BlogStore(settings.cache_dir, blog.id)
+    saved: list[int] = []
+    real_save = store.save
+
+    def counting_save():
+        saved.append(len(store.post_index))
+        real_save()
+
+    store.save = counting_save  # type: ignore[method-assign]
+    sync_mod.sync_blog(blog, settings, FakeClient(make_wp_routes(items)), store)
+    assert saved and saved[0] < 5, f"expected a checkpoint before the end, got {saved}"

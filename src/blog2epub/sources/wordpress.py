@@ -147,7 +147,10 @@ class WordPressSource(Source):
             try:
                 items = self.client.get_json(_join(self.api_base, self.post_type), params=params)
             except requests.RequestException as exc:
-                raise SourceError(f"fetching posts {batch[:3]}... failed: {exc}") from exc
+                # A long archive is many batches; losing one to a hiccup should not cost the
+                # rest. The posts stay uncached and the next sync picks them up.
+                log.warning("batch of %d posts starting %s failed, skipping: %s", len(batch), batch[0], exc)
+                continue
             for item in items:
                 yield self._to_post(item)
 

@@ -15,6 +15,8 @@ from .store import BlogStore
 
 log = logging.getLogger(__name__)
 
+SAVE_EVERY_POSTS = 50  # checkpoint the cache so a long sync that fails keeps its progress
+
 
 @dataclass
 class SyncResult:
@@ -84,6 +86,8 @@ def sync_blog(
         else:
             result.new += 1
         log.info("  fetched %s (%s)", post.title[:70], post.date or "undated")
+        if (result.new + result.updated) % SAVE_EVERY_POSTS == 0:
+            store.save()
     missing = [r for r in to_fetch if r.key not in fetched_keys]
     for r in missing:
         result.errors.append(f"not fetched: {r.url}")
