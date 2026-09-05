@@ -30,6 +30,13 @@ _DROP_TAGS = {"source", "track", "svg", "canvas", "map", "area", "template", "di
               "button", "input", "select", "textarea", "label", "form", "object", "embed",
               "applet", "param", "link", "meta", "style", "script", "head", "title", "base"}
 _MEDIA_TAGS = {"iframe", "video", "audio"}
+_KNOWN_TAGS = {
+    "a", "abbr", "address", "b", "bdi", "bdo", "blockquote", "br", "caption", "cite", "code", "col",
+    "colgroup", "dd", "del", "dfn", "div", "dl", "dt", "em", "figcaption", "figure", "h1", "h2", "h3",
+    "h4", "h5", "h6", "hr", "i", "img", "ins", "kbd", "li", "mark", "ol", "p", "pre", "q", "rp", "rt",
+    "ruby", "s", "samp", "small", "span", "strong", "sub", "sup", "table", "tbody", "td", "tfoot", "th",
+    "thead", "time", "tr", "u", "ul", "var", "wbr",
+}
 _EMPTY_OK = {"img", "br", "hr", "td", "th", "col"}
 
 _cleaner = Cleaner(
@@ -78,7 +85,20 @@ _BLOCK_TAGS = {"p", "div", "ul", "ol", "table", "pre", "blockquote", "figure", "
                "h1", "h2", "h3", "h4", "h5", "h6", "address"}
 _INLINE_TAGS = {"a", "b", "i", "em", "strong", "span", "code", "small", "u", "s", "sub", "sup",
                 "mark", "q", "cite", "abbr", "kbd", "del", "ins", "label"}
-_HOST_RE = re.compile(r"^[A-Za-z0-9.\-_~:\[\]%@]+$")
+_HOST_RE = re.compile(r"^[A-Za-z0-9.\-_~:\[\]@]+$")
+
+
+def _valid_host(netloc: str) -> bool:
+    if not _HOST_RE.match(netloc):
+        return False
+    host = netloc.rsplit("@", 1)[-1].split(":")[0]
+    for label in host.split("."):
+        if label.lower().startswith("xn--"):
+            try:
+                label.encode("ascii").decode("idna")
+            except (UnicodeError, ValueError):
+                return False
+    return True
 
 
 def _valid_href(href: str) -> str | None:
@@ -87,7 +107,7 @@ def _valid_href(href: str) -> str | None:
     if not href or href.startswith(("javascript:", "data:", "vbscript:")):
         return None
     parts = urlsplit(href)
-    if parts.scheme in ("http", "https") and not _HOST_RE.match(parts.netloc or ""):
+    if parts.scheme in ("http", "https") and not _valid_host(parts.netloc or ""):
         return None
     if parts.scheme and parts.scheme not in ("http", "https", "mailto", "tel", "ftp"):
         return None
@@ -191,7 +211,9 @@ def clean_html(
         elif ":" in el.tag or el.tag in _DROP_TAGS:
             el.drop_tree()
     for el in list(root.iter()):
-        if isinstance(el.tag, str) and el.tag in _UNWRAP_TAGS and el is not root and el.getparent() is not None:
+        if not isinstance(el.tag, str) or el is root or el.getparent() is None:
+            continue
+        if el.tag in _UNWRAP_TAGS or el.tag not in _KNOWN_TAGS:
             if el.get("class") == "embed":  # our own media placeholder
                 continue
             el.drop_tag()
@@ -248,8 +270,8 @@ def clean_html(
         if isinstance(el.tag, str):
             _strip_attrs(el)
             el_id = el.get("id")
-            if el_id:
-                if el_id in seen_ids or not re.match(r"^[A-Za-z_][\w.-]*$", el_id):
+            if el_id is not None:
+                if not el_id or el_id in seen_ids or not re.match(r"^[A-Za-z_][\w.-]*$", el_id):
                     del el.attrib["id"]
                 else:
                     seen_ids.add(el_id)

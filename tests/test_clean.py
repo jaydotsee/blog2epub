@@ -135,3 +135,20 @@ def test_wordpress_lazy_placeholder_with_broken_protocol_relative_src():
     html2 = '<img src="//www.w3.org/2000/svg\'%20viewBox=\'0%200%201%201\'%3E%3C/svg%3E" alt="broken only">'
     xhtml, imgs2 = _clean(html2)
     assert imgs2 == [] and "[image: broken only]" in xhtml
+
+
+def test_unknown_and_custom_elements_are_unwrapped():
+    xhtml, _ = _clean('<p>a <envelope><b>bold</b></envelope> <my-widget>w</my-widget> <hgroup><h2>H</h2></hgroup></p>')
+    assert "envelope" not in xhtml and "my-widget" not in xhtml and "hgroup" not in xhtml
+    assert "<b>bold</b>" in xhtml and "w" in xhtml and "<h2>H</h2>" in xhtml
+
+
+def test_empty_and_whitespace_ids_dropped():
+    xhtml, _ = _clean('<p id="">x</p><p id=" ">y</p><p id="ok">z</p>')
+    assert xhtml.count("id=") == 1 and 'id="ok"' in xhtml
+
+
+def test_invalid_punycode_hosts_dropped():
+    xhtml, _ = _clean('<a href="https://xn--jess%20muoz%20rodrguez-fcc0g2k/">bad</a>'
+                      '<a href="https://xn--bcher-kva.example/x">ok</a><a href="https://ex ample.com/">sp</a>')
+    assert xhtml.count("href=") == 1 and 'href="https://xn--bcher-kva.example/x"' in xhtml
