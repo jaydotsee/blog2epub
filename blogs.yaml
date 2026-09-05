@@ -1,0 +1,33 @@
+# blog2epub configuration.
+#
+# Every entry under `blogs` is one blog that gets monitored and turned into
+# its own EPUB. Keys under `defaults` apply to every blog unless the blog
+# overrides them.
+
+defaults:
+  output_dir: output          # where the .epub files land
+  cache_dir: cache            # per-blog download cache (posts + images)
+  user_agent: "blog2epub/0.1 (+https://github.com/jaydotsee/blog2epub)"
+  request_delay: 0.5          # seconds to wait between HTTP requests
+  timeout: 30
+  language: en
+  images: true                # download and embed images
+  max_image_width: 1200       # pick the srcset candidate closest to (but not above) this width
+  max_image_bytes: 8000000    # skip images larger than this
+  group_by: year              # year | month | none  -> becomes the "Part" level of the navigation
+  order: asc                  # asc = oldest post first (reads like a book); desc = newest first
+  split: none                 # none = one EPUB per blog; year = one EPUB per year
+  demote_headings: true       # shift h1..h5 inside posts down one level so the post title stays the only h1
+
+blogs:
+  - id: tyk
+    title: "Tyk Blog"
+    url: https://tyk.io/blog
+    author: "Tyk Technologies"
+    description: "Every post from the Tyk API management blog, collected as an ebook."
+    source: auto              # auto | wordpress | feed | sitemap
+    # Only posts whose URL matches one of these regexes are included.
+    include:
+      - "^https://tyk\\.io/blog/"
+    exclude: []
+    # since: "2020-01-01"     # optional lower bound on publication date

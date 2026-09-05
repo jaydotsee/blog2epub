@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blog2epub"
+version = "0.1.0"
+description = "Monitor blogs and turn each of them into a navigable EPUB book"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "requests>=2.31",
+    "PyYAML>=6.0",
+    "lxml>=5.0",
+    "lxml_html_clean>=0.4",
+    "readability-lxml>=0.8",
+    "feedparser>=6.0",
+    "python-dateutil>=2.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+blog2epub = "blog2epub.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+blog2epub = ["assets/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

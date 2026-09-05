@@ -1,0 +1,47 @@
+/* blog2epub default stylesheet: tuned for e-ink readers, degrades fine on tablets. */
+html, body { margin: 0; padding: 0; }
+body { font-family: Georgia, "Times New Roman", serif; line-height: 1.5; padding: 0 1em; }
+h1, h2, h3, h4, h5, h6 { font-family: Helvetica, Arial, sans-serif; line-height: 1.25; page-break-after: avoid; }
+h1 { font-size: 1.7em; margin: 1em 0 0.5em; }
+h2 { font-size: 1.4em; margin: 1.4em 0 0.5em; }
+h3 { font-size: 1.2em; margin: 1.2em 0 0.4em; }
+p { margin: 0 0 0.9em; text-align: left; orphans: 2; widows: 2; }
+a { color: inherit; text-decoration: underline; }
+img { max-width: 100%; height: auto; display: block; margin: 1em auto; }
+figure { margin: 1em 0; text-align: center; page-break-inside: avoid; }
+figcaption { font-size: 0.85em; color: #555; margin-top: 0.3em; }
+blockquote { margin: 1em 1.5em; padding-left: 0.8em; border-left: 3px solid #999; color: #333; }
+pre, code { font-family: "Courier New", Courier, monospace; font-size: 0.85em; }
+pre { white-space: pre-wrap; word-wrap: break-word; background: #f4f4f4; border: 1px solid #ddd; padding: 0.6em; margin: 1em 0; page-break-inside: avoid; }
+code { background: #f4f4f4; padding: 0 0.15em; }
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; font-size: 0.9em; }
+th, td { border: 1px solid #bbb; padding: 0.3em 0.5em; vertical-align: top; text-align: left; }
+th { background: #eee; }
+hr { border: 0; border-top: 1px solid #999; margin: 1.5em 0; }
+ul, ol { margin: 0 0 0.9em 1.5em; padding: 0; }
+
+/* chapter chrome */
+.post-header { margin-bottom: 1.5em; border-bottom: 1px solid #999; padding-bottom: 0.6em; }
+.post-header h1 { margin-top: 0.5em; }
+.byline { font-family: Helvetica, Arial, sans-serif; font-size: 0.85em; color: #444; margin: 0 0 0.2em; }
+.source { font-size: 0.75em; color: #666; word-wrap: break-word; }
+.embed { font-size: 0.9em; font-style: italic; color: #444; word-wrap: break-word; }
+.missing-image { font-style: italic; color: #666; }
+
+/* front matter and part pages */
+.titlepage { text-align: center; margin-top: 15%; }
+.titlepage h1 { font-size: 2.2em; margin-bottom: 0.2em; }
+.titlepage .subtitle { font-size: 1.2em; color: #333; }
+.titlepage .meta { margin-top: 3em; font-size: 0.9em; color: #444; }
+.part { text-align: center; margin-top: 30%; page-break-before: always; }
+.part h1 { font-size: 2.4em; }
+.part .count { color: #555; }
+.part-list { text-align: left; margin-top: 2em; list-style: none; }
+.part-list li { margin: 0.35em 0; }
+.part-list .date { color: #666; font-size: 0.85em; }
+nav#toc ol { list-style: none; margin-left: 0.8em; }
+nav#toc > ol { margin-left: 0; }
+nav#toc li { margin: 0.3em 0; }
+.cover { text-align: center; margin: 0; padding: 0; }
+.cover img { max-height: 100%; margin: 0 auto; }

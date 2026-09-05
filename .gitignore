@@ -1,0 +1,14 @@
+# per-blog download cache and generated books
+cache/
+output/
+report.json
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/

@@ -1,0 +1,96 @@
+# Weekly monitor: sync every configured blog, rebuild the EPUBs that changed,
+# keep the download cache between runs, and publish the books on a rolling
+# "latest" GitHub release whenever something new was found.
+name: Monitor blogs
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"        # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild every book even if nothing changed"
+        type: boolean
+        default: false
+      full:
+        description: "Re-fetch every post (ignore the cache)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -e .
+
+      # The cache key is unique per run so the *newest* cache is always saved;
+      # restore-keys picks up the previous run's cache.
+      - name: Restore download cache
+        uses: actions/cache@v4
+        with:
+          path: cache
+          key: blog2epub-cache-${{ github.run_id }}
+          restore-keys: |
+            blog2epub-cache-
+
+      - name: Sync and build
+        run: |
+          blog2epub -v run --report report.json \
+            ${{ inputs.force && '--force' || '' }} \
+            ${{ inputs.full && '--full' || '' }}
+
+      - name: Summarise
+        id: summary
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          r = json.load(open("report.json"))
+          lines = []
+          for b in r["blogs"]:
+              if b.get("error"):
+                  lines.append(f"- **{b['title']}**: error: {b['error']}")
+                  continue
+              built = ", ".join(f"{x['title']} ({x['posts']} posts, {x['bytes']/1e6:.1f} MB)" for x in b["built"]) or "unchanged"
+              lines.append(f"- **{b['title']}** ({b['source']}): {b['new']} new, {b['updated']} updated; {built}")
+          body = "\n".join(lines)
+          print(f"changed={'true' if r['changed'] else 'false'}")
+          print("body<<EOF"); print(body); print("EOF")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("## blog2epub\n\n" + body + "\n")
+          PY
+
+      - name: Upload EPUBs as workflow artifact
+        if: hashFiles('output/*.epub') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: epubs
+          path: output/*.epub
+          retention-days: 30
+
+      - name: Publish to the rolling "latest" release
+        if: steps.summary.outputs.changed == 'true' && hashFiles('output/*.epub') != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest ebooks
+          body: |
+            Rebuilt on ${{ github.event.repository.updated_at }} by the monitor workflow.
+
+            ${{ steps.summary.outputs.body }}
+          files: output/*.epub
+          prerelease: false
+          make_latest: true
