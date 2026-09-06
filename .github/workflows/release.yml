@@ -6,8 +6,13 @@
 # Books are built one after another so each sync lands in the shared download cache that the
 # weekly sync.yml keeps warm.
 #
-# The monthly run takes every book, with the issue dated YYYYMM01. It suits the api-management
-# digest in particular, whose `since: 1m` window means each issue is the month just gone.
+# The monthly run takes every book, with the issue dated YYYYMM01, in the standard edition. It
+# suits the api-management digest in particular, whose `since: 1m` window means each issue is the
+# month just gone.
+#
+# edition: collectors instead builds each book as one file, ignoring split and max_book_bytes, and
+# publishes it to <book>-collectors-<YYYYMMDD> and <book>-collectors-latest. Those files are large
+# by design — the whole Axway archive is 291 MB — so they are for keeping, not for Send to Kindle.
 # Note that GitHub disables scheduled workflows in a repository with no activity for 60 days;
 # a push or a manual run re-enables them.
 name: Release books
@@ -21,6 +26,11 @@ on:
         description: "Book ids from blogs.yaml, comma-separated, or `all`"
         required: true
         default: "all"
+      edition:
+        description: "standard = volumes per year; collectors = the whole archive in one file"
+        type: choice
+        options: [standard, collectors]
+        default: standard
       issue:
         description: "Issue date as YYYYMMDD (default: today, UTC). Re-use a date to replace that issue's files."
         required: false
@@ -46,6 +56,8 @@ jobs:
     outputs:
       books: ${{ steps.plan.outputs.books }}
       issue: ${{ steps.plan.outputs.issue }}
+      suffix: ${{ steps.plan.outputs.suffix }}
+      flag: ${{ steps.plan.outputs.flag }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -72,6 +84,10 @@ jobs:
               sys.exit(f"::error::issue must be YYYYMMDD, not {issue!r}")
           print(f"books={json.dumps(books)}")
           print(f"issue={issue}")
+          # A scheduled run has no inputs, so the empty edition is the standard one.
+          collectors = "${{ inputs.edition }}".strip() == "collectors"
+          print(f"suffix={'-collectors' if collectors else ''}")
+          print(f"flag={'--collectors' if collectors else ''}")
           PY
 
   release:
@@ -117,7 +133,8 @@ jobs:
       - name: Build
         id: build
         run: |
-          uv run blog2epub -v build "${{ matrix.book }}" --issue "${{ needs.plan.outputs.issue }}" --report build.json
+          uv run blog2epub -v build "${{ matrix.book }}" --issue "${{ needs.plan.outputs.issue }}" \
+            ${{ needs.plan.outputs.flag }} --report build.json
           uv run python - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           r = json.load(open("build.json"))
@@ -150,35 +167,35 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          scripts/clear_release_assets.sh "${{ matrix.book }}-${{ needs.plan.outputs.issue }}"
-          scripts/clear_release_assets.sh "${{ matrix.book }}-latest"
+          scripts/clear_release_assets.sh "${{ matrix.book }}${{ needs.plan.outputs.suffix }}-${{ needs.plan.outputs.issue }}"
+          scripts/clear_release_assets.sh "${{ matrix.book }}${{ needs.plan.outputs.suffix }}-latest"
 
       - name: Publish the issue
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ matrix.book }}-${{ needs.plan.outputs.issue }}
+          tag_name: ${{ matrix.book }}${{ needs.plan.outputs.suffix }}-${{ needs.plan.outputs.issue }}
           target_commitish: ${{ github.sha }}
           name: "${{ steps.build.outputs.title }} — Issue ${{ needs.plan.outputs.issue }}"
           body: ${{ steps.build.outputs.body }}
-          files: output/${{ matrix.book }}-${{ needs.plan.outputs.issue }}*.epub
+          files: output/${{ matrix.book }}${{ needs.plan.outputs.suffix }}-${{ needs.plan.outputs.issue }}*.epub
           make_latest: false
 
       # The rolling tag has to move to this commit, or the release page shows the old one.
       - name: Point the rolling tag here
         run: |
-          git tag -f "${{ matrix.book }}-latest" "${{ github.sha }}"
-          git push -f origin "refs/tags/${{ matrix.book }}-latest"
+          git tag -f "${{ matrix.book }}${{ needs.plan.outputs.suffix }}-latest" "${{ github.sha }}"
+          git push -f origin "refs/tags/${{ matrix.book }}${{ needs.plan.outputs.suffix }}-latest"
 
       - name: Publish as the book's latest
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ matrix.book }}-latest
+          tag_name: ${{ matrix.book }}${{ needs.plan.outputs.suffix }}-latest
           target_commitish: ${{ github.sha }}
           name: "${{ steps.build.outputs.title }} — latest (issue ${{ needs.plan.outputs.issue }})"
           body: |
             The newest issue of ${{ steps.build.outputs.title }}, currently ${{ needs.plan.outputs.issue }}.
-            Every issue is kept under its own tag, `${{ matrix.book }}-YYYYMMDD`.
+            Every issue is kept under its own tag, `${{ matrix.book }}${{ needs.plan.outputs.suffix }}-YYYYMMDD`.
 
             ${{ steps.build.outputs.body }}
-          files: output/${{ matrix.book }}-${{ needs.plan.outputs.issue }}*.epub
+          files: output/${{ matrix.book }}${{ needs.plan.outputs.suffix }}-${{ needs.plan.outputs.issue }}*.epub
           make_latest: false

@@ -50,6 +50,12 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 - `build` gained `--report FILE`, the same JSON `run` writes, with one entry per volume.
 
 ### Added
+- **Collector's editions.** `blog2epub build <book> --collectors`, and `edition: collectors` on
+  the release workflow, build a book's whole archive as one file — `<book>-collectors-<issue>.epub`,
+  ignoring `split` and `max_book_bytes` — published to `<book>-collectors-<issue>` and
+  `<book>-collectors-latest`. The builder treats it as a separate book (`tyk-collectors`), so the
+  two editions' files, covers, tags and cleanup never collide and both can be kept. They are large
+  by design: the whole Axway archive is 291 MB, past Send to Kindle's limit.
 - Image optimisation is now a standard step in the pipeline: Pillow is a core dependency,
   `optimize_images` defaults to on, every build reports what it saved, and a missing Pillow is
   an error in the log rather than a silently enormous book. Images are downscaled to

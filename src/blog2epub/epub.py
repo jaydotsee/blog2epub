@@ -8,7 +8,7 @@ import textwrap
 import uuid
 import zipfile
 import zlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
@@ -778,7 +778,8 @@ def plan_volumes(book: BookConfig, prepared: Prepared) -> list[VolumePlan]:
     """
     chapters = prepared.chapters
     if book.split == "none":
-        return [VolumePlan(chapters, book.title, "")]
+        label = "Collector's Edition" if book.id.endswith("-collectors") else ""
+        return [VolumePlan(chapters, book.title, label)]
     groups: list[tuple[str, str, list[Chapter]]]
     if book.split == "size":
         groups = [("", "", chapters)]
@@ -1027,14 +1028,23 @@ def build_book(
     *,
     now: datetime | None = None,
     issue: str | None = None,
+    collectors: bool = False,
 ) -> list[BuildResult]:
-    """Build the book as one or more volumes, <id>-<issue>.<n>.epub, each with its own cover.
+    """Build the book as one or more volumes, <id>-<issue>-<volume>.epub, each with its own cover.
 
     `cover_path` may be an image, used as is on every volume, or an HTML template, rendered once
     per volume with that volume's post count, year span, issue number and cover lines. Files from
     the book's previous builds are removed once the new ones are written.
+
+    `collectors` builds the whole archive as one file instead — the collector's edition. It is
+    the same book under its own name, `<id>-collectors`, so its files, covers and cleanup never
+    collide with the split edition's, and the size ceiling does not apply.
     """
     now = now or datetime.now(timezone.utc)
+    if collectors:
+        book = replace(
+            book, id=f"{book.id}-collectors", title=f"{book.title} — Collector's Edition", split="none"
+        )
     issue = issue or f"{now:%Y%m%d}"
     if not re.fullmatch(r"\d{8}", issue):
         raise ValueError(f"issue must be YYYYMMDD, not {issue!r}")

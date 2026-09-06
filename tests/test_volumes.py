@@ -317,3 +317,47 @@ def test_parse_size(given, expected):
 def test_parse_size_rejects_nonsense(bad):
     with pytest.raises(ConfigError):
         parse_size(bad)
+
+
+# ---- the collector's edition ----------------------------------------------------------
+
+
+def test_collectors_edition_is_one_file_under_its_own_name(tmp_path, blog, store):
+    _archive(store, [300 * KB] * 4)  # four posts across 2023, well over the budget below
+    out = tmp_path / "out"
+    book = _book(blog, max_book_bytes=2_300_000)
+    split = build_book(book, {blog.id: (blog, store)}, out, issue=ISSUE)
+    collected = build_book(book, {blog.id: (blog, store)}, out, issue=ISSUE, collectors=True)
+
+    # the whole archive in one file, whatever split and max_book_bytes say
+    assert [r.posts for r in split] == [2, 2]  # the split edition had to cut it
+    assert [(r.path.name, r.posts) for r in collected] == [(f"demo-collectors-{ISSUE}.epub", 4)]
+    assert collected[0].size > max(r.size for r in split)  # everything in the one file
+    assert (collected[0].title, collected[0].label) == (
+        "Demo Blog — Collector's Edition",
+        "Collector's Edition",
+    )
+    title_page = zipfile.ZipFile(collected[0].path).read("OEBPS/Text/title.xhtml").decode()
+    assert "Collector&#8217;s Edition" in title_page or "Collector's Edition" in title_page
+
+
+def test_the_two_editions_never_clear_each_others_files(tmp_path, blog, store):
+    _archive(store, [300 * KB] * 3)
+    out = tmp_path / "out"
+    book = _book(blog, max_book_bytes=2_300_000)
+    build_book(book, {blog.id: (blog, store)}, out, issue=ISSUE, collectors=True)
+    build_book(book, {blog.id: (blog, store)}, out, issue=ISSUE)  # rebuilding one...
+    assert (out / f"demo-collectors-{ISSUE}.epub").exists()  # ...leaves the other alone
+    build_book(book, {blog.id: (blog, store)}, out, issue=ISSUE, collectors=True)
+    assert len(book_outputs(out, "demo")) > 1
+    assert [p.name for p in book_outputs(out, "demo-collectors")] == [f"demo-collectors-{ISSUE}.epub"]
+
+
+def test_a_collectors_rebuild_replaces_its_own_previous_issue(tmp_path, blog, store):
+    _archive(store, [10 * KB] * 2)
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "demo-collectors-20250101.epub").write_bytes(b"old")
+    build_book(_book(blog), {blog.id: (blog, store)}, out, issue=ISSUE, collectors=True)
+    assert not (out / "demo-collectors-20250101.epub").exists()
+    assert [p.name for p in book_outputs(out, "demo-collectors")] == [f"demo-collectors-{ISSUE}.epub"]
