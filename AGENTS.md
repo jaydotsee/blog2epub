@@ -170,10 +170,12 @@ make cover        # renders every covers/<id>.html whose id names a configured b
 
 Fonts are bundled under `covers/fonts/` so rendering needs no network and is identical everywhere.
 
-Books are cut into volumes by size by default (`split: size`, each under `max_book_bytes`,
-200 MB); `year`, `month` and `none` are the alternatives. Output is `<id>-<issue>.<n>.epub`, the
-issue being the build date as `YYYYMMDD`; `build --issue` pins it. See `plan_volumes` in
-`epub.py` for how posts are weighed.
+Books are cut into one volume per year by default (`split: year`); `month`, `size` and `none`
+are the alternatives, and except with `none` no volume exceeds `max_book_bytes` (200 MB): a year
+that outgrows it is cut inside the year. A digest with a rolling window wants `split: size`, or a
+January issue is cut in two at New Year. Output is `<id>-<issue>.<n>.epub`, the issue being the
+build date as `YYYYMMDD`; `build --issue` pins it. See `plan_volumes` in `epub.py` for how posts
+are weighed.
 
 ### 8. Build and validate
 
@@ -210,7 +212,7 @@ weekly `monitor.yml` keeps every book fresh on the rolling `latest` release rega
 | Kindle says "original layout preserved" | SVG images in the book | `svg_images: raster` (the default) with the `svg` extra |
 | Every sitemap URL 404s | Sitemap lists `/slug/`, server serves `/slug` | Handled: `HttpClient.get_text_tolerant` |
 | epubcheck NAV-011 warnings | A TOC link points backwards past earlier chapters | Section pages go in the spine right before their chapters |
-| Book too large to email | The book has `split: none` or `year`; with the default `split: size` no volume passes `max_book_bytes` | Use `split: size`, or lower `max_image_width` / `image_quality`; a build that reports no optimisation saving has a Pillow error in the log |
+| Book too large to email | The book has `split: none`; otherwise no volume passes `max_book_bytes` | Drop `split: none`, or lower `max_image_width` / `image_quality`; a build that reports no optimisation saving has a Pillow error in the log |
 | A link in one volume points at a chapter in another | It cannot; `package` rewrites those to the post's URL | Nothing, unless a test shows `ch-NNNN.xhtml` surviving across the cut |
 | Chapters are lists of links | `include` matched index pages | Tighten the regex to the post depth |
 | `include` matches nothing at all | The URL given is a **tag page**, not a section | Find where posts really live (see below) |

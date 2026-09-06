@@ -17,8 +17,8 @@ defaults:
   max_image_bytes: 8000000    # skip images larger than this
   group_by: year              # year | year-month | month | blog | none  -> the "part" level of the navigation
   order: asc                  # asc = oldest post first (reads like a book); desc = newest first (magazine)
-  split: size                 # size | year | month | none: how a book is cut into volumes (see README)
-  max_book_bytes: 200MB       # `split: size` keeps every volume under this; Send to Kindle's limit
+  split: year                 # year | month | size | none: how a book is cut into volumes (see README)
+  max_book_bytes: 200MB       # no volume exceeds this (except with `none`); Send to Kindle's limit
   demote_headings: true       # shift headings inside posts down so the post title stays the only h1
   readability: auto           # auto | always | never  (see README)
   excerpts: true              # excerpts on the contents pages
@@ -174,4 +174,7 @@ books:
     since: 1m                 # rolling 30-day window, measured at build time
     group_by: blog            # one part per blog
     order: desc               # newest first
+    # One issue, whatever years its thirty days span: the year default would cut a January
+    # digest in two at New Year. Size only, which for a month of posts is one file.
+    split: size
     cover: covers/api-management.html

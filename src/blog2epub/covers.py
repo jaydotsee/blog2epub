@@ -130,9 +130,14 @@ def cover_values(
     issue: str | None = None,
     volume: int = 1,
     volumes: int = 1,
+    label: str | None = None,
     lines: int = COVER_LINES,
 ) -> dict[str, str]:
-    """Placeholder values for one volume's cover, computed from the posts that are in it."""
+    """Placeholder values for one volume's cover, computed from the posts that are in it.
+
+    `label` is what the volume is called on the cover: "2024" for a year split, "Vol. 2 of 3"
+    for a size split (the default when None), empty for a book that is one volume.
+    """
     now = now or datetime.now(timezone.utc)
     issue = issue or f"{now:%Y%m%d}"
     newest = sorted(
@@ -148,7 +153,7 @@ def cover_values(
         "issue_number": f"{issue}.{volume}",
         "volume": str(volume),
         "volumes": str(volumes),
-        "volume_label": volume_label(volume, volumes),
+        "volume_label": volume_label(volume, volumes) if label is None else label,
         "month": f"{now:%B}",
         "year": f"{now:%Y}",
         "url": blogs[0].url.removeprefix("https://").removeprefix("http://") if len(blogs) == 1 else "",

@@ -172,8 +172,15 @@ def test_multi_blog_book_grouped_by_blog(tmp_path, blog, store):
     p.url, p.blog_id = "https://other.example/nine/", "other"
     other_store.put_post(p)
     other_store.save()
+    # A digest is one issue whatever years its posts span, so it cuts by size, not by year.
     book = BookConfig(
-        id="digest", title="Digest", blogs=["other", "demo"], group_by="blog", order="desc", max_posts=3
+        id="digest",
+        title="Digest",
+        blogs=["other", "demo"],
+        group_by="blog",
+        order="desc",
+        max_posts=3,
+        split="size",
     )
     sources = {"demo": (blog, store), "other": (other, other_store)}
     entries = select_entries(book, sources)

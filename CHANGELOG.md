@@ -5,11 +5,13 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 ## [Unreleased]
 
 ### Changed
-- **Books are cut into volumes, by size by default.** `split` now takes `size` (the default),
-  `year`, `month` or `none`. `size` packs posts in reading order into volumes that each stay
-  under `max_book_bytes` (default `200MB`, Send to Kindle's limit), weighing text as the zip
-  will store it and images at their file size, so an archive of any length arrives readable.
-  Links to a post that landed in another volume go back to the post's own URL.
+- **Books are cut into volumes, one per year by default.** `split` now takes `year` (the
+  default), `month`, `size` or `none`. Whatever the split, no volume exceeds `max_book_bytes`
+  (default `200MB`, Send to Kindle's limit) except with `none`: `size` cuts only where the budget
+  says, and a year or month that outgrows it is cut inside the period and its parts numbered.
+  The planner weighs text as the zip will store it and images at their file size, so an archive
+  of any length arrives readable. Links to a post that landed in another volume go back to the
+  post's own URL.
 - **Issues are `YYYYMMDD` and volumes are `YYYYMMDD.n`.** Output files are
   `<book>-<YYYYMMDD>.<n>.epub`, the title page says `Issue 20260905.2 · Volume 2 of 3`, and
   `build`/`run` take `--issue YYYYMMDD` so a release built on a later day keeps its date.
@@ -19,8 +21,9 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   `latest` release is cleared the same way.
 - **Every volume gets its own cover.** Point `cover:` at an HTML template (`covers/<id>.html`)
   and the build renders it once per volume with that volume's post count, year span, cover
-  lines and issue number; `$volume`, `$volumes` and `$volume_label` ("Vol. 2 of 3") are new
-  placeholders, and the shipped templates show the label beside the issue number. Rendering
+  lines and issue number; `$volume`, `$volumes` and `$volume_label` ("2024", or "Vol. 2 of 3"
+  for a size split) are new placeholders, and the shipped templates show the label beside the
+  issue number. Rendering
   moved from `scripts/render_cover.py` into `blog2epub.covers`; the script now only refreshes
   the previews in `covers/`. Without Playwright the build uses the image beside the template.
 - `build` gained `--report FILE`, the same JSON `run` writes, with one entry per volume.

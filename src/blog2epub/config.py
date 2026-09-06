@@ -79,10 +79,11 @@ class BookConfig:
     images: bool = True
     group_by: str = "year"  # year | year-month | month | blog | none  -> the "part" level of the TOC
     order: str = "asc"  # asc = oldest first (book), desc = newest first (magazine)
-    # How the book becomes files. `size` packs posts in reading order into volumes that each
-    # stay under max_book_bytes; `year` and `month` cut on the posts' dates; `none` is one file
-    # whatever the size. Volumes are numbered <issue>.1, <issue>.2, ... and each gets its own cover.
-    split: str = "size"  # size | year | month | none
+    # How the book becomes files. `year` (the default) and `month` cut on the posts' dates; `size`
+    # cuts only where max_book_bytes says; `none` is one file whatever the size. Except with `none`
+    # no volume exceeds max_book_bytes: a year that outgrew it is cut by size inside the year.
+    # Volumes are numbered <issue>.1, <issue>.2, ... and each gets its own cover.
+    split: str = "year"  # year | month | size | none
     max_book_bytes: int = DEFAULT_MAX_BOOK_BYTES  # bytes, or a string like "200MB"
     demote_headings: bool = True
     readability: str = "auto"  # auto | always | never
@@ -174,7 +175,7 @@ class BlogConfig:
     cover: str | None = None
     group_by: str = "year"
     order: str = "asc"
-    split: str = "size"
+    split: str = "year"
     max_book_bytes: int = DEFAULT_MAX_BOOK_BYTES
     demote_headings: bool = True
     readability: str = "auto"

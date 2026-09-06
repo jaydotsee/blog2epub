@@ -732,17 +732,15 @@ def _weight(ch: Chapter, prepared: Prepared, seen: set[str]) -> tuple[int, list[
     return ch.text_bytes + sum(prepared.image_size(u) for u in new), new
 
 
-def plan_volumes(book: BookConfig, prepared: Prepared) -> list[list[Chapter]]:
-    """Cut the chapters, in reading order, into the volumes the book's `split` asks for."""
-    chapters = prepared.chapters
-    if book.split == "none":
-        return [chapters]
-    if book.split in ("year", "month"):
-        groups: dict[str, list[Chapter]] = {}
-        for ch in chapters:
-            key = ch.post.year if book.split == "year" else _month_label(ch)[1]
-            groups.setdefault(key, []).append(ch)
-        return list(groups.values())
+@dataclass
+class VolumePlan:
+    chapters: list[Chapter]
+    title: str  # "Tyk Blog 2024", "Axway Blog, Vol. 2", "Tyk Blog 2018, part 1 of 2"
+    label: str  # "2024", "Vol. 2 of 3", "2018, part 1 of 2"; empty for a single unsplit volume
+
+
+def _pack(book: BookConfig, prepared: Prepared, chapters: list[Chapter]) -> list[list[Chapter]]:
+    """Greedily fill volumes under max_book_bytes, in order, never reordering a post."""
     budget = int(book.max_book_bytes * SIZE_MARGIN) - VOLUME_OVERHEAD
     volumes: list[list[Chapter]] = []
     current: list[Chapter] = []
@@ -769,17 +767,42 @@ def plan_volumes(book: BookConfig, prepared: Prepared) -> list[list[Chapter]]:
     return volumes
 
 
-def volume_title(book: BookConfig, chapters: list[Chapter], volume: int, volumes: int) -> tuple[str, str]:
-    """(title, label) for one volume: "Tyk Blog 2024" / "2024", "Axway Blog, Vol. 2" / "Vol. 2 of 3"."""
-    if book.split == "year":
-        year = chapters[0].post.year
-        return f"{book.title} {year}", year
-    if book.split == "month":
-        month = _month_label(chapters[0])[0]
-        return f"{book.title}, {month}", month
-    if volumes > 1:
-        return f"{book.title}, Vol. {volume}", f"Vol. {volume} of {volumes}"
-    return book.title, ""
+def plan_volumes(book: BookConfig, prepared: Prepared) -> list[VolumePlan]:
+    """Cut the chapters, in reading order, into the volumes the book's `split` asks for.
+
+    `year` and `month` cut on the calendar, `size` only where the budget says, `none` never.
+    Whatever the split, no volume exceeds max_book_bytes except with `none`: a year that outgrew
+    the budget is cut by size inside the year and its parts numbered.
+    """
+    chapters = prepared.chapters
+    if book.split == "none":
+        return [VolumePlan(chapters, book.title, "")]
+    groups: list[tuple[str, list[Chapter]]]
+    if book.split == "size":
+        groups = [("", chapters)]
+    else:
+        keyed: dict[str, tuple[str, list[Chapter]]] = {}
+        for ch in chapters:
+            label, key = (ch.post.year, ch.post.year) if book.split == "year" else _month_label(ch)
+            keyed.setdefault(key, (label, []))[1].append(ch)
+        groups = list(keyed.values())
+
+    plans: list[VolumePlan] = []
+    sep = " " if book.split == "year" else ", "
+    for label, group in groups:
+        parts = _pack(book, prepared, group)
+        for i, part in enumerate(parts, start=1):
+            if book.split == "size":
+                plans.append(VolumePlan(part, book.title, ""))  # numbered below, once the count is known
+            elif len(parts) == 1:
+                plans.append(VolumePlan(part, f"{book.title}{sep}{label}", label))
+            else:
+                sub = f"{label}, part {i} of {len(parts)}"
+                plans.append(VolumePlan(part, f"{book.title}{sep}{sub}", sub))
+    if book.split == "size" and len(plans) > 1:
+        for n, plan in enumerate(plans, start=1):
+            plan.title, plan.label = f"{book.title}, Vol. {n}", f"Vol. {n} of {len(plans)}"
+    return plans
 
 
 def _relink_outside(xhtml: str, outside: dict[str, str]) -> str:
@@ -976,9 +999,10 @@ def _render_volume_cover(
     issue: str,
     volume: int,
     volumes: int,
+    label: str,
 ) -> Path | None:
     values = cover_values(
-        book, [c.entry for c in chapters], now=now, issue=issue, volume=volume, volumes=volumes
+        book, [c.entry for c in chapters], now=now, issue=issue, volume=volume, volumes=volumes, label=label
     )
     try:
         failed_fonts = render_cover_template(template, out, values)
@@ -1039,14 +1063,22 @@ def build_book(
             )
 
     results: list[BuildResult] = []
-    for n, chapters in enumerate(volumes, start=1):
-        title, label = volume_title(book, chapters, n, len(volumes))
+    for n, plan in enumerate(volumes, start=1):
+        chapters, title, label = plan.chapters, plan.title, plan.label
         out_path = output_dir / f"{book.id}-{issue}.{n}.epub"
         cover = static_cover
         if template is not None:
             cover_out = output_dir / "covers" / f"{book.id}-{issue}.{n}.jpg"
             cover = _render_volume_cover(
-                book, template, chapters, cover_out, now=now, issue=issue, volume=n, volumes=len(volumes)
+                book,
+                template,
+                chapters,
+                cover_out,
+                now=now,
+                issue=issue,
+                volume=n,
+                volumes=len(volumes),
+                label=label,
             ) or static_fallback(template)
         results.append(
             package(

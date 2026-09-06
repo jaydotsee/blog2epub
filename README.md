@@ -104,9 +104,9 @@ exposes.
 - **Magazine digests.** Combine any number of blogs into one book, newest first, with a lead
   image per article and the blog name in every byline. Rolling windows (`since: 7d`, `1m`, `1y`)
   give a fresh issue on every build.
-- **Volumes that fit a reader.** A book is cut into volumes that each stay under 200 MB (Send
-  to Kindle's limit), or by year or month if you prefer; each volume is `<book>-<issue>.<n>.epub`
-  with its own cover and navigation.
+- **Volumes that fit a reader.** A book is cut into one volume per year by default (or by
+  month, or only where a 200 MB budget says — Send to Kindle's limit, which no volume exceeds
+  either way); each volume is `<book>-<issue>.<n>.epub` with its own cover and navigation.
 - **Covers with live cover lines.** HTML templates rendered once per volume, with that volume's
   newest post titles, post count, year span and issue number. Or point `cover:` at your own image.
 - **Scriptable and automated.** A plain CLI, a JSON report, a weekly GitHub Actions monitor
@@ -299,8 +299,8 @@ Any blog or book key may also appear under `defaults`.
 | `images` | `true` | Embed images. `false` gives a text-only edition. |
 | `group_by` | `year` | Part level of the TOC: `year`, `year-month` (years with month sub-sections), `month`, `blog` or `none`. |
 | `order` | `asc` | `asc` reads oldest to newest like a book; `desc` is magazine order. |
-| `split` | `size` | How the book is cut into volumes: `size` packs posts in reading order into volumes under `max_book_bytes`; `year` and `month` cut on the posts' dates; `none` is one file whatever the size. |
-| `max_book_bytes` | `200MB` | The size each volume stays under with `split: size`. Bytes, or `150MB`, `1.5GB`. |
+| `split` | `year` | How the book is cut into volumes: `year` and `month` cut on the posts' dates; `size` cuts only where `max_book_bytes` says; `none` is one file whatever the size. |
+| `max_book_bytes` | `200MB` | No volume exceeds this, whatever the split (except `none`): a year that outgrows it is cut by size inside the year. Bytes, or `150MB`, `1.5GB`. |
 | `demote_headings` | `true` | Shift headings inside posts down so the post title is the only `h1`. |
 | `readability` | `auto` | Build-time readability pass: `auto` (feed bodies only), `always`, `never`. |
 | `excerpts` | `true` | Excerpts on the part pages. |
@@ -411,13 +411,13 @@ before them in reading order.
     group_by: year-month
 ```
 
-**A blog's complete archive, one file per year.** By default a big archive is cut into volumes
-by size (see [Volumes](#volumes)); to cut on the calendar instead:
+**A blog's complete archive as few files as possible.** The default is one volume per year (see
+[Volumes](#volumes)); to cut only where the size budget says:
 
 ```yaml
   - id: tyk
     url: https://tyk.io/blog
-    split: year               # output/tyk-20260905.1.epub is 2015, .2 is 2016, ...
+    split: size               # output/tyk-20260905.1.epub, .2, ... each under max_book_bytes
 ```
 
 **A weekly issue.** Newest first, grouped by blog, always the last seven days at build time:
@@ -509,20 +509,26 @@ file should be. It is the reason books are cut into volumes.
 ## Volumes
 
 A book is written as one or more **volumes**, `output/<book>-<issue>.<n>.epub`, where the issue
-is the build date as `YYYYMMDD` and `n` counts from 1. The `split` key says where the cuts go:
+is the build date as `YYYYMMDD` and `n` counts from 1 in reading order. The `split` key says
+where the cuts go:
 
-- `size` (the default) packs posts in reading order into volumes that each stay under
-  `max_book_bytes`, `200MB` unless you say otherwise, because that is what Send to Kindle
-  accepts. The planner weighs each post's text as the zip will store it and its images at their
-  file size, counting an image shared by several posts once per volume, so the cut lands where
-  the budget says and the actual file comes in under it. Most books fit in one volume and are
-  simply `<book>-<issue>.1.epub`.
-- `year` and `month` cut on the posts' dates, one volume per calendar period, however big.
+- `year` (the default) and `month` cut on the posts' dates, one volume per calendar period. A
+  year is a stable unit: next issue's *Tyk Blog 2023* holds the same posts as this one's, and
+  only the current year's volume grows.
+- `size` cuts only where `max_book_bytes` says, packing posts in reading order into as few
+  volumes as fit. Most books then fit in one, simply `<book>-<issue>.1.epub`.
 - `none` writes one file whatever the size.
 
+Whatever the split, no volume exceeds `max_book_bytes` — `200MB` unless you say otherwise,
+because that is what Send to Kindle accepts — except with `none`. The planner weighs each post's
+text as the zip will store it and its images at their file size, counting an image shared by
+several posts once per volume, so the cut lands where the budget says and the actual file comes
+in under it. A year that outgrows the budget is cut inside the year and its parts numbered
+(*Tyk Blog 2018, part 1 of 2*).
+
 Each volume is a complete book of its own: its own cover, title page (`Issue 20260905.2 ·
-Volume 2 of 3`), contents and navigation, and a title such as *Axway Blog, Vol. 2* or *Tyk Blog
-2024*. A link to a post that landed in another volume goes back to the post's web page rather
+Volume 2 of 12`), contents and navigation, and a title such as *Tyk Blog 2024* or, with
+`split: size`, *Axway Blog, Vol. 2*. A link to a post that landed in another volume goes back to the post's web page rather
 than dangling. Rebuilding a book removes its files from earlier issues; `blog2epub build
 --issue 20260905` pins the issue when a release is built on a later day.
 
@@ -535,8 +541,10 @@ than dangling. Rebuilding a book removes its files from earlier issues; `blog2ep
 `blogs.yaml` ships a second book, `api-management`: a monthly digest of the last 30 days of posts
 from API Changelog, API Evangelist, API Scene, APIDAYS (which publishes on API Scene), Axway,
 Bruno Pedro, Gravitee, Kong, Nordic APIs, Postman and Tyk. It uses a rolling `since: 1m` window
-measured at build time, one part per blog, newest first, and its own cover. The digest-only blogs
-carry `since: 3m` so their first sync stays small; the cache accumulates from then on.
+measured at build time, one part per blog, newest first, and its own cover. It sets `split: size`
+because an issue is one thing whatever years its thirty days span — the year default would cut a
+January digest in two at New Year. The digest-only blogs carry `since: 3m` so their first sync
+stays small; the cache accumulates from then on.
 
 ```bash
 .venv/bin/blog2epub run api-management     # sync its blogs, build output/api-management.epub
@@ -570,9 +578,9 @@ make cover        # installs the `covers` extra (Playwright) and renders every c
 
 Those JPGs are previews. The real covers are rendered by the build itself: when `cover:` names an
 HTML template, every volume gets the template filled with **its own** post count, year span,
-cover lines and issue number (`20260905.2`), plus `$volume_label` (*Vol. 2 of 3*, empty for a
-single volume), so a three-volume archive has three different covers and the title page inside
-each repeats the same issue number. Without Playwright the build uses the image beside the
+cover lines and issue number (`20260905.2`), plus `$volume_label` (*2024* for a year split,
+*Vol. 2 of 3* for a size split, empty for a book that is one volume), so a twelve-volume archive
+has twelve different covers and the title page inside each repeats the same issue number. Without Playwright the build uses the image beside the
 template and says so. Copy a template to make a cover for another blog or book; the placeholders
 (`$count`, `$first_year`, `$last_year`, `$issue`, `$issue_number`, `$volume`, `$volumes`,
 `$volume_label`, `$month`, `$kicker1`, `$title1`, ...) work for any id. Fonts are bundled under
@@ -614,7 +622,7 @@ the only state.
 
 - **Kobo, PocketBook, Tolino, Boox, Apple Books, Calibre:** copy the `.epub` over as is.
 - **Kindle:** Send to Kindle accepts EPUB up to 200 MB via the web and app, 25 MB via email;
-  the default `split: size` keeps every volume under the first limit.
+  `max_book_bytes` keeps every volume under the first limit.
   Amazon's converter treats a book as fixed layout ("original layout preserved, similar to PDF")
   when it finds content it cannot reflow, SVG images in particular. blog2epub therefore rasterises
   SVG images and the generated cover to PNG by default (`svg_images: raster`, which needs the
@@ -690,11 +698,11 @@ HTTP client.
 - **A blog is unreachable**: it is reported as an error and the run continues with the other blogs;
   the exit code is 2 so CI notices. Books that include the failed blog are still built from what
   the cache holds.
-- **Book too large**: with the default `split: size` a volume never exceeds `max_book_bytes`,
-  so a "too large" file means the book has `split: none` or `year`. Images dominate; every build
-  reports what optimisation saved, and if it says nothing, check the log for a Pillow error.
-  Then lower `max_image_width` or `image_quality`, set `max_book_bytes` smaller, or use
-  `images: false`.
+- **Book too large**: a volume never exceeds `max_book_bytes` unless the book has
+  `split: none`, so a "too large" file means that, or a budget set higher than the reader takes.
+  Images dominate; every build reports what optimisation saved, and if it says nothing, check
+  the log for a Pillow error. Then lower `max_image_width` or `image_quality`, set
+  `max_book_bytes` smaller, or use `images: false`.
 - **Kindle shows "original layout preserved" / no font size control**: the converter met SVG. Make
   sure the `svg` extra is installed (the build warns when it is not) or set `svg_images: drop`.
 - **A post is missing**: check `include`/`exclude`, `since`/`until`, and whether the source lists

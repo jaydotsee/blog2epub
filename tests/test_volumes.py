@@ -44,6 +44,7 @@ def _book(blog, **opts) -> BookConfig:
     book = blog.as_book()
     book.optimize_images = False  # random bytes are not a JPEG; keep the sizes we planted
     book.featured_images = False
+    book.split = "size"  # the tests below are about the packer; the year default has its own tests
     for k, v in opts.items():
         setattr(book, k, v)
     return book
@@ -102,7 +103,7 @@ def test_links_to_a_post_in_another_volume_fall_back_to_its_url(tmp_path, blog, 
 
 def test_a_small_book_is_one_volume_with_no_volume_label(tmp_path, blog, store):
     _archive(store, [10 * KB, 10 * KB])
-    results = _build(blog, store, tmp_path)  # split: size, the default, at the 200 MB default
+    results = _build(blog, store, tmp_path)  # split: size at the 200 MB default
     assert len(results) == 1
     r = results[0]
     assert (r.path.name, r.title, r.label, r.volume, r.volumes) == (
@@ -120,6 +121,27 @@ def test_split_none_ignores_the_budget(tmp_path, blog, store):
     _archive(store, [300 * KB] * 4)
     results = _build(blog, store, tmp_path, split="none", max_book_bytes=2_300_000)
     assert [r.posts for r in results] == [4]
+
+
+def test_the_default_split_is_by_year_and_a_year_never_passes_the_budget(tmp_path, blog, store):
+    # Four 300 kB posts in one year against a 730 kB budget: the year is cut in two, and says so.
+    _archive(store, [300 * KB] * 4)
+    book = blog.as_book()
+    book.optimize_images = book.featured_images = False
+    book.max_book_bytes = 2_300_000
+    assert book.split == "year"
+    results = build_book(book, {blog.id: (blog, store)}, tmp_path / "out", issue=ISSUE)
+    assert [(r.title, r.label, r.posts) for r in results] == [
+        ("Demo Blog 2023, part 1 of 2", "2023, part 1 of 2", 2),
+        ("Demo Blog 2023, part 2 of 2", "2023, part 2 of 2", 2),
+    ]
+    assert all(r.size <= 2_300_000 for r in results)
+
+
+def test_a_year_split_within_budget_is_labelled_by_year_alone(tmp_path, blog, store):
+    _archive(store, [10 * KB] * 2)
+    results = _build(blog, store, tmp_path, split="year")
+    assert [(r.title, r.label, r.volume, r.volumes) for r in results] == [("Demo Blog 2023", "2023", 1, 1)]
 
 
 def test_split_by_month(tmp_path, blog, store):
@@ -189,6 +211,9 @@ def test_cover_values_describe_the_volume_not_the_book(blog, store):
     single = cover_values(blog.as_book(), entries, issue=ISSUE)
     assert (single["issue_number"], single["volume_label"], single["count"]) == (f"{ISSUE}.1", "", "3")
     assert volume_label(3, 3) == "Vol. 3 of 3" and volume_label(1, 1) == ""
+    # a year split puts the year on the cover, not a volume count
+    yearly = cover_values(blog.as_book(), entries, issue=ISSUE, volume=3, volumes=12, label="2024")
+    assert yearly["volume_label"] == "2024"
 
 
 def test_a_template_cover_is_rendered_once_per_volume(tmp_path, blog, store, monkeypatch):
@@ -254,8 +279,8 @@ def test_a_failed_render_still_builds_the_volume(tmp_path, blog, store, monkeypa
 # ---- config ------------------------------------------------------------------------------
 
 
-def test_split_defaults_to_size_and_rejects_the_unknown():
-    assert BookConfig(id="b", blogs=["a"]).split == "size"
+def test_split_defaults_to_year_and_rejects_the_unknown():
+    assert BookConfig(id="b", blogs=["a"]).split == "year"
     assert BookConfig(id="b", blogs=["a"]).max_book_bytes == 200_000_000
     with pytest.raises(ConfigError, match="split"):
         BookConfig(id="b", blogs=["a"], split="chapter")
