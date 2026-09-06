@@ -157,7 +157,8 @@ unlike the others: Tyk is purple with hexagons, Kong is acid lime on near-black 
 mesh, the digest is teal and amber with a diagonal month band.
 
 Point the entry's `cover:` at the template. The build renders it **once per volume**, from that
-volume's posts: `$count`, `$first_year`, `$last_year`, `$issue`, `$issue_number` (`20260905.2`),
+volume's posts: `$count`, `$years` (`2015 – 2026`, or `2015` for one year), `$years_prose`,
+`$first_year`, `$last_year`, `$issue`, `$issue_number` (`20260905.2`),
 `$volume`, `$volumes`, `$volume_label` (`Vol. 2 of 3`, empty for a single volume), `$month`,
 `$year`, `$url`, `$title`, `$blog_count`, `$blog_list`, and `$kicker1`/`$title1` … for cover lines
 drawn from the newest posts. Put `$volume_label` beside the issue number, as the shipped templates

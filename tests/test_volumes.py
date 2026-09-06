@@ -207,6 +207,7 @@ def test_cover_values_describe_the_volume_not_the_book(blog, store):
         "Vol. 1 of 2",
     )
     assert (values["first_year"], values["last_year"]) == ("2023", "2023")
+    assert (values["years"], values["years_prose"]) == ("2023", "2023")  # one year, said once
     assert values["title1"] == "Post wp-2"  # newest post in the volume leads
     single = cover_values(blog.as_book(), entries, issue=ISSUE)
     assert (single["issue_number"], single["volume_label"], single["count"]) == (f"{ISSUE}.1", "", "3")
@@ -214,6 +215,17 @@ def test_cover_values_describe_the_volume_not_the_book(blog, store):
     # a year split puts the year on the cover, not a volume count
     yearly = cover_values(blog.as_book(), entries, issue=ISSUE, volume=3, volumes=12, label="2024")
     assert yearly["volume_label"] == "2024"
+
+
+def test_a_span_of_years_is_written_as_a_range(blog, store):
+    for i, year in enumerate((2015, 2020, 2026), start=1):
+        post = make_post(f"wp-{i}", f"{year}-06-01T10:00:00+00:00", html="<p>x</p>")
+        post.blog_id = "demo"
+        store.put_post(post)
+    store.save()
+    entries = select_entries(blog.as_book(), {blog.id: (blog, store)})
+    values = cover_values(blog.as_book(), entries, issue=ISSUE)
+    assert (values["years"], values["years_prose"]) == ("2015 \u2013 2026", "2015 to 2026")
 
 
 def test_a_template_cover_is_rendered_once_per_volume(tmp_path, blog, store, monkeypatch):

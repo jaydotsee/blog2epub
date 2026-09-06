@@ -582,8 +582,9 @@ cover lines and issue number (`20260905.2`), plus `$volume_label` (*2024* for a 
 *Vol. 2 of 3* for a size split, empty for a book that is one volume), so a twelve-volume archive
 has twelve different covers and the title page inside each repeats the same issue number. Without Playwright the build uses the image beside the
 template and says so. Copy a template to make a cover for another blog or book; the placeholders
-(`$count`, `$first_year`, `$last_year`, `$issue`, `$issue_number`, `$volume`, `$volumes`,
-`$volume_label`, `$month`, `$kicker1`, `$title1`, ...) work for any id. Fonts are bundled under
+(`$count`, `$years` — *2015 – 2026*, or just *2015* for a one-year volume — `$years_prose`,
+`$first_year`, `$last_year`, `$issue`, `$issue_number`, `$volume`, `$volumes`, `$volume_label`,
+`$month`, `$kicker1`, `$title1`, ...) work for any id. Fonts are bundled under
 `covers/fonts/` (SIL Open Font License), so rendering is identical everywhere and needs no
 network.
 

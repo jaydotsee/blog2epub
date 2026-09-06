@@ -1,7 +1,8 @@
 """Covers: a static image, a downloaded one, or a magazine cover rendered from an HTML template.
 
 A template is a string.Template with placeholders filled from the posts that go into the book
-(or the volume, when the book is split): $count, $first_year, $last_year, $issue (e.g.
+(or the volume, when the book is split): $count, $first_year, $last_year, $years ("2015 - 2026" with an
+en dash, or "2015" for a single year), $years_prose ("2015 to 2026"), $issue (e.g.
 "September 2026"), $issue_number (e.g. "20260905.1"), $volume, $volumes, $volume_label ("Vol. 2
 of 3", empty for a single volume), $month, $year, $url, $title, $blog_count, $blog_list, and cover
 lines $kicker1/$title1 ... $kicker6/$title6 from the newest posts. For a multi-blog book the
@@ -118,6 +119,13 @@ def cover_lines(entries: list[Entry], n: int, by_blog: bool) -> list[tuple[str, 
     return lines
 
 
+def _span(dates: list[datetime], joiner: str) -> str:
+    if not dates:
+        return ""
+    first, last = dates[0].year, dates[-1].year
+    return str(first) if first == last else f"{first}{joiner}{last}"
+
+
 def volume_label(volume: int, volumes: int) -> str:
     return f"Vol. {volume} of {volumes}" if volumes > 1 else ""
 
@@ -149,6 +157,9 @@ def cover_values(
         "count": str(len(entries)),
         "first_year": str(dates[0].year) if dates else "",
         "last_year": str(dates[-1].year) if dates else "",
+        # a one-year volume says "2015", not "2015 - 2015"
+        "years": _span(dates, " \u2013 "),
+        "years_prose": _span(dates, " to "),
         "issue": f"{now:%B %Y}",
         "issue_number": f"{issue}.{volume}",
         "volume": str(volume),
