@@ -35,7 +35,14 @@ jobs:
           python-version: "3.12"
 
       - name: Install
-        run: pip install -e ".[svg]"
+        run: pip install -e ".[covers,svg]"
+
+      # Each volume's cover is rendered from its template during the build, with that volume's
+      # post count, year span and issue number. Best effort: without Chromium the build falls
+      # back to the committed cover image and says so.
+      - name: Install Chromium for the covers
+        continue-on-error: true
+        run: python -m playwright install --with-deps chromium
 
       # The cache key is unique per run so the *newest* cache is always saved;
       # restore-keys picks up the previous run's cache.
@@ -46,16 +53,6 @@ jobs:
           key: blog2epub-cache-${{ github.run_id }}
           restore-keys: |
             blog2epub-cache-
-
-      # Refresh the covers so issue numbers and cover lines match this run. Best effort:
-      # a Playwright hiccup must not stop the books from being built.
-      - name: Render covers
-        continue-on-error: true
-        run: |
-          pip install -e ".[covers,svg]"
-          python -m playwright install --with-deps chromium
-          blog2epub -v sync
-          python scripts/render_cover.py --all
 
       - name: Sync and build
         run: |
@@ -74,10 +71,19 @@ jobs:
               if b.get("error"):
                   lines.append(f"- **{b['title']}**: error: {b['error']}")
                   continue
-              built = ", ".join(f"{x['title']} ({x['posts']} posts, {x['bytes']/1e6:.1f} MB)" for x in b["built"]) or "unchanged"
-              lines.append(f"- **{b['title']}** ({b['source']}): {b['new']} new, {b['updated']} updated; {built}")
+              lines.append(f"- **{b['title']}** ({b['source']}): {b['new']} new, {b['updated']} updated")
+          for b in r["books"]:
+              if b.get("error"):
+                  lines.append(f"- **{b['title']}**: error: {b['error']}")
+              elif b["built"]:
+                  vols = ", ".join(
+                      f"`{v['file']}`" + (f" ({v['label']})" if v["label"] else "") + f" {v['posts']} posts, {v['bytes'] / 1e6:.1f} MB"
+                      for v in b["built"]
+                  )
+                  lines.append(f"- **{b['title']}**: {vols}")
           body = "\n".join(lines)
           print(f"changed={'true' if r['changed'] else 'false'}")
+          print(f"issue={r.get('issue') or ''}")
           print("body<<EOF"); print(body); print("EOF")
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
               f.write("## blog2epub\n\n" + body + "\n")
@@ -91,6 +97,14 @@ jobs:
           path: output/*.epub
           retention-days: 30
 
+      # Volume names carry their issue date, so without this each week's files would pile up
+      # next to last week's on the rolling release.
+      - name: Clear the rolling release's assets
+        if: steps.summary.outputs.changed == 'true' && hashFiles('output/*.epub') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/clear_release_assets.sh latest
+
       - name: Publish to the rolling "latest" release
         if: steps.summary.outputs.changed == 'true' && hashFiles('output/*.epub') != ''
         uses: softprops/action-gh-release@v2
@@ -98,7 +112,7 @@ jobs:
           tag_name: latest
           name: Latest ebooks
           body: |
-            Rebuilt on ${{ github.event.repository.updated_at }} by the monitor workflow.
+            Issue ${{ steps.summary.outputs.issue }}, rebuilt by the monitor workflow.
 
             ${{ steps.summary.outputs.body }}
           files: output/*.epub

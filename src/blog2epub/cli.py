@@ -16,7 +16,7 @@ import requests
 from . import __version__
 from .config import BlogConfig, BookConfig, ConfigError, Settings, load_config
 from .covers import resolve_cover
-from .epub import BuildResult, build_book
+from .epub import BuildResult, book_outputs, build_book
 from .http import HttpClient
 from .models import utcnow_iso
 from .sources import SourceError, resolve_source
@@ -53,13 +53,14 @@ def _sources(settings: Settings) -> dict[str, tuple[BlogConfig, BlogStore]]:
     return {b.id: (b, BlogStore(settings.cache_dir, b.id)) for b in settings.blogs}
 
 
-def _build(settings: Settings, book: BookConfig, sources) -> list[BuildResult]:
+def _build(settings: Settings, book: BookConfig, sources, issue: str | None = None) -> list[BuildResult]:
     cover = resolve_cover(book.cover, settings, _client(settings))
-    results = build_book(book, sources, settings.output_dir, cover)
+    results = build_book(book, sources, settings.output_dir, cover, issue=issue)
     for blog_id in book.blogs:
         store = sources[blog_id][1]
         store.index.setdefault("builds", {})[book.id] = {
             "at": utcnow_iso(),
+            "issue": results[0].issue if results else issue,
             "files": [str(r.path) for r in results],
             "posts": sum(r.posts for r in results),
         }
@@ -67,8 +68,29 @@ def _build(settings: Settings, book: BookConfig, sources) -> list[BuildResult]:
     return results
 
 
+def _built(r: BuildResult) -> dict:
+    """One volume as the JSON report and the release notes see it."""
+    return {
+        "path": str(r.path),
+        "file": r.path.name,
+        "title": r.title,
+        "issue": r.issue,
+        "issue_number": r.issue_number,
+        "volume": r.volume,
+        "volumes": r.volumes,
+        "label": r.label,
+        "posts": r.posts,
+        "images": r.images,
+        "bytes": r.size,
+        "first_date": r.first_date,
+        "last_date": r.last_date,
+        "cover": str(r.cover) if r.cover else None,
+    }
+
+
 def _build_line(r: BuildResult) -> str:
-    line = f"built {r.path} - {r.posts} posts, {r.images} images, {r.size / 1e6:.1f} MB"
+    what = f"{r.title} ({r.label})" if r.label else r.title
+    line = f"built {r.path} - {what}: {r.posts} posts, {r.images} images, {r.size / 1e6:.1f} MB"
     saved = r.image_bytes_before - r.image_bytes
     if saved > 100_000:
         scale, unit = (1e6, "MB") if r.image_bytes_before > 1e6 else (1e3, "kB")
@@ -158,20 +180,29 @@ def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
 def cmd_build(settings: Settings, args: argparse.Namespace) -> int:
     rc = 0
     sources = _sources(settings)
+    report: dict = {"issue": args.issue, "books": []}
     for book in _select_books(settings, args.ids):
+        entry: dict = {"id": book.id, "title": book.title, "blogs": book.blogs, "built": []}
         try:
-            results = _build(settings, book, sources)
+            results = _build(settings, book, sources, issue=args.issue)
         except ValueError as exc:
             log.error("%s", exc)
+            entry["error"] = str(exc)
             rc = 2
-            continue
-        for r in results:
-            print(_build_line(r))
+        else:
+            entry["built"] = [_built(r) for r in results]
+            if results:
+                report["issue"] = report["issue"] or results[0].issue
+            for r in results:
+                print(_build_line(r))
+        report["books"].append(entry)
+    if args.report:
+        Path(args.report).write_text(json.dumps(report, indent=2), encoding="utf-8")
     return rc
 
 
 def cmd_run(settings: Settings, args: argparse.Namespace) -> int:
-    report: dict = {"changed": False, "blogs": [], "books": []}
+    report: dict = {"changed": False, "issue": args.issue, "blogs": [], "books": []}
     rc = 0
     changed_blogs: set[str] = set()
     for blog in _select_blogs(settings, args.ids):
@@ -205,29 +236,20 @@ def cmd_run(settings: Settings, args: argparse.Namespace) -> int:
 
     sources = _sources(settings)
     for book in _select_books(settings, args.ids):
-        existing = sorted(settings.output_dir.glob(f"{book.id}.epub")) + sorted(
-            settings.output_dir.glob(f"{book.id}-*.epub")
-        )
+        existing = book_outputs(settings.output_dir, book.id)
         touched = bool(changed_blogs & set(book.blogs))
         entry = {"id": book.id, "title": book.title, "blogs": book.blogs, "built": []}
         if touched or args.force or not existing:
             try:
-                results = _build(settings, book, sources)
+                results = _build(settings, book, sources, issue=args.issue)
             except ValueError as exc:
                 log.error("%s", exc)
                 entry["error"] = str(exc)
                 rc = 2
             else:
-                entry["built"] = [
-                    {
-                        "path": str(r.path),
-                        "title": r.title,
-                        "posts": r.posts,
-                        "images": r.images,
-                        "bytes": r.size,
-                    }
-                    for r in results
-                ]
+                entry["built"] = [_built(r) for r in results]
+                if results:
+                    report["issue"] = report.get("issue") or results[0].issue
                 report["changed"] = report["changed"] or touched or not existing
                 for r in results:
                     print(_build_line(r))
@@ -254,9 +276,7 @@ def cmd_status(settings: Settings, args: argparse.Namespace) -> int:
         )
         print(f"  images:     {ok} cached, {len(store.image_index) - ok} failed")
     for book in settings.all_books():
-        outputs = sorted(settings.output_dir.glob(f"{book.id}.epub")) + sorted(
-            settings.output_dir.glob(f"{book.id}-*.epub")
-        )
+        outputs = book_outputs(settings.output_dir, book.id)
         print(f"book {book.id} ({book.title}) <- {', '.join(book.blogs)}")
         for p in outputs:
             print(f"  output:     {p} ({p.stat().st_size / 1e6:.1f} MB)")
@@ -266,6 +286,12 @@ def cmd_status(settings: Settings, args: argparse.Namespace) -> int:
 
 
 # ---- entry point ---------------------------------------------------------------
+def _issue(value: str) -> str:
+    if not re.fullmatch(r"\d{8}", value):
+        raise argparse.ArgumentTypeError(f"issue must be YYYYMMDD, e.g. 20260905, not {value!r}")
+    return value
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="blog2epub", description="Monitor blogs and turn them into EPUB books.")
     p.add_argument("-c", "--config", default="blogs.yaml", help="path to blogs.yaml (default: ./blogs.yaml)")
@@ -296,6 +322,13 @@ def build_parser() -> argparse.ArgumentParser:
             )
         if name == "run":
             s.add_argument("--force", action="store_true", help="rebuild even when nothing changed")
+        if name in ("build", "run"):
+            s.add_argument(
+                "--issue",
+                metavar="YYYYMMDD",
+                type=_issue,
+                help="issue date the volumes are numbered under (default: today, UTC)",
+            )
             s.add_argument("--report", metavar="FILE", help="write a JSON summary (used by CI)")
         s.set_defaults(func=func)
 

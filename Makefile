@@ -55,12 +55,12 @@ epubcheck: build
 	  unzip -q -o epubcheck.zip && rm epubcheck.zip )
 	@for f in output/*.epub; do echo "== $$f"; java -jar .tools/epubcheck-$(EPUBCHECK_VERSION)/epubcheck.jar "$$f" | grep -E 'Messages|ERROR|WARNING'; done
 
-# Re-render the magazine covers from the cache (needs the `covers` extra and a Chromium:
-# `pip install -e ".[covers]" && playwright install chromium`, or set CHROMIUM_PATH).
+# Re-render the cover previews in covers/ from the cache (needs the `covers` extra and a
+# Chromium: `pip install -e ".[covers]" && playwright install chromium`, or set CHROMIUM_PATH).
+# `make build` renders the real covers itself, one per volume.
 cover: setup
 	$(BIN)/pip install -q -e ".[covers]"
 	$(BIN)/python scripts/render_cover.py --all
-	$(BIN)/python scripts/render_cover.py --book api-management --template covers/api-management.html --out covers/api-management.jpg
 
 clean:
 	rm -rf output .pytest_cache .mypy_cache .ruff_cache

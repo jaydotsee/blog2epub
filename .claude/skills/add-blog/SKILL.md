@@ -95,7 +95,9 @@ are namespaced per source, so every post would be cached twice.
 ## Phase 5 — Cover
 
 Copy the closest template in `covers/` to `covers/<id>.html` and restyle it with the brand colours
-the probe found. Make it look like its blog and unlike the other books. Then:
+the probe found. Make it look like its blog and unlike the other books. Keep the
+`$volume_label` span beside the issue number: a split archive uses it to say *Vol. 2 of 3*. Set
+`cover: covers/<id>.html` on the entry; the build renders the template once per volume. Then:
 
 ```bash
 make cover
@@ -108,11 +110,15 @@ titles, and the count and year range are right.
 
 ```bash
 .venv/bin/blog2epub build <id>
-make epubcheck          # must report zero errors AND zero warnings
+make epubcheck          # must report zero errors AND zero warnings, for every volume
 ```
 
-Warnings are not acceptable: they are how Kindle decides a book is malformed. Then open two or
-three chapters and confirm the body starts and ends where the real article does.
+A big archive comes out as several volumes, `output/<id>-<YYYYMMDD>.<n>.epub`, each under
+200 MB with its own cover under `output/covers/`. Look at one cover per volume: the label, count
+and year span must describe that volume. Warnings are not acceptable: they are how Kindle decides
+a book is malformed. Then open two or three chapters and confirm the body starts and ends where
+the real article does, including one that links to a post in another volume — the link must
+point at the web, not at a chapter file that is not there.
 
 ## Phase 7 — Document, commit, release
 
@@ -122,12 +128,13 @@ three chapters and confirm the body starts and ends where the real article does.
 - If the user wanted a release now:
 
 ```bash
-git tag -a <id>-$(date -u +%Y.%m.%d) -m "<Title>, issue $(date -u +%Y.%m.%d)"
-git push origin <id>-$(date -u +%Y.%m.%d)
+git tag -a <id>-$(date -u +%Y%m%d) -m "<Title>, issue $(date -u +%Y%m%d)"
+git push origin <id>-$(date -u +%Y%m%d)
 ```
 
-`release.yml` syncs, renders the cover, builds and publishes the release with the EPUB attached.
-Confirm it succeeded rather than assuming; report the release URL.
+`release.yml` syncs, builds with a cover per volume, and publishes the release with the volumes
+attached and a table of them in the notes; re-running the same issue replaces the files. Confirm
+it succeeded rather than assuming; report the release URL and the volume count.
 
 ## Report back
 

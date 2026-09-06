@@ -58,6 +58,8 @@
   .strip { margin-top: 44px; border-top: 2px solid var(--line); padding-top: 24px; display: flex; justify-content: space-between; align-items: center;
            font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 34px; letter-spacing: 3px; text-transform: uppercase; color: var(--grey); }
   .strip .sep { color: var(--line); }
+  .vol:empty { display: none; }
+  .vol::before { content: "\00a0\00b7\00a0"; }
 </style>
 </head>
 <body>
@@ -88,7 +90,7 @@
     <div class="kicker-top">GOOGLE CLOUD</div>
     <div class="masthead"><div class="name">APIGEE</div><div class="blog">BLOG</div></div>
     <div class="issue">
-      <span>Issue <b>$issue_number</b></span><span class="dot" style="background:var(--red)"></span>
+      <span>Issue <b>$issue_number</b><span class="vol">$volume_label</span></span><span class="dot" style="background:var(--red)"></span>
       <span>$issue</span><span class="dot" style="background:var(--yellow)"></span>
       <span>$url</span>
     </div>

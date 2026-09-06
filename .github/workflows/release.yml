@@ -1,17 +1,19 @@
-# Build one book and publish it as a dated GitHub release.
+# Build one book and publish it as a dated GitHub release: the issue.
 #
-# Three ways to run it (all produce the release tag <book>-<YYYY.MM.DD>):
-#   git tag tyk-2026.09.05 && git push origin tyk-2026.09.05
-#   git push origin main:release/tyk-2026.09.05          (a throwaway branch, for hosts that block tag pushes)
-#   Actions tab -> "Release a book" -> Run workflow with the book id
+# An issue is <book>-<YYYYMMDD>. The book arrives as one or more volumes named
+# <book>-<YYYYMMDD>.<n>.epub, each under max_book_bytes and with its own cover, so a re-run of
+# the same issue replaces the whole set. Three ways to run it:
+#   git tag tyk-20260905 && git push origin tyk-20260905
+#   git push origin main:release/tyk-20260905           (a throwaway branch, for hosts that block tag pushes)
+#   Actions tab -> "Release a book" -> Run workflow with the book id (the issue is today, UTC)
 name: Release a book
 
 on:
   push:
     tags:
-      - "*-[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]"
+      - "*-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]"
     branches:
-      - "release/*-[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]"
+      - "release/*-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]"
   workflow_dispatch:
     inputs:
       book:
@@ -47,10 +49,10 @@ jobs:
             name="${GITHUB_REF_NAME#release/}"
             book="${name%-*}"; issue="${name##*-}"
           else
-            book="${{ inputs.book }}"; issue="$(date -u +%Y.%m.%d)"
+            book="${{ inputs.book }}"; issue="$(date -u +%Y%m%d)"
           fi
           if [ -z "$book" ]; then
-            echo "::error::No book id. Dispatch with a book, or push a release/<book>-<date> branch."
+            echo "::error::No book id. Dispatch with a book, or push a release/<book>-<YYYYMMDD> branch."
             exit 1
           fi
           echo "book=$book" >> "$GITHUB_OUTPUT"
@@ -59,6 +61,12 @@ jobs:
 
       - name: Install
         run: pip install -e ".[covers,svg]"
+
+      # Each volume's cover is rendered from its template during the build. Best effort: if
+      # Chromium cannot be set up, the build falls back to the committed cover image and says so.
+      - name: Install Chromium for the covers
+        continue-on-error: true
+        run: python -m playwright install --with-deps chromium
 
       - name: Restore download cache
         uses: actions/cache@v4
@@ -71,46 +79,44 @@ jobs:
       - name: Sync
         run: blog2epub -v sync "${{ steps.which.outputs.book }}" ${{ inputs.full == true && '--full' || '' }}
 
-      - name: Render cover
-        continue-on-error: true
-        run: |
-          if [ -f "covers/${{ steps.which.outputs.book }}.html" ]; then
-            python -m playwright install --with-deps chromium
-            if grep -q "^  - id: ${{ steps.which.outputs.book }}$" blogs.yaml; then target="--blog"; else target="--book"; fi
-            python scripts/render_cover.py $target "${{ steps.which.outputs.book }}" --template "covers/${{ steps.which.outputs.book }}.html" --out "covers/${{ steps.which.outputs.book }}.jpg"
-          fi
-
       - name: Build
         id: build
         run: |
-          blog2epub -v build "${{ steps.which.outputs.book }}"
-          title=$(python -c "import sys; from blog2epub.config import load_config; print(load_config('blogs.yaml').book(sys.argv[1]).title)" "${{ steps.which.outputs.book }}")
-          echo "title=$title" >> "$GITHUB_OUTPUT"
+          blog2epub -v build "${{ steps.which.outputs.book }}" --issue "${{ steps.which.outputs.issue }}" --report build.json
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          r = json.load(open("build.json"))
+          book = r["books"][0]
+          if book.get("error") or not book["built"]:
+              raise SystemExit(f"::error::{book.get('error') or 'nothing was built'}")
+          print(f"title={book['title']}")
+          vols = book["built"]
+          lines = [f"{book['title']}, issue {r['issue']}, built by blog2epub.", ""]
+          if len(vols) > 1:
+              lines.append(f"{sum(v['posts'] for v in vols)} posts in {len(vols)} volumes, each under the size Send to Kindle accepts:")
+              lines.append("")
+              lines.append("| File | Volume | Posts | Covers | Size |")
+              lines.append("| --- | --- | --- | --- | --- |")
+              for v in vols:
+                  span = f"{v['first_date']} to {v['last_date']}" if v["first_date"] else ""
+                  lines.append(f"| `{v['file']}` | {v['label'] or v['title']} | {v['posts']} | {span} | {v['bytes'] / 1e6:.1f} MB |")
+          else:
+              v = vols[0]
+              span = f", {v['first_date']} to {v['last_date']}" if v["first_date"] else ""
+              lines.append(f"`{v['file']}`: {v['posts']} posts{span}, {v['bytes'] / 1e6:.1f} MB.")
+          lines += ["", "EPUB 3, validated with epubcheck. Copy to your e-reader or send to Kindle."]
+          print("body<<EOF"); print("\n".join(lines)); print("EOF")
+          PY
           ls -la output/
 
       # An issue is one set of files, so re-running it replaces them. action-gh-release only
-      # adds, which would leave the previous shape behind: rebuild a book that was split by
-      # year as a single file and the release would carry both. Runs after Build so a failed
-      # build never empties a good release.
+      # adds, which would leave the previous shape behind (a book once split into per-year
+      # volumes, now one file, would carry both). Runs after Build, so a failed build never
+      # empties a good release.
       - name: Clear the issue's existing assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="${{ steps.which.outputs.book }}-${{ steps.which.outputs.issue }}"
-          if ! ls output/${{ steps.which.outputs.book }}*.epub >/dev/null 2>&1; then
-            echo "::error::Build produced no EPUB; refusing to clear $tag"
-            exit 1
-          fi
-          id=$(gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq .id 2>/dev/null || true)
-          if [ -z "$id" ]; then
-            echo "No existing release for $tag; nothing to clear."
-            exit 0
-          fi
-          gh api "repos/${{ github.repository }}/releases/$id/assets" --paginate --jq '.[] | "\(.id) \(.name)"' |
-            while read -r asset name; do
-              echo "removing $name"
-              gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$asset"
-            done
+        run: scripts/clear_release_assets.sh "${{ steps.which.outputs.book }}-${{ steps.which.outputs.issue }}"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -118,9 +124,6 @@ jobs:
           tag_name: ${{ steps.which.outputs.book }}-${{ steps.which.outputs.issue }}
           target_commitish: ${{ github.sha }}
           name: "${{ steps.build.outputs.title }} — Issue ${{ steps.which.outputs.issue }}"
-          body: |
-            ${{ steps.build.outputs.title }}, built ${{ steps.which.outputs.issue }} by blog2epub.
-
-            EPUB 3, validated with epubcheck. Copy to your e-reader or send to Kindle.
-          files: output/${{ steps.which.outputs.book }}*.epub
+          body: ${{ steps.build.outputs.body }}
+          files: output/${{ steps.which.outputs.book }}-${{ steps.which.outputs.issue }}.*.epub
           make_latest: false

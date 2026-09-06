@@ -133,7 +133,7 @@ complete archive, match the shape the other archives use:
     remove: ["[class*='Card_card']", "[class*='Article_cta']"]
     order: desc               # newest first
     group_by: year-month      # year → month → posts
-    cover: covers/kong.jpg
+    cover: covers/kong.html   # rendered once per volume at build time
 ```
 
 Add `standalone: false` if the blog should only feed combined books and not get one of its own.
@@ -156,15 +156,24 @@ and copy the closest existing template in `covers/`. Each book should look like 
 unlike the others: Tyk is purple with hexagons, Kong is acid lime on near-black with a service
 mesh, the digest is teal and amber with a diagonal month band.
 
-Placeholders are filled from the cache: `$count`, `$first_year`, `$last_year`, `$issue`,
-`$issue_number`, `$month`, `$year`, `$url`, `$title`, `$blog_count`, `$blog_list`, and
-`$kicker1`/`$title1` … for cover lines drawn from the newest posts.
+Point the entry's `cover:` at the template. The build renders it **once per volume**, from that
+volume's posts: `$count`, `$first_year`, `$last_year`, `$issue`, `$issue_number` (`20260905.2`),
+`$volume`, `$volumes`, `$volume_label` (`Vol. 2 of 3`, empty for a single volume), `$month`,
+`$year`, `$url`, `$title`, `$blog_count`, `$blog_list`, and `$kicker1`/`$title1` … for cover lines
+drawn from the newest posts. Put `$volume_label` beside the issue number, as the shipped templates
+do, so a split archive says which volume it is. The rendering lives in `blog2epub.covers`;
+`scripts/render_cover.py` only refreshes the whole-book previews in `covers/`:
 
 ```bash
 make cover        # renders every covers/<id>.html whose id names a configured blog or book
 ```
 
 Fonts are bundled under `covers/fonts/` so rendering needs no network and is identical everywhere.
+
+Books are cut into volumes by size by default (`split: size`, each under `max_book_bytes`,
+200 MB); `year`, `month` and `none` are the alternatives. Output is `<id>-<issue>.<n>.epub`, the
+issue being the build date as `YYYYMMDD`; `build --issue` pins it. See `plan_volumes` in
+`epub.py` for how posts are weighed.
 
 ### 8. Build and validate
 
@@ -180,14 +189,15 @@ first paragraph, ends at the real conclusion, and contains no other post.
 
 ```bash
 git checkout main && git pull
-git tag -a kong-2026.09.05 -m "Kong Blog, issue 2026.09.05"
-git push origin kong-2026.09.05
+git tag -a kong-20260905 -m "Kong Blog, issue 20260905"
+git push origin kong-20260905
 ```
 
-`release.yml` syncs, renders the cover, builds and publishes the release tagged
-`<book>-<YYYY.MM.DD>` with the EPUB attached. A `release/<book>-<date>` branch push or the Actions
-tab do the same thing. The weekly `monitor.yml` keeps every book fresh on the rolling `latest`
-release regardless.
+`release.yml` syncs, builds (rendering a cover per volume) and publishes the release tagged
+`<book>-<YYYYMMDD>` with the volumes attached as `<book>-<YYYYMMDD>.<n>.epub` and a table of
+them in the notes. Re-running an issue clears its assets first, so it replaces rather than
+accumulates. A `release/<book>-<YYYYMMDD>` branch push or the Actions tab do the same thing. The
+weekly `monitor.yml` keeps every book fresh on the rolling `latest` release regardless.
 
 ## Gotchas, and what they look like
 
@@ -200,7 +210,8 @@ release regardless.
 | Kindle says "original layout preserved" | SVG images in the book | `svg_images: raster` (the default) with the `svg` extra |
 | Every sitemap URL 404s | Sitemap lists `/slug/`, server serves `/slug` | Handled: `HttpClient.get_text_tolerant` |
 | epubcheck NAV-011 warnings | A TOC link points backwards past earlier chapters | Section pages go in the spine right before their chapters |
-| Book too large to email | Images, almost always | Downscaling is standard and every build reports its saving; if it reports none, look for a Pillow error, then lower `max_image_width` / `image_quality`, or `split: year` |
+| Book too large to email | The book has `split: none` or `year`; with the default `split: size` no volume passes `max_book_bytes` | Use `split: size`, or lower `max_image_width` / `image_quality`; a build that reports no optimisation saving has a Pillow error in the log |
+| A link in one volume points at a chapter in another | It cannot; `package` rewrites those to the post's URL | Nothing, unless a test shows `ch-NNNN.xhtml` surviving across the cut |
 | Chapters are lists of links | `include` matched index pages | Tighten the regex to the post depth |
 | `include` matches nothing at all | The URL given is a **tag page**, not a section | Find where posts really live (see below) |
 | The feed is "not available" but you know it exists | It is on another host | Set `feed.url` explicitly |
@@ -228,7 +239,8 @@ a regression test carrying the offending markup.
 - [ ] `blogs.yaml` entry has a title, author, description, and a comment on every non-obvious rule
 - [ ] Sync completes; `blog2epub status` shows the expected posts and few failed images
 - [ ] The book builds and passes epubcheck with zero errors and zero warnings
-- [ ] A cover exists in the blog's own palette and `make cover` regenerates it
+- [ ] A cover template exists in the blog's own palette, `cover:` points at it, `make cover`
+      regenerates the preview, and the volume covers under `output/covers/` carry the right label
 - [ ] Chapters spot-checked: right start, right end, no other post
 - [ ] README book table and `CHANGELOG.md` updated
 - [ ] `make check` passes, and the change is committed and pushed

@@ -51,6 +51,8 @@
   .strip { margin-top: 42px; border-top: 2px solid var(--line); padding-top: 24px; display: flex; justify-content: space-between;
            font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 34px; letter-spacing: 3px; text-transform: uppercase; color: var(--grey); }
   .strip .sep { color: var(--crimson); }
+  .vol:empty { display: none; }
+  .vol::before { content: "\00a0\00b7\00a0"; }
 </style>
 </head>
 <body>
@@ -79,7 +81,7 @@
   <div class="frame">
     <div class="kicker-top">ENTERPRISE INTEGRATION</div>
     <div class="masthead"><div class="name">AXWAY</div><div class="blog">BLOG</div></div>
-    <div class="issue"><span>Issue <b>$issue_number</b></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
+    <div class="issue"><span>Issue <b>$issue_number</b><span class="vol">$volume_label</span></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
 
     <div class="lines">
       <div class="line"><div class="kicker">$kicker1</div><div class="title">$title1</div></div>

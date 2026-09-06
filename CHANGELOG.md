@@ -4,6 +4,27 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### Changed
+- **Books are cut into volumes, by size by default.** `split` now takes `size` (the default),
+  `year`, `month` or `none`. `size` packs posts in reading order into volumes that each stay
+  under `max_book_bytes` (default `200MB`, Send to Kindle's limit), weighing text as the zip
+  will store it and images at their file size, so an archive of any length arrives readable.
+  Links to a post that landed in another volume go back to the post's own URL.
+- **Issues are `YYYYMMDD` and volumes are `YYYYMMDD.n`.** Output files are
+  `<book>-<YYYYMMDD>.<n>.epub`, the title page says `Issue 20260905.2 · Volume 2 of 3`, and
+  `build`/`run` take `--issue YYYYMMDD` so a release built on a later day keeps its date.
+  A rebuild removes the book's files from earlier issues. Release tags are `<book>-<YYYYMMDD>`;
+  the workflow writes the volume table into the release notes and clears the previous assets
+  first, so re-running an issue replaces its files rather than adding to them. The rolling
+  `latest` release is cleared the same way.
+- **Every volume gets its own cover.** Point `cover:` at an HTML template (`covers/<id>.html`)
+  and the build renders it once per volume with that volume's post count, year span, cover
+  lines and issue number; `$volume`, `$volumes` and `$volume_label` ("Vol. 2 of 3") are new
+  placeholders, and the shipped templates show the label beside the issue number. Rendering
+  moved from `scripts/render_cover.py` into `blog2epub.covers`; the script now only refreshes
+  the previews in `covers/`. Without Playwright the build uses the image beside the template.
+- `build` gained `--report FILE`, the same JSON `run` writes, with one entry per volume.
+
 ### Added
 - Image optimisation is now a standard step in the pipeline: Pillow is a core dependency,
   `optimize_images` defaults to on, every build reports what it saved, and a missing Pillow is
@@ -11,8 +32,8 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   `max_image_width` and re-encoded; transparent PNGs above 150 KB are flattened onto white and
   encoded as JPEG, which is what dominates a large archive. The Kong book went from 705 MB to
   236 MB with no visible change on an e-reader.
-- The complete **Axway** archive (1,968 posts, 2011 to 2026) — the longest here at 291 MB — and
-  the complete **Gravitee** archive (656 posts). Both have covers in their brand palette. Gravitee
+- The complete **Axway** archive (1,968 posts, 2011 to 2026) — the longest here, and the one
+  that made size-based volumes necessary — and the complete **Gravitee** archive (656 posts). Both have covers in their brand palette. Gravitee
   publishes through HubSpot, so its entry reads that sitemap rather than the site's own.
 - Per-blog `title_strip`: regexes matched against the end of a post title and dropped, applied
   at build time so a rule can change without re-fetching. For a stale brand the generic rules

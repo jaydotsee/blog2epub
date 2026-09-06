@@ -104,8 +104,11 @@ exposes.
 - **Magazine digests.** Combine any number of blogs into one book, newest first, with a lead
   image per article and the blog name in every byline. Rolling windows (`since: 7d`, `1m`, `1y`)
   give a fresh issue on every build.
-- **Covers with live cover lines.** HTML templates rendered to JPG, with the newest post titles,
-  the post count and an issue number. Or point `cover:` at your own image.
+- **Volumes that fit a reader.** A book is cut into volumes that each stay under 200 MB (Send
+  to Kindle's limit), or by year or month if you prefer; each volume is `<book>-<issue>.<n>.epub`
+  with its own cover and navigation.
+- **Covers with live cover lines.** HTML templates rendered once per volume, with that volume's
+  newest post titles, post count, year span and issue number. Or point `cover:` at your own image.
 - **Scriptable and automated.** A plain CLI, a JSON report, a weekly GitHub Actions monitor
   publishing to a rolling release, and an on-demand workflow for dated releases.
 
@@ -292,11 +295,12 @@ Any blog or book key may also appear under `defaults`.
 | `author`, `description`, `publisher`, `language` | – / `en` | EPUB metadata; the description also appears on the title page and generated cover. |
 | `since`, `until` | – | Only posts published in this range. A date, or a rolling window like `7d`, `2w`, `3m`, `1y` measured from the time of the build. |
 | `max_posts` | – | Keep the N most recent posts across all the book's blogs. |
-| `cover` | – | JPG/PNG path relative to `blogs.yaml`, or a URL (downloaded once). Otherwise a cover is generated. |
+| `cover` | – | An HTML template (rendered once per volume, see [Magazine covers](#magazine-covers)), a JPG/PNG path relative to `blogs.yaml`, or a URL (downloaded once). Otherwise a cover is generated. |
 | `images` | `true` | Embed images. `false` gives a text-only edition. |
 | `group_by` | `year` | Part level of the TOC: `year`, `year-month` (years with month sub-sections), `month`, `blog` or `none`. |
 | `order` | `asc` | `asc` reads oldest to newest like a book; `desc` is magazine order. |
-| `split` | `none` | `year` writes one EPUB per year (`<id>-<year>.epub`). |
+| `split` | `size` | How the book is cut into volumes: `size` packs posts in reading order into volumes under `max_book_bytes`; `year` and `month` cut on the posts' dates; `none` is one file whatever the size. |
+| `max_book_bytes` | `200MB` | The size each volume stays under with `split: size`. Bytes, or `150MB`, `1.5GB`. |
 | `demote_headings` | `true` | Shift headings inside posts down so the post title is the only `h1`. |
 | `readability` | `auto` | Build-time readability pass: `auto` (feed bodies only), `always`, `never`. |
 | `excerpts` | `true` | Excerpts on the part pages. |
@@ -407,13 +411,13 @@ before them in reading order.
     group_by: year-month
 ```
 
-**A blog's complete archive, one file per year.** Big archives with images get large (the full
-tyk.io book is about 50 MB). Split it:
+**A blog's complete archive, one file per year.** By default a big archive is cut into volumes
+by size (see [Volumes](#volumes)); to cut on the calendar instead:
 
 ```yaml
   - id: tyk
     url: https://tyk.io/blog
-    split: year               # output/tyk-2015.epub ... output/tyk-2026.epub
+    split: year               # output/tyk-20260905.1.epub is 2015, .2 is 2016, ...
 ```
 
 **A weekly issue.** Newest first, grouped by blog, always the last seven days at build time:
@@ -499,10 +503,28 @@ index. Gravitee is the worked example of a blog whose archive lives on the platf
 through: its own sitemap knows nothing of the posts, HubSpot's has all of them, and the two
 disagree about trailing slashes, which `get_text_tolerant` absorbs.
 
-Axway is the largest book here: 1,968 posts and 4,799 images come to 291 MB as a single EPUB.
-That is over Send to Kindle's 200 MB limit, so send it to a Kindle by USB, or set `split: year`
-on the book to get one file per year instead (the largest would be 57 MB). Other readers take
-the single file as is.
+Axway is the largest book here: 1,968 posts and 4,799 images come to 291 MB, which no single
+file should be. It is the reason books are cut into volumes.
+
+## Volumes
+
+A book is written as one or more **volumes**, `output/<book>-<issue>.<n>.epub`, where the issue
+is the build date as `YYYYMMDD` and `n` counts from 1. The `split` key says where the cuts go:
+
+- `size` (the default) packs posts in reading order into volumes that each stay under
+  `max_book_bytes`, `200MB` unless you say otherwise, because that is what Send to Kindle
+  accepts. The planner weighs each post's text as the zip will store it and its images at their
+  file size, counting an image shared by several posts once per volume, so the cut lands where
+  the budget says and the actual file comes in under it. Most books fit in one volume and are
+  simply `<book>-<issue>.1.epub`.
+- `year` and `month` cut on the posts' dates, one volume per calendar period, however big.
+- `none` writes one file whatever the size.
+
+Each volume is a complete book of its own: its own cover, title page (`Issue 20260905.2 ·
+Volume 2 of 3`), contents and navigation, and a title such as *Axway Blog, Vol. 2* or *Tyk Blog
+2024*. A link to a post that landed in another volume goes back to the post's web page rather
+than dangling. Rebuilding a book removes its files from earlier issues; `blog2epub build
+--issue 20260905` pins the issue when a release is built on a later day.
 
 ```bash
 .venv/bin/blog2epub run kong     # sync + build → output/kong.epub
@@ -546,36 +568,44 @@ and the list of sources. Re-render them after a sync to refresh the cover lines:
 make cover        # installs the `covers` extra (Playwright) and renders every cover
 ```
 
-The cover carries an issue number, the render date as `2026.09.05`, and the title page inside the
-book repeats it as `Issue 2026.09.05` from the build date. The weekly workflow re-renders the cover
-before building, so both stay current. Copy a template to make a cover for another blog or book;
-the placeholders (`$count`, `$issue`, `$issue_number`, `$month`, `$kicker1`, `$title1`, ...) work
-for any id. Fonts are bundled under `covers/fonts/` (SIL Open Font License), so rendering is
-identical everywhere and needs no network.
+Those JPGs are previews. The real covers are rendered by the build itself: when `cover:` names an
+HTML template, every volume gets the template filled with **its own** post count, year span,
+cover lines and issue number (`20260905.2`), plus `$volume_label` (*Vol. 2 of 3*, empty for a
+single volume), so a three-volume archive has three different covers and the title page inside
+each repeats the same issue number. Without Playwright the build uses the image beside the
+template and says so. Copy a template to make a cover for another blog or book; the placeholders
+(`$count`, `$first_year`, `$last_year`, `$issue`, `$issue_number`, `$volume`, `$volumes`,
+`$volume_label`, `$month`, `$kicker1`, `$title1`, ...) work for any id. Fonts are bundled under
+`covers/fonts/` (SIL Open Font License), so rendering is identical everywhere and needs no
+network.
 
 ## Keeping books current with GitHub Actions
 
 `.github/workflows/monitor.yml` runs every Monday at 06:00 UTC and on demand:
 
 1. restores `cache/` from the previous run with `actions/cache`, so only new posts are fetched;
-2. re-renders the covers so cover lines and issue numbers match this run;
+2. installs Chromium so each volume's cover can be rendered during the build;
 3. runs `blog2epub run --report report.json`, which rebuilds every book whose blogs changed;
 4. uploads all EPUBs as a workflow artifact (kept 30 days);
-5. when something changed, refreshes the rolling **`latest`** GitHub release, so the newest books
-   are always at `https://github.com/jaydotsee/blog2epub/releases/tag/latest`;
+5. when something changed, clears and refreshes the rolling **`latest`** GitHub release, so the
+   newest volumes are always at `https://github.com/jaydotsee/blog2epub/releases/tag/latest`;
 6. writes a summary to the job page.
 
 "Run workflow" accepts two switches: `force` rebuilds every book, `full` ignores the cache and
 re-fetches everything. Nothing generated is committed; `cache/` and `output/` are git-ignored.
 
-`.github/workflows/release.yml` publishes one book as a **dated release**. Three ways to run it,
-all producing the tag `<book>-<YYYY.MM.DD>` with the EPUB attached:
+`.github/workflows/release.yml` publishes one book as a **dated release**: the issue. Three ways
+to run it, all producing the tag `<book>-<YYYYMMDD>` with the volumes attached as
+`<book>-<YYYYMMDD>.<n>.epub` and a table of them in the release notes:
 
 ```bash
-git tag -a tyk-2026.09.05 -m "Tyk Blog, issue 2026.09.05" && git push origin tyk-2026.09.05
-git push origin main:release/tyk-2026.09.05        # for hosts that block tag pushes
-# or: Actions tab → "Release a book" → Run workflow → book id
+git tag -a tyk-20260905 -m "Tyk Blog, issue 20260905" && git push origin tyk-20260905
+git push origin main:release/tyk-20260905          # for hosts that block tag pushes
+# or: Actions tab → "Release a book" → Run workflow → book id (the issue is today, UTC)
 ```
+
+Re-running an issue replaces its files: the workflow clears the release's assets after a
+successful build and before uploading, so a book that changed shape never carries both.
 
 To run somewhere else, any scheduler that can call `blog2epub run` works: the cache directory is
 the only state.
@@ -583,7 +613,8 @@ the only state.
 ## Reading the books
 
 - **Kobo, PocketBook, Tolino, Boox, Apple Books, Calibre:** copy the `.epub` over as is.
-- **Kindle:** Send to Kindle accepts EPUB up to 200 MB via the web and app, 25 MB via email.
+- **Kindle:** Send to Kindle accepts EPUB up to 200 MB via the web and app, 25 MB via email;
+  the default `split: size` keeps every volume under the first limit.
   Amazon's converter treats a book as fixed layout ("original layout preserved, similar to PDF")
   when it finds content it cannot reflow, SVG images in particular. blog2epub therefore rasterises
   SVG images and the generated cover to PNG by default (`svg_images: raster`, which needs the
@@ -659,9 +690,11 @@ HTTP client.
 - **A blog is unreachable**: it is reported as an error and the run continues with the other blogs;
   the exit code is 2 so CI notices. Books that include the failed blog are still built from what
   the cache holds.
-- **Book too large**: images dominate. Every build reports what optimisation saved; if it says
-  nothing, check the log for a Pillow error. Then lower `max_image_width` or `image_quality`, or
-  use `split: year` or `images: false`.
+- **Book too large**: with the default `split: size` a volume never exceeds `max_book_bytes`,
+  so a "too large" file means the book has `split: none` or `year`. Images dominate; every build
+  reports what optimisation saved, and if it says nothing, check the log for a Pillow error.
+  Then lower `max_image_width` or `image_quality`, set `max_book_bytes` smaller, or use
+  `images: false`.
 - **Kindle shows "original layout preserved" / no font size control**: the converter met SVG. Make
   sure the `svg` extra is installed (the build warns when it is not) or set `svg_images: drop`.
 - **A post is missing**: check `include`/`exclude`, `since`/`until`, and whether the source lists

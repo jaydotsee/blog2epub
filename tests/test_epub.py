@@ -132,12 +132,19 @@ def test_build_book_split_by_year_and_custom_cover(tmp_path, blog, store):
     book.split = "year"
     cover = tmp_path / "cover.png"
     cover.write_bytes(PNG_1x1)
-    results = build_book(book, {blog.id: (blog, store)}, tmp_path / "out", cover_path=cover)
-    assert sorted(r.path.name for r in results) == ["demo-2023.epub", "demo-2024.epub"]
+    results = build_book(book, {blog.id: (blog, store)}, tmp_path / "out", cover_path=cover, issue="20260905")
+    # Volumes are numbered in reading order (asc: oldest year first) and named after the issue.
+    assert [r.path.name for r in results] == ["demo-20260905.1.epub", "demo-20260905.2.epub"]
+    assert [(r.title, r.label, r.issue_number) for r in results] == [
+        ("Demo Blog 2023", "2023", "20260905.1"),
+        ("Demo Blog 2024", "2024", "20260905.2"),
+    ]
+    assert (results[0].first_date, results[0].last_date) == ("2023-05-01", "2023-06-01")
     z = zipfile.ZipFile(results[0].path)
     assert "OEBPS/Images/cover.png" in z.namelist()
     assert 'src="../Images/cover.png"' in z.read("OEBPS/Text/cover.xhtml").decode()
-    assert results[0].title == "Demo Blog 2023"
+    title_page = z.read("OEBPS/Text/title.xhtml").decode()
+    assert "Issue 20260905.1" in title_page and "Volume 1 of 2" in title_page
 
 
 def test_group_by_none_flat_nav(tmp_path, blog, store):
