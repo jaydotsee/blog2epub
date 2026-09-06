@@ -37,8 +37,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: cache            # one job at a time touches the download cache
-  cancel-in-progress: false
+  group: release          # never two publishing runs at once; sync.yml may run alongside,
+  cancel-in-progress: false   # since this workflow only reads the cache
 
 jobs:
   plan:
@@ -78,8 +78,7 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
-      max-parallel: 1       # sequential, so every book's sync is in the cache the next one restores
+      fail-fast: false      # a book that fails does not stop the others
       matrix:
         book: ${{ fromJSON(needs.plan.outputs.books) }}
     steps:
@@ -98,18 +97,22 @@ jobs:
         continue-on-error: true
         run: uv run python -m playwright install --with-deps chromium
 
-      # A unique key per job so the newest cache is always the one saved; restore-keys picks up
-      # the previous job's (or the weekly sync's) cache.
+      # Restore only. Books run in parallel, and if each saved its own copy the lineage would
+      # fork: every run would restore whichever job happened to finish last, holding one book's
+      # blogs and nothing else. sync.yml is the single writer, so the cache stays whole. What a
+      # release fetches on top is at most a week of posts, and next Monday's sync persists it.
       - name: Restore download cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: cache
-          key: blog2epub-cache-${{ github.run_id }}-${{ matrix.book }}
+          key: blog2epub-cache-${{ github.run_id }}
           restore-keys: |
             blog2epub-cache-
 
+      # --jobs syncs the book's blogs at once, so a throttled source (Apigee takes 1.5s a
+      # request) does not gate the other ten in the digest. Blogs sharing a host still queue.
       - name: Sync
-        run: uv run blog2epub -v sync "${{ matrix.book }}" ${{ inputs.full == true && '--full' || '' }}
+        run: uv run blog2epub -v sync "${{ matrix.book }}" --jobs 4 ${{ inputs.full == true && '--full' || '' }}
 
       - name: Build
         id: build

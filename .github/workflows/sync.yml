@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cache            # never alongside a release
+  group: sync             # this is the only writer of the download cache
   cancel-in-progress: false
 
 jobs:
@@ -48,8 +48,10 @@ jobs:
           restore-keys: |
             blog2epub-cache-
 
+      # --jobs syncs blogs at once so one throttled source does not stretch the whole run;
+      # blogs sharing a host still take turns, so no site sees extra load.
       - name: Sync every blog
-        run: uv run blog2epub -v sync ${{ inputs.full == true && '--full' || '' }} | tee sync.txt
+        run: uv run blog2epub -v sync --jobs 4 ${{ inputs.full == true && '--full' || '' }} | tee sync.txt
 
       - name: Summarise
         run: |

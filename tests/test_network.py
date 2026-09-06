@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -155,7 +156,7 @@ def test_run_continues_after_one_blog_fails(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli, "build_book", lambda *a, **k: [])
     rc = cli.main(["-c", str(cfg), "run"])
     out = capsys.readouterr().out
-    assert calls == ["bad", "good"]
+    assert sorted(calls) == ["bad", "good"]  # both ran; blogs sync concurrently, so order is free
     assert rc == 2 and "good: 1 posts listed" in out
 
 
@@ -314,3 +315,73 @@ def test_long_syncs_checkpoint_their_progress(tmp_path, blog, monkeypatch):
     store.save = counting_save  # type: ignore[method-assign]
     sync_mod.sync_blog(blog, settings, FakeClient(make_wp_routes(items)), store)
     assert saved and saved[0] < 5, f"expected a checkpoint before the end, got {saved}"
+
+
+def _jobs_config(tmp_path, blogs: str):
+    cfg = tmp_path / "blogs.yaml"
+    cfg.write_text(f"defaults: {{request_delay: 0}}\nblogs:\n{blogs}")
+    return cfg
+
+
+def _watcher(monkeypatch):
+    """Fake sync recording how many blogs are in flight at once.
+
+    The hold is an Event.wait, not time.sleep: the autouse `no_sleep` fixture above patches
+    `blog2epub.images.time.sleep`, and that attribute belongs to the one shared `time` module,
+    so it silences sleeps everywhere for the duration of the test.
+    """
+    lock = threading.Lock()
+    state = {"now": 0, "peak": 0}
+
+    def fake_sync(blog, settings, client, store, *, full=False, prune=False):
+        with lock:
+            state["now"] += 1
+            state["peak"] = max(state["peak"], state["now"])
+        threading.Event().wait(0.05)
+        with lock:
+            state["now"] -= 1
+        return SyncResult(blog_id=blog.id, source="fake", discovered=1, new=1)
+
+    monkeypatch.setattr(cli, "sync_blog", fake_sync)
+    return state
+
+
+def test_blogs_on_different_hosts_sync_at_the_same_time(tmp_path, monkeypatch, capsys):
+    # The barrier only clears when all three are in flight together, so this cannot pass by
+    # luck: were the syncs sequential, the first wait would time out and raise.
+    barrier = threading.Barrier(3, timeout=10)
+
+    def fake_sync(blog, settings, client, store, *, full=False, prune=False):
+        barrier.wait()
+        return SyncResult(blog_id=blog.id, source="fake", discovered=1, new=1)
+
+    monkeypatch.setattr(cli, "sync_blog", fake_sync)
+    cfg = _jobs_config(
+        tmp_path,
+        "  - {id: a, url: https://a.example/}\n"
+        "  - {id: b, url: https://b.example/}\n"
+        "  - {id: c, url: https://c.example/}\n",
+    )
+    assert cli.main(["-c", str(cfg), "sync"]) == 0
+    assert {line.split(":")[0] for line in capsys.readouterr().out.splitlines() if line} == {"a", "b", "c"}
+
+
+def test_blogs_on_one_host_take_turns(tmp_path, monkeypatch):
+    # Two entries, one site (APIDAYS publishes on API Scene). Politeness beats parallelism:
+    # the host never sees two syncs at once, whatever --jobs says.
+    cfg = _jobs_config(
+        tmp_path,
+        "  - {id: one, url: https://same.example/a}\n  - {id: two, url: https://same.example/b}\n",
+    )
+    state = _watcher(monkeypatch)
+    assert cli.main(["-c", str(cfg), "sync", "--jobs", "8"]) == 0
+    assert state["peak"] == 1
+
+
+def test_jobs_1_syncs_one_blog_at_a_time(tmp_path, monkeypatch):
+    cfg = _jobs_config(
+        tmp_path, "  - {id: a, url: https://a.example/}\n  - {id: b, url: https://b.example/}\n"
+    )
+    state = _watcher(monkeypatch)
+    assert cli.main(["-c", str(cfg), "sync", "--jobs", "1"]) == 0
+    assert state["peak"] == 1
