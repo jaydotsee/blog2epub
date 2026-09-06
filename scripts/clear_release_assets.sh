@@ -11,11 +11,17 @@ set -euo pipefail
 tag="${1:?usage: clear_release_assets.sh <tag>}"
 repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is not set}"
 
+# `gh api` writes the error body to STDOUT and skips --jq when the request fails, so an empty
+# capture is not what "no release at this tag" looks like: a 404 handed back the whole
+# `{"message":"Not Found",...}` blob as the id, and the next call built a URL around it. Trust
+# an id only when it is one.
 id=$(gh api "repos/$repo/releases/tags/$tag" --jq .id 2>/dev/null || true)
-if [ -z "$id" ]; then
-  echo "No release at $tag yet; nothing to clear."
-  exit 0
-fi
+case "$id" in
+  '' | *[!0-9]*)
+    echo "No release at $tag yet; nothing to clear."
+    exit 0
+    ;;
+esac
 gh api "repos/$repo/releases/$id/assets" --paginate --jq '.[] | "\(.id) \(.name)"' |
   while read -r asset name; do
     echo "removing $name"
