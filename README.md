@@ -625,6 +625,18 @@ the issue in their names, so a file downloaded from either tag says which issue 
 | `tyk-20260906` | The **issue**: its volumes `tyk-20260906-2026.epub`, `-2025`, … with a table of them in the notes. Kept for good. Run the workflow again with the same `issue` and the files are replaced, not added to. |
 | `tyk-latest` | The **newest issue**, moved on every run. A stable link: `https://github.com/jaydotsee/blog2epub/releases/tag/tyk-latest`. |
 
+Set **`edition: collectors`** on the run and each book is built as **one file** instead — the
+whole archive, ignoring `split` and `max_book_bytes` — published to `<book>-collectors-<issue>`
+and `<book>-collectors-latest`. The two editions are separate books as far as the builder is
+concerned (`tyk` and `tyk-collectors`), so their files, covers, tags and cleanup never touch each
+other and you can keep both. Collector's editions are large on purpose — the whole Axway archive
+is 291 MB, past what Send to Kindle accepts — so they are for keeping and reading over USB rather
+than emailing. Locally:
+
+```bash
+blog2epub build tyk --collectors        # output/tyk-collectors-<today>.epub
+```
+
 Nothing waits on anything else: a throttled source holds up only its own book, and `--jobs`
 syncs a book's blogs at once so the eleven-blog digest is not gated by the slowest of them.
 Blogs sharing a host still take turns, so no site sees more load than its `request_delay`

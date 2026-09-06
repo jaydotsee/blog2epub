@@ -56,9 +56,11 @@ def _sources(settings: Settings) -> dict[str, tuple[BlogConfig, BlogStore]]:
     return {b.id: (b, BlogStore(settings.cache_dir, b.id)) for b in settings.blogs}
 
 
-def _build(settings: Settings, book: BookConfig, sources, issue: str | None = None) -> list[BuildResult]:
+def _build(
+    settings: Settings, book: BookConfig, sources, issue: str | None = None, collectors: bool = False
+) -> list[BuildResult]:
     cover = resolve_cover(book.cover, settings, _client(settings))
-    results = build_book(book, sources, settings.output_dir, cover, issue=issue)
+    results = build_book(book, sources, settings.output_dir, cover, issue=issue, collectors=collectors)
     for blog_id in book.blogs:
         store = sources[blog_id][1]
         store.index.setdefault("builds", {})[book.id] = {
@@ -213,7 +215,7 @@ def cmd_build(settings: Settings, args: argparse.Namespace) -> int:
     for book in _select_books(settings, args.ids):
         entry: dict = {"id": book.id, "title": book.title, "blogs": book.blogs, "built": []}
         try:
-            results = _build(settings, book, sources, issue=args.issue)
+            results = _build(settings, book, sources, issue=args.issue, collectors=args.collectors)
         except ValueError as exc:
             log.error("%s", exc)
             entry["error"] = str(exc)
@@ -363,6 +365,13 @@ def build_parser() -> argparse.ArgumentParser:
                 help="issue date the volumes are numbered under (default: today, UTC)",
             )
             s.add_argument("--report", metavar="FILE", help="write a JSON summary (used by CI)")
+        if name == "build":
+            s.add_argument(
+                "--collectors",
+                action="store_true",
+                help="build the whole archive as one file, the collector's edition, "
+                "as <book>-collectors-<issue>.epub, ignoring split and max_book_bytes",
+            )
         s.set_defaults(func=func)
 
     sub.add_parser("status", help="show cache and output state").set_defaults(func=cmd_status)

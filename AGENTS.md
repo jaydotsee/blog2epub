@@ -209,6 +209,11 @@ than accumulates. Books run one after another so each sync lands in the shared c
 weekly `sync.yml` keeps warm without building or publishing anything. Do not add tag or branch
 triggers back: a push must never publish, only the schedule and the button.
 
+A collector's edition is the same book with `split: none` under the id `<book>-collectors`:
+`build --collectors`, or `edition: collectors` on the release workflow. Deriving it by id rather
+than by a second blogs.yaml entry is what keeps the two editions' files, covers and cleanup from
+colliding — `book_outputs` matches the id exactly — so do not "simplify" it into a shared name.
+
 Books release in parallel, and `sync --jobs N` (default 4) syncs a book's blogs at once, so one
 throttled source delays only itself. Two rules hold that together and are easy to break:
 `sync.yml` is the **only** writer of the download cache — release jobs use `actions/cache/restore`,
