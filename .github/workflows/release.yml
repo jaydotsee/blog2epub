@@ -117,6 +117,10 @@ jobs:
       # fork: every run would restore whichever job happened to finish last, holding one book's
       # blogs and nothing else. sync.yml is the single writer, so the cache stays whole. What a
       # release fetches on top is at most a week of posts, and next Monday's sync persists it.
+      #
+      # Because sync.yml is the only writer, a `Cache not found for input keys` here means it has
+      # not run yet — on a new checkout, or after a fortnight idle. Not an error: this job then
+      # fetches the whole archive itself, slowly. Run `Sync the cache` once to prime it.
       - name: Restore download cache
         uses: actions/cache/restore@v6
         with:

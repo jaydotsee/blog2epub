@@ -707,6 +707,13 @@ demand. It only fetches what is new into the download cache and publishes nothin
 an Actions cache after seven days unused, so the weekly run is what keeps the monthly release
 down to minutes rather than re-fetching every post and image.
 
+**Run it once before your first release.** `sync.yml` is the only thing that writes the cache,
+so until it has run there is nothing to restore and the release logs
+`Cache not found for input keys: blog2epub-cache-...`. That is not an error — the release
+continues and fetches every post and image itself, which for the MuleSoft archive is about two
+hours in one job — but one manual **Sync the cache** run first turns that into minutes, and
+every release after it starts warm.
+
 The monthly cadence suits the digest exactly — `api-management` uses a rolling `since: 1m`
 window, so each issue is the month just gone. GitHub disables scheduled workflows in a
 repository with no activity for 60 days; a push or a manual run re-enables them. Delete either
