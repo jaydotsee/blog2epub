@@ -84,6 +84,22 @@ waste hundreds of requests on translations. Narrow it:
       max: 400                      # the default cap is 200
 ```
 
+**Cut the sections that are not articles.** A vendor blog is not only writing: MuleSoft files
+218 posts under `/news/events/` (webinar invitations, conference announcements) and
+`/news/careers/` (recruiting, staff profiles). They are the company talking about itself, they
+date the moment they are published, and in a year volume they crowd out the writing someone
+opened the book for. Look at the section counts the probe reports and exclude them:
+
+```yaml
+# the second path segment has to match exactly, so event-*driven architecture* articles stay
+exclude: ["^https://blogs\\.mulesoft\\.com/[^/]+/(events|careers)/"]
+```
+
+Then check what the regex would drop before trusting it. Count the URLs it matches, and read the
+ones it *keeps* that mention the same words: a loose `/events/` would take every post on
+event-driven design with it. `sync --prune` removes posts already cached that the entry no
+longer lists.
+
 ### 4. Get the article body, and check for bleed
 
 This is the step that is easy to get wrong and hard to notice.
@@ -114,6 +130,12 @@ remove: ["[class*='Card_card']", "[class*='Article_cta']", "[class*='Breadcrumbs
 
 Verify against posts from **different years and categories**. Sites change templates; a rule that
 fits 2026 may miss 2019.
+
+Bleed is not the only thing `remove` is for. After the first build, take the first 70 characters
+of every chapter body and count how often each one repeats: a plugin's stamp shows up as the same
+opening on every post. MuleSoft's `Reading Time: 7 minutes` was on all 2,505 of them, one
+`.rt-reading-time` selector away. Do the same for the last 140 characters, where subscribe boxes
+and author bios live.
 
 ### 5. Write the entry
 
@@ -148,6 +170,31 @@ bin/blog2epub -v sync kong             # minutes for a large archive; run it in 
 **If you changed a blog's `source`, delete its cache first** (`rm -rf cache/<id>`). Post keys are
 namespaced per source (`wp-`, `feed-`, `sm-`), so the same post arrives under a new key and you
 get every post twice.
+
+**Read the summary line, do not just watch it finish.** `2737 posts listed ... 2537 new` means
+200 posts did not arrive, and the run still exits 0. The warnings above it say which and why:
+
+- `batch of 100 posts starting N failed, splitting` — the API refused a whole batch, so the
+  request was halved until the culprit was alone. Normal; the other 99 still land.
+- `post N cannot be fetched, skipping` — that post alone is unserveable. Check it by hand
+  (`curl -o /dev/null -w '%{http_code}' <api>/posts/N`) before writing it off: eight of
+  MuleSoft's answer 500 on every attempt, which is their bug and nothing to work around.
+- `not fetched:` / `too short (N chars)` — a soft 404 or a genuine stub. Read a couple.
+
+**A stalled sync is usually politeness, not a hang.** A post can embed an image from any host,
+and `Retry-After` is honoured — capped at a minute since MuleSoft's archive turned up one that
+asks for 1800 seconds. If a run goes quiet, check `wchan` before killing it: `hrtimer_nanosleep`
+with flat CPU is a sleep, not a deadlock.
+
+**A 403 is not always a refusal.** MuleSoft's edge rejects any `User-Agent` that looks like a
+crawler — a contact URL included, which the default carries — while its `robots.txt` disallows
+only `/wp-admin/` and advertises the sitemaps. Read `robots.txt` first. If crawling is permitted,
+set a per-blog `user_agent` that is shorter but still honest (`blog2epub/0.2`). Never impersonate
+a browser: if a site does not want to be read, that is its answer.
+
+**A slow API is not a broken one.** MuleSoft needs about 40 seconds to assemble a batch of 100
+embedded posts, so the 30-second default cost four attempts a batch. Time one request before
+concluding anything, and set a per-blog `timeout`.
 
 ### 7. Cover
 
@@ -239,6 +286,14 @@ per-host lock in `_sync_blogs`, so concurrency never turns into extra load on a 
 | Chapters read "404. That's an error." | The site answers 200 for missing pages | `min_chars` (default 150) skips them |
 | A huge sitemap index stops early | More than 200 partitions | `sitemap: { include: [...], max: N }` |
 | A blog fails and the run stops | — | It should not: failures are isolated per blog, exit code 2 |
+| Every request 403s, but `robots.txt` welcomes crawlers | The edge filters on `User-Agent` shape, the contact URL included | Per-blog `user_agent`, shorter and still honest; never a browser string |
+| Batches of posts time out and retry forever | The API is slow, not down: 100 embedded posts can take 40s | Per-blog `timeout`; time one request to pick it |
+| 100 posts missing and the sync still exits 0 | One unserveable post makes the API 500 for its whole batch | Handled: the batch is halved until the culprit is named. Read the warnings |
+| A sync goes quiet for half an hour | A third-party image host answered `Retry-After: 1800` | Handled: capped at a minute. Check `wchan` before killing a quiet run |
+| An image is "corrupt" in epubcheck | The site served its 404 page under `Content-Type: image/png` | Handled: the bytes are sniffed first, and a web page is not an image |
+| A `table` inside a `pre` fails RSC-005 | A pasted config snippet was parsed rather than escaped | Handled: markup inside a `pre` is re-serialised as text |
+| Volumes full of webinar invitations and job posts | The archive includes `/events/` and `/careers/` sections | `exclude` them by exact path segment, then `sync --prune` |
+| The same sentence opens every chapter | A plugin stamp (`Reading Time: 7 minutes`) inside the body | A `remove` selector. Count repeated chapter openings after the first build |
 
 ## Where to change what
 
@@ -258,10 +313,14 @@ a regression test carrying the offending markup.
 
 - [ ] The probe reports the expected post count and **zero bleed** across samples from several years
 - [ ] `blogs.yaml` entry has a title, author, description, and a comment on every non-obvious rule
-- [ ] Sync completes; `blog2epub status` shows the expected posts and few failed images
+- [ ] Sync completes; `blog2epub status` shows the expected posts and few failed images, and the
+      summary line's post count is the one you expect — its warnings read, not skimmed
+- [ ] Sections that are not articles (`/events/`, `/careers/`, press releases) are excluded, and
+      the regex checked against what it keeps as well as what it drops
 - [ ] The book builds and passes epubcheck with zero errors and zero warnings
 - [ ] A cover template exists in the blog's own palette, `cover:` points at it, `make cover`
       regenerates the preview, and the volume covers under `output/covers/` carry the right label
-- [ ] Chapters spot-checked: right start, right end, no other post
+- [ ] Chapters spot-checked: right start, right end, no other post, and no boilerplate repeated
+      across every one of them
 - [ ] README book table and `CHANGELOG.md` updated
 - [ ] `make check` passes, and the change is committed and pushed

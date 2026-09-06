@@ -142,12 +142,18 @@ blogs:
     title: "MuleSoft Blog"
     url: https://blogs.mulesoft.com
     author: "MuleSoft"
-    description: "Every post from the MuleSoft blog: integration, APIs, Anypoint Platform, automation and agentic AI."
+    description: "The MuleSoft blog: integration, APIs, Anypoint Platform, automation and agentic AI."
     source: wordpress
     user_agent: "blog2epub/0.2"
     timeout: 120              # the API needs ~40s to assemble a batch of 100 embedded posts
     remove:
       - ".rt-reading-time"    # "Reading Time: 7 minutes", stamped on the top of every post
+    # /news/events/ is webinar invitations and conference announcements, /news/careers/ is
+    # recruiting and staff profiles: 218 posts that are the company talking about itself rather
+    # than about integration, and all of them dated the moment they were published. The second
+    # path segment has to match exactly, so articles on event-driven architecture stay.
+    exclude:
+      - "^https://blogs\\.mulesoft\\.com/[^/]+/(events|careers)/"
     order: desc               # newest post first
     group_by: year-month      # contents: year -> month -> posts
     cover: covers/mulesoft.html
