@@ -39,7 +39,7 @@ It ships configured with seven books: six complete archives — [Tyk](https://ty
 [Apigee](https://cloud.google.com/blog/products/apigee) (244 posts),
 [Axway](https://blog.axway.com) (1,968 posts, back to 2011),
 [Gravitee](https://www.gravitee.io/blog) (656 posts) and
-[MuleSoft](https://blogs.mulesoft.com) (2,723 posts, back to 2008) — and the
+[MuleSoft](https://blogs.mulesoft.com) (2,505 posts, back to 2008) — and the
 **API Management Digest**, a monthly issue drawn from twelve API-management blogs. All are
 published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
 
@@ -62,7 +62,6 @@ exposes.
 
 - [Features](#features)
 - [How it works](#how-it-works)
-- [Installation](#installation)
 - [Quick start](#quick-start)
 - [Commands](#commands)
 - [Configuration](#configuration)
@@ -70,7 +69,7 @@ exposes.
 - [Recipes](#recipes)
 - [The API Management Digest](#the-api-management-digest)
 - [Magazine covers](#magazine-covers)
-- [Keeping books current with GitHub Actions](#keeping-books-current-with-github-actions)
+- [Publishing with GitHub Actions](#publishing-with-github-actions)
 - [Reading the books](#reading-the-books)
 - [Project layout](#project-layout)
 - [Development](#development)
@@ -157,37 +156,79 @@ book unless it sets `standalone: false`; the `books` list adds combined ones. Ch
 the post's featured image when the body does not already contain it, and each part page lists its
 posts with date, author, blog and excerpt.
 
-## Installation
+## Quick start
 
-The project is managed with [uv](https://docs.astral.sh/uv/); `uv.lock` pins every dependency.
-Requires Python 3.10 or newer, which uv will fetch if you have none.
+Five minutes from a clone to a book on your reader. The project is managed with
+[uv](https://docs.astral.sh/uv/), which will fetch a Python for you if you have none.
+
+**1. Get it.**
 
 ```bash
 git clone https://github.com/jaydotsee/blog2epub.git
 cd blog2epub
-uv sync --all-extras          # .venv from the lockfile: blog2epub, the dev tools, every extra
-uv run playwright install chromium   # once, for the covers (optional)
+uv sync --all-extras          # .venv from uv.lock: blog2epub, every extra, the dev tools
 ```
 
-`make setup` does the first line. Image downscaling is part of a plain install. Java is only
-needed for `make epubcheck` and the optional validator test. Cover rendering needs the `covers`
-extra (Playwright) and a Chromium. SVG rasterisation needs the `svg` extra (cairosvg, which
-needs the cairo library: `libcairo2` on Debian and Ubuntu, `cairo` on Homebrew). Without
-either, the build says what it fell back to and carries on.
+`make setup` is the same thing. That is the whole install — image downscaling, EPUB packaging and
+every source are in the base dependencies.
 
-## Quick start
-
-`bin/blog2epub` runs the CLI through uv from any directory — no activation, and a fresh clone
-builds its environment on first use:
+**2. See what is configured.**
 
 ```bash
-bin/blog2epub list                    # what is configured
-bin/blog2epub run tyk                 # sync + build → output/tyk-<issue>.1.epub, .2, ...
-bin/blog2epub run api-management      # sync its eleven blogs, build the digest
-bin/blog2epub status                  # cache and output state
+bin/blog2epub list
 ```
 
-`uv run blog2epub ...` is the same thing from inside the checkout.
+`bin/blog2epub` runs the CLI through uv from any directory, with no environment to activate; a
+fresh clone builds `.venv` on first use. Inside the checkout, `uv run blog2epub ...` is identical.
+Seven books ship configured, so you have something to build before you have written any config.
+
+**3. Build one.**
+
+```bash
+bin/blog2epub -v run tyk        # sync, then build
+```
+
+`run` is `sync` (fetch what is new into `cache/`) followed by `build` (write the EPUBs). The first
+run of a complete archive fetches every post and image, so it takes minutes — the Tyk blog is 627
+posts, MuleSoft's nineteen years are about two hours. Every run after that fetches only what
+changed. `-v` shows each post as it arrives.
+
+You end up with one file per year in `output/`:
+
+```
+output/tyk-20260906-2026.epub      output/tyk-20260906-2025.epub      ...
+```
+
+**4. Read it.** Copy a volume to your e-reader, or email it to your Kindle — every volume is kept
+under the 200 MB Send to Kindle accepts. Each is EPUB 3 with a cover, a nested table of contents
+and the articles' own images.
+
+**Want your own blog in there?** `bin/blog2epub detect <url>` prints a config entry to paste into
+`blogs.yaml`; [Adding a blog](#adding-a-blog) below and `AGENTS.md` cover the rest.
+
+### Optional extras
+
+Nothing here is needed to produce a valid book. Where a piece is missing, the build says what it
+fell back to and carries on.
+
+| For | Install | Without it |
+| --- | --- | --- |
+| Magazine covers rendered from the HTML templates | `uv run playwright install chromium` (once), or set `CHROMIUM_PATH` | The committed `covers/<id>.jpg` is used instead |
+| Rasterising SVG diagrams, which Kindle cannot display | the `svg` extra's cairosvg, which needs the cairo library — `libcairo2` on Debian and Ubuntu, `cairo` on Homebrew | SVGs are kept as they are, and Kindle shows a blank |
+| `make epubcheck`, the validator test | Java 11+ | The books are still EPUB 3; you just are not checking them |
+
+Python 3.10 or newer. `uv sync --all-extras` already installs the Python-side extras.
+
+### Everyday commands
+
+```bash
+bin/blog2epub run tyk                 # sync + build one book
+bin/blog2epub run api-management      # sync its twelve blogs, build the monthly digest
+bin/blog2epub sync                    # fetch for every blog, build nothing
+bin/blog2epub build mulesoft          # build from the cache, fetch nothing
+bin/blog2epub status                  # cache and output state
+make check                            # ruff, mypy, pytest
+```
 
 ### Scheduling with cron
 
@@ -515,7 +556,7 @@ their own covers:
 | `apigee` | Google's `cloudblog` sitemap | 244 | The URL given is a tag page, not a section; posts live under other product paths. |
 | `axway` | WordPress REST API | 1,968 | The longest archive here, back to 2011, across API management, MFT and B2B. |
 | `gravitee` | HubSpot sitemap | 656 | Gravitee publishes through HubSpot, so the archive is in that sitemap, not the site's own. |
-| `mulesoft` | WordPress REST API | 2,723 | The longest archive here, back to 2008, of the 2,737 the API lists. Its edge 403s a crawler-shaped `User-Agent`, so the entry sets its own. |
+| `mulesoft` | WordPress REST API | 2,505 | The longest archive here, back to 2008. Its edge 403s a crawler-shaped `User-Agent`, so the entry sets its own, and `/events/` and `/careers/` are excluded. |
 
 Kong's pages prerender twenty related-post cards into every article, which readability alone
 mistakes for part of the story, so the entry uses a `keep` selector for the article body plus
@@ -527,14 +568,21 @@ index. Gravitee is the worked example of a blog whose archive lives on the platf
 through: its own sitemap knows nothing of the posts, HubSpot's has all of them, and the two
 disagree about trailing slashes, which `get_text_tolerant` absorbs.
 
-MuleSoft is the largest book here: 2,723 posts and 7,755 images across nineteen years come to
-406 MB, and Axway's 1,968 posts to 291 MB. Neither should be a single file, which is why books
-are cut into volumes. MuleSoft is also the worked example of a site whose edge rejects the
-crawler it is happy to be crawled by: `blogs.mulesoft.com` answers 403 to a `User-Agent`
-carrying a contact URL while its `robots.txt` disallows only `/wp-admin/`, so the entry sets a
-shorter `user_agent` that still says what it is, and a longer `timeout`, because the API needs
-about 40 seconds to assemble a batch of 100 posts. Eight of its 2,737 posts are left out: the
-site's own API answers 500 for them, and has done on every attempt.
+MuleSoft is the largest book here: 2,505 posts and 7,243 images across nineteen years come to
+368 MB, and Axway's 1,968 posts to 291 MB. Neither should be a single file, which is why books
+are cut into volumes.
+
+MuleSoft is also the worked example of two things. The first is a site whose edge rejects the
+crawler it is happy to be crawled by: `blogs.mulesoft.com` answers 403 to a `User-Agent` carrying
+a contact URL while its `robots.txt` disallows only `/wp-admin/` and advertises its sitemaps, so
+the entry sets a shorter `user_agent` that still says what it is — not a browser string — and a
+longer `timeout`, because the API needs about 40 seconds to assemble a batch of 100 posts. The
+second is an archive that is not all writing: 218 posts sit under `/news/events/` (webinar
+invitations, conference announcements) and `/news/careers/` (recruiting and staff profiles), which
+date the moment they are published and crowd out the articles in a year volume, so the entry
+excludes them. The regex matches the second path segment exactly, which is what keeps the many
+posts about *event-driven* architecture in the book. Of the 2,737 posts the API lists, another
+eight are left out because the site's own API answers 500 for them, on every attempt.
 
 ## Volumes
 
@@ -649,7 +697,7 @@ blog2epub build tyk --collectors        # output/tyk-collectors-<today>.epub
 ```
 
 Nothing waits on anything else: a throttled source holds up only its own book, and `--jobs`
-syncs a book's blogs at once so the eleven-blog digest is not gated by the slowest of them.
+syncs a book's blogs at once so the twelve-blog digest is not gated by the slowest of them.
 Blogs sharing a host still take turns, so no site sees more load than its `request_delay`
 allows. Only `sync.yml` writes the download cache — the release jobs restore it read-only, so
 running in parallel cannot fork it.
