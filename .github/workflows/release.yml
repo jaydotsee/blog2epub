@@ -93,7 +93,7 @@ jobs:
       # A unique key per job so the newest cache is always the one saved; restore-keys picks up
       # the previous job's (or the weekly sync's) cache.
       - name: Restore download cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: cache
           key: blog2epub-cache-${{ github.run_id }}-${{ matrix.book }}
