@@ -245,8 +245,9 @@ so two entries that overlap queue rather than fetch alongside each other.
 ```
 
 `--force` rebuilds even when nothing new was fetched (a rolling digest wants that), `--full`
-re-fetches everything, `--issue YYYYMMDD` pins the issue date. The exit code is blog2epub's:
-`2` when a blog failed, with the other books still built.
+re-fetches everything, `--issue YYYYMMDD` pins the issue date, `--jobs N` sets how many blogs
+sync at once, and `--set KEY=VALUE` overrides any config value for that run. The exit code is
+blog2epub's: `2` when a blog failed, with the other books still built.
 
 ### Adding a blog
 
@@ -281,14 +282,16 @@ Paste the entry into `blogs.yaml`, set a title, and run `blog2epub run konghq`.
 
 ## Commands
 
-Every command accepts `-c FILE` (default `./blogs.yaml`) and `-v` / `-vv` for progress output.
+Every command accepts `-c FILE` (default `./blogs.yaml`), `-v` / `-vv` for progress output, and
+`--set KEY=VALUE` to override any config value for that one run (see
+[Overriding the config](#overriding-the-config)).
 
 | Command | What it does |
 | --- | --- |
 | `list` | Show configured blogs and books, with cached post counts. |
 | `detect URL [--source S] [--sample N]` | Probe a URL, report which source works, list posts, print a config entry. |
 | `sync [ids] [--full] [--prune] [--jobs N]` | Fetch new and changed posts and their images into `cache/`. Ids can be blogs or books (the book's blogs are synced). `--full` re-fetches everything and retries failed images. `--jobs` sets how many blogs sync at once (default 4); blogs on the same host still take turns. |
-| `build [ids]` | Write EPUB(s) from the cache. Works offline (a cover URL is fetched once). |
+| `build [ids] [--issue YYYYMMDD] [--collectors] [--report FILE]` | Write EPUB(s) from the cache. Works offline (a cover URL is fetched once). `--issue` pins the issue date instead of today. `--collectors` writes the whole archive as one file. |
 | `run [ids] [--force] [--report FILE] [--full] [--prune] [--jobs N]` | `sync`, then `build` every book whose blogs changed or whose output is missing. `--report` writes a JSON summary. |
 | `status` | Per blog: source, last sync, post and image counts. Per book: output files. |
 
@@ -302,6 +305,88 @@ The JSON report written by `run --report` looks like this and drives the GitHub 
   "blogs": [{"id": "tyk", "source": "wordpress (...)", "discovered": 627, "new": 1, "updated": 0, "cached": 627, "errors": []}],
   "books": [{"id": "tyk", "built": [{"path": "output/tyk.epub", "posts": 627, "images": 956, "bytes": 52105534}]}]
 }
+```
+
+### Syncing several blogs at once
+
+`sync` and `run` fetch `--jobs N` blogs at a time (default 4, `1` for one at a time). Blogs are
+independent — each has its own cache directory and its own HTTP client — so the only thing that
+needs protecting is politeness: **two entries on the same host take turns**, whatever `--jobs`
+says, so a site never sees more requests than its own `request_delay` allows. APIDAYS and API
+Scene publish on one domain, and that is what keeps them from doubling up on it.
+
+```bash
+bin/blog2epub sync --jobs 8            # every blog, eight at a time
+bin/blog2epub sync api-management      # a book id syncs its blogs, four at a time
+bin/blog2epub sync --jobs 1            # one at a time, for a clean log or a fragile network
+```
+
+Measured against three local blogs costing the same per request: 7.9s at `--jobs 1`, 2.9s at
+`--jobs 3`, and 7.9s again when all three are moved onto one host — the speed-up where the hosts
+differ, and none where politeness says there should be none.
+
+What this buys you is that no source gates any other: Apigee takes 1.5 seconds a request by
+configuration, and it no longer holds up the other eleven. What it does **not** do is speed up a
+single blog — one blog's posts and images are fetched in order, politely — so the longest blog
+sets the floor for the whole run. MuleSoft's 2,505 posts and 7,243 images take about two hours
+from cold no matter what `--jobs` is, and everything else finishes behind it.
+
+### Recipes
+
+```bash
+# One issue of one book, dated today. Volumes land in output/ as tyk-<YYYYMMDD>-<year>.epub
+bin/blog2epub build tyk
+
+# The same issue, dated: re-run it later with the same date to replace that issue's files
+bin/blog2epub build tyk --issue 20260901
+
+# The collector's edition: the whole archive as one file, ignoring split and max_book_bytes.
+# Large by design — MuleSoft's is 395 MB, past what Send to Kindle accepts.
+bin/blog2epub build mulesoft --collectors
+
+# This month's digest, forced even though nothing new was fetched (a rolling window wants that)
+bin/blog2epub run api-management --force
+
+# Every book, fresh, with a JSON summary of what was built
+bin/blog2epub run --full --report build.json
+```
+
+### Overriding the config
+
+`--set` changes any config value for one run, without editing `blogs.yaml`. `KEY=VALUE` sets a
+`defaults` key; `ID.KEY=VALUE` sets it on one blog or book; a dotted key reaches into a nested
+mapping. It is repeatable, and accepted either before the subcommand or after it.
+
+The value is read as YAML, so numbers, booleans, dates and lists all mean what they look like —
+quote anything containing spaces or brackets. Overrides are applied to the parsed config before
+anything is constructed, so they go through exactly the checks a line in the file would: an
+unknown key is refused, `50MB` is parsed into bytes, `split` is checked against its four values.
+
+```bash
+# Try a different split without touching the file
+bin/blog2epub build tyk --set tyk.split=month
+
+# A sample build: 20 posts, one volume, somewhere else on disk
+bin/blog2epub build kong --set kong.max_posts=20 --set kong.split=none --set output_dir=/tmp/try
+
+# Volumes small enough for a stricter mail limit
+bin/blog2epub build axway --set axway.max_book_bytes=25MB
+
+# A one-off window on the digest, and slow every request down while a site is struggling
+bin/blog2epub run api-management --set api-management.since=2w --set request_delay=3
+
+# Reach into a nested mapping
+bin/blog2epub sync apigee --set apigee.sitemap.max=800
+
+# Check what an override would do before running it
+bin/blog2epub list --set tyk.split=none
+```
+
+A bad override says so rather than being ignored:
+
+```
+$ bin/blog2epub list --set tyk.split=weekly
+config error: book 'tyk': `split` must be one of ['month', 'none', 'size', 'year'], not 'weekly'
 ```
 
 ## Configuration

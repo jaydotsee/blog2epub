@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
@@ -277,13 +278,59 @@ _BLOG_KEYS = {f.name for f in fields(BlogConfig)}
 _BOOK_KEYS = {f.name for f in fields(BookConfig)}
 
 
-def load_config(path: str | Path) -> Settings:
+def _override(raw: dict[str, Any], spec: str) -> None:
+    """Apply one `KEY=VALUE` or `ID.KEY=VALUE` override to the raw config mapping.
+
+    Applied to the parsed YAML rather than to the dataclasses, so an override goes through
+    exactly the validation and defaulting a line in the file would: an unknown key is refused,
+    `max_book_bytes: 50MB` is parsed, `split` is checked against SPLITS. VALUE is read as YAML,
+    which is what makes `2`, `true`, `2026-01-01` and `["^https://x/"]` all mean what they look
+    like; quote it in the shell when it contains spaces or brackets.
+    """
+    path, sep, value = spec.partition("=")
+    if not sep or not path.strip():
+        raise ConfigError(f"--set needs KEY=VALUE or ID.KEY=VALUE, not {spec!r}")
+    keys = [k.strip() for k in path.strip().split(".")]
+    if not all(keys):
+        raise ConfigError(f"--set {path!r}: empty key")
+    try:
+        parsed = yaml.safe_load(value)
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"--set {path}: cannot read value {value!r}: {exc}") from exc
+
+    entries = [e for key in ("blogs", "books") for e in _list(raw, key)]
+    targets = [e for e in entries if e.get("id") == keys[0]]
+    if targets:
+        keys = keys[1:]
+        if not keys:
+            raise ConfigError(f"--set {path!r}: name a key to set on {targets[0]['id']!r}")
+    elif len(keys) > 1:
+        known = sorted({str(e["id"]) for e in entries if "id" in e})
+        raise ConfigError(f"--set {path!r}: no blog or book called {keys[0]!r}; configured: {known}")
+    else:
+        # a bare key is a `defaults` key, and reaches every blog and book that does not set it
+        targets = [raw.setdefault("defaults", {})]
+
+    for target in targets:
+        node = target
+        for key in keys[:-1]:
+            child = node.get(key)
+            if not isinstance(child, dict):
+                child = {}
+                node[key] = child
+            node = child
+        node[keys[-1]] = parsed
+
+
+def load_config(path: str | Path, overrides: Sequence[str] = ()) -> Settings:
     path = Path(path)
     if not path.exists():
         raise ConfigError(f"config file not found: {path}")
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
         raise ConfigError("config root must be a mapping")
+    for spec in overrides:
+        _override(raw, spec)
 
     defaults = raw.get("defaults") or {}
     if not isinstance(defaults, dict):

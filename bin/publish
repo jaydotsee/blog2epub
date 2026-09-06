@@ -5,6 +5,8 @@
 #   bin/publish tyk kong                 # several, in turn
 #   bin/publish --force api-management   # rebuild even if nothing new was fetched
 #   bin/publish --full --issue 20260906 axway
+#   bin/publish --jobs 8 api-management   # sync its blogs eight at a time, not the default four
+#   bin/publish --set tyk.split=month tyk # override any config value for this run
 #
 # Each book's volumes land in output/ as <book>-<YYYYMMDD>.<n>.epub. A log of the run goes to
 # logs/<ids>-<YYYYMMDD-HHMM>.log and a one-line summary to logs/publish.log, so a crontab entry
@@ -31,14 +33,20 @@ while [ $# -gt 0 ]; do
     --full|--force|--prune) flags+=("$1") ;;
     --issue) flags+=("$1" "${2:?--issue needs a YYYYMMDD}"); shift ;;
     --issue=*) flags+=("--issue" "${1#--issue=}") ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    --jobs) flags+=("$1" "${2:?--jobs needs a number}"); shift ;;
+    --jobs=*) flags+=("--jobs" "${1#--jobs=}") ;;
+    --set) flags+=("$1" "${2:?--set needs KEY=VALUE}"); shift ;;
+    --set=*) flags+=("--set" "${1#--set=}") ;;
+    # print the header comment, however long it grows, rather than a line range that drifts
+    -h|--help) sed -n '2,/^set -/p' "$0" | sed '$d'; exit 0 ;;
     -*) echo "unknown option $1" >&2; exit 64 ;;
     *) ids+=("$1") ;;
   esac
   shift
 done
 if [ ${#ids[@]} -eq 0 ]; then
-  echo "usage: bin/publish [--full] [--force] [--prune] [--issue YYYYMMDD] <book-or-blog-id> [more ids]" >&2
+  echo "usage: bin/publish [--full] [--force] [--prune] [--issue YYYYMMDD] [--jobs N]" \
+       "[--set KEY=VALUE] <book-or-blog-id> [more ids]" >&2
   exit 64
 fi
 

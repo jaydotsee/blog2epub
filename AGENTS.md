@@ -161,6 +161,18 @@ complete archive, match the shape the other archives use:
 Add `standalone: false` if the blog should only feed combined books and not get one of its own.
 Comment *why* a rule exists; a bare selector is unreadable in six months.
 
+Try a value before you commit to it. `--set` overrides any config key for one run — `KEY=VALUE`
+for a `defaults` key, `ID.KEY=VALUE` for one blog or book, dotted for a nested mapping — so a
+sample build costs nothing and leaves the file alone:
+
+```bash
+bin/blog2epub build newblog --set newblog.max_posts=20 --set newblog.split=none \
+    --set output_dir=/tmp/try
+```
+
+It goes through the same validation as the file, so a typo or a bad value is refused rather than
+silently ignored.
+
 ### 6. Sync
 
 ```bash
