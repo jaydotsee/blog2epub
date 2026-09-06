@@ -1,50 +1,49 @@
-PYTHON ?= python3
-VENV   ?= .venv
-BIN    := $(VENV)/bin
+UV ?= uv
 
 .PHONY: setup test lint format typecheck check list detect sync build run status epubcheck cover clean
 
-setup: $(VENV)/.ok
-$(VENV)/.ok: pyproject.toml
-	$(PYTHON) -m venv $(VENV)
-	$(BIN)/pip install -q -e ".[dev,svg]"
-	touch $@
+# `uv sync` creates .venv from uv.lock with every extra and the dev group; idempotent and fast.
+setup:
+	$(UV) sync --all-extras
+
+lock:
+	$(UV) lock
 
 test: setup
-	$(BIN)/pytest -q
+	$(UV) run pytest -q
 
 lint: setup
-	$(BIN)/ruff check src tests
-	$(BIN)/ruff format --check src tests
+	$(UV) run ruff check src tests scripts
+	$(UV) run ruff format --check src tests scripts
 
 format: setup
-	$(BIN)/ruff check --fix src tests
-	$(BIN)/ruff format src tests
+	$(UV) run ruff check --fix src tests scripts
+	$(UV) run ruff format src tests scripts
 
 typecheck: setup
-	$(BIN)/mypy src
+	$(UV) run mypy src
 
 check: lint typecheck test
 
 list: setup
-	$(BIN)/blog2epub list
+	$(UV) run blog2epub list
 
 # make detect URL=https://example.com/blog
 detect: setup
-	$(BIN)/blog2epub detect $(URL)
+	$(UV) run blog2epub detect $(URL)
 
 # IDS="tyk api-management" make sync   (defaults to everything)
 sync: setup
-	$(BIN)/blog2epub sync $(IDS)
+	$(UV) run blog2epub sync $(IDS)
 
 build: setup
-	$(BIN)/blog2epub build $(IDS)
+	$(UV) run blog2epub build $(IDS)
 
 run: setup
-	$(BIN)/blog2epub -v run $(IDS)
+	$(UV) run blog2epub -v run $(IDS)
 
 status: setup
-	$(BIN)/blog2epub status
+	$(UV) run blog2epub status
 
 # Validate every generated book with the W3C checker (needs Java).
 EPUBCHECK_VERSION ?= 5.2.1
@@ -55,12 +54,11 @@ epubcheck: build
 	  unzip -q -o epubcheck.zip && rm epubcheck.zip )
 	@for f in output/*.epub; do echo "== $$f"; java -jar .tools/epubcheck-$(EPUBCHECK_VERSION)/epubcheck.jar "$$f" | grep -E 'Messages|ERROR|WARNING'; done
 
-# Re-render the cover previews in covers/ from the cache (needs the `covers` extra and a
-# Chromium: `pip install -e ".[covers]" && playwright install chromium`, or set CHROMIUM_PATH).
-# `make build` renders the real covers itself, one per volume.
+# Re-render the cover previews in covers/ from the cache. Needs a Chromium once:
+# `uv run playwright install chromium`, or set CHROMIUM_PATH. `make build` renders the real
+# covers itself, one per volume.
 cover: setup
-	$(BIN)/pip install -q -e ".[covers]"
-	$(BIN)/python scripts/render_cover.py --all
+	$(UV) run python scripts/render_cover.py --all
 
 clean:
 	rm -rf output .pytest_cache .mypy_cache .ruff_cache

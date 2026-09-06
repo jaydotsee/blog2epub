@@ -158,34 +158,53 @@ posts with date, author, blog and excerpt.
 
 ## Installation
 
-Requires Python 3.10 or newer.
+The project is managed with [uv](https://docs.astral.sh/uv/); `uv.lock` pins every dependency.
+Requires Python 3.10 or newer, which uv will fetch if you have none.
 
 ```bash
 git clone https://github.com/jaydotsee/blog2epub.git
 cd blog2epub
-make setup            # creates .venv and installs blog2epub with the dev tools
+uv sync --all-extras          # .venv from the lockfile: blog2epub, the dev tools, every extra
+uv run playwright install chromium   # once, for the covers (optional)
 ```
 
-or, without the Makefile:
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
-```
-
-Image downscaling is part of a plain install. Java is only needed for `make epubcheck` and the
-optional validator test. Cover rendering needs the `covers` extra (Playwright) and a Chromium.
-SVG rasterisation needs the `svg` extra (cairosvg, which needs the cairo library: `libcairo2` on
-Debian and Ubuntu, `cairo` on Homebrew); `make setup` installs it.
+`make setup` does the first line. Image downscaling is part of a plain install. Java is only
+needed for `make epubcheck` and the optional validator test. Cover rendering needs the `covers`
+extra (Playwright) and a Chromium. SVG rasterisation needs the `svg` extra (cairosvg, which
+needs the cairo library: `libcairo2` on Debian and Ubuntu, `cairo` on Homebrew). Without
+either, the build says what it fell back to and carries on.
 
 ## Quick start
 
+`bin/blog2epub` runs the CLI through uv from any directory — no activation, and a fresh clone
+builds its environment on first use:
+
 ```bash
-.venv/bin/blog2epub list                    # what is configured
-.venv/bin/blog2epub run tyk                 # sync + build → output/tyk.epub
-.venv/bin/blog2epub run api-management      # sync its eleven blogs, build the digest
-.venv/bin/blog2epub status                  # cache and output state
+bin/blog2epub list                    # what is configured
+bin/blog2epub run tyk                 # sync + build → output/tyk-<issue>.1.epub, .2, ...
+bin/blog2epub run api-management      # sync its eleven blogs, build the digest
+bin/blog2epub status                  # cache and output state
 ```
+
+`uv run blog2epub ...` is the same thing from inside the checkout.
+
+### Scheduling with cron
+
+`bin/publish` is the cron entry point: one book (or blog) per line, each on its own schedule.
+It syncs, builds whatever changed, logs to `logs/<ids>-<date>.log` with a one-line summary in
+`logs/publish.log`, finds uv even from cron's bare `PATH`, and serialises on the download cache
+so two entries that overlap queue rather than fetch alongside each other.
+
+```crontab
+# m  h  dom mon dow  command
+0    6  *   *   1    /home/you/blog2epub/bin/publish tyk
+30   6  *   *   1    /home/you/blog2epub/bin/publish kong
+0    7  1   *   *    /home/you/blog2epub/bin/publish --force api-management
+```
+
+`--force` rebuilds even when nothing new was fetched (a rolling digest wants that), `--full`
+re-fetches everything, `--issue YYYYMMDD` pins the issue date. The exit code is blog2epub's:
+`2` when a blog failed, with the other books still built.
 
 ### Adding a blog
 
@@ -194,14 +213,14 @@ candidate extraction rules, a real extraction of five posts with a check for oth
 in, the site's brand colours, and a draft config entry.
 
 ```bash
-.venv/bin/python scripts/probe_blog.py https://example.com/blog
+uv run scripts/probe_blog.py https://example.com/blog
 ```
 
 `AGENTS.md` explains what to do with the answers and the traps to avoid; the `/add-blog` skill
 walks the whole path from URL to published release. For a quick look at just the source:
 
 ```
-$ .venv/bin/blog2epub detect https://konghq.com/blog
+$ bin/blog2epub detect https://konghq.com/blog
 source: feed (https://konghq.com/feed/)
 posts:  10
   2026-09-03T15:02:11+00:00  Kong Gateway Now Supports FIPS 140-3  https://konghq.com/blog/product-releases/kong-gateway-fips-140-3
@@ -534,7 +553,7 @@ than dangling. Rebuilding a book removes its files from earlier issues; `blog2ep
 --issue 20260905` pins the issue when a release is built on a later day.
 
 ```bash
-.venv/bin/blog2epub run kong     # sync + build → output/kong.epub
+bin/blog2epub run kong     # sync + build → output/kong-<issue>.<n>.epub
 ```
 
 ## The API Management Digest
@@ -548,7 +567,7 @@ January digest in two at New Year. The digest-only blogs carry `since: 3m` so th
 stays small; the cache accumulates from then on.
 
 ```bash
-.venv/bin/blog2epub run api-management     # sync its blogs, build output/api-management.epub
+bin/blog2epub run api-management     # sync its blogs, build output/api-management-<issue>.1.epub
 ```
 
 Because the window rolls, the weekly workflow always produces a fresh issue; the release workflow
@@ -664,11 +683,12 @@ tests/                         pytest suite; runs offline with a fake HTTP clien
 ## Development
 
 ```bash
-make check            # ruff (lint + format check), mypy, pytest
+make check            # ruff (lint + format check), mypy, pytest — all through `uv run`
 make format           # apply ruff fixes and formatting
 make test
 make epubcheck        # build everything, then validate with the W3C checker (needs Java)
 EPUBCHECK_JAR=path/to/epubcheck.jar make test   # also runs the validator inside the test suite
+uv lock               # after changing dependencies in pyproject.toml; commit uv.lock
 ```
 
 [AGENTS.md](AGENTS.md) is the working guide: ground rules, the recipe pattern for adding a blog,

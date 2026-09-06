@@ -31,7 +31,7 @@ Run `/add-blog` to be walked through it, or follow the steps below.
 ### 1. Probe before you configure
 
 ```bash
-.venv/bin/python scripts/probe_blog.py https://example.com/blog
+uv run scripts/probe_blog.py https://example.com/blog
 ```
 
 This one command answers everything the entry needs: which sources answer and how many posts each
@@ -142,7 +142,7 @@ Comment *why* a rule exists; a bare selector is unreadable in six months.
 ### 6. Sync
 
 ```bash
-.venv/bin/blog2epub -v sync kong        # minutes for a large archive; run it in the background
+bin/blog2epub -v sync kong             # minutes for a large archive; run it in the background
 ```
 
 **If you changed a blog's `source`, delete its cache first** (`rm -rf cache/<id>`). Post keys are
@@ -181,7 +181,7 @@ are weighed.
 ### 8. Build and validate
 
 ```bash
-.venv/bin/blog2epub build kong
+bin/blog2epub build kong
 make epubcheck                          # zero errors, zero warnings
 ```
 

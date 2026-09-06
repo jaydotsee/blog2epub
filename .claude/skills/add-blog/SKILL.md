@@ -33,7 +33,7 @@ Skip the question when the user has already answered it in their request.
 ## Phase 1 — Probe
 
 ```bash
-.venv/bin/python scripts/probe_blog.py <url>
+uv run scripts/probe_blog.py <url>
 ```
 
 Read the whole report before deciding anything. It gives you: every source that answers and the
@@ -59,7 +59,7 @@ cards) and readability has swallowed them. Fix it before going further:
 3. Re-run the probe with the rules and confirm bleed is zero on **every** sample:
 
 ```bash
-.venv/bin/python scripts/probe_blog.py <url> --keep "[class*='Article_body']" \
+uv run scripts/probe_blog.py <url> --keep "[class*='Article_body']" \
     --remove "[class*='Card_card']" --remove "[class*='Newsletter']"
 ```
 
@@ -77,13 +77,13 @@ apply the answers from phase 0. Comment every non-obvious rule with *why* it is 
 Then confirm the entry parses and reads as intended:
 
 ```bash
-.venv/bin/blog2epub list
+bin/blog2epub list
 ```
 
 ## Phase 4 — Sync
 
 ```bash
-.venv/bin/blog2epub -v sync <id>
+bin/blog2epub -v sync <id>
 ```
 
 A large archive takes many minutes at the polite request delay, so **run it in the background** and
@@ -109,7 +109,7 @@ titles, and the count and year range are right.
 ## Phase 6 — Build and validate
 
 ```bash
-.venv/bin/blog2epub build <id>
+bin/blog2epub build <id>
 make epubcheck          # must report zero errors AND zero warnings, for every volume
 ```
 

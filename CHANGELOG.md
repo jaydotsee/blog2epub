@@ -5,6 +5,12 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 ## [Unreleased]
 
 ### Changed
+- **uv is the package manager.** `uv.lock` pins every dependency; `uv sync --all-extras` (or
+  `make setup`) builds `.venv` from it, the dev tools live in a PEP 735 `dev` group rather than
+  an extra, and the Makefile and every workflow run through `uv run`. `bin/blog2epub` runs the
+  CLI through uv from any directory, and `bin/publish <book>` is the cron entry point: one
+  book per crontab line, logging to `logs/`, finding uv on cron's bare `PATH`, and serialising
+  on the download cache so overlapping entries queue.
 - **Books are cut into volumes, one per year by default.** `split` now takes `year` (the
   default), `month`, `size` or `none`. Whatever the split, no volume exceeds `max_book_bytes`
   (default `200MB`, Send to Kindle's limit) except with `none`: `size` cuts only where the budget

@@ -23,6 +23,9 @@ on:
         type: boolean
         default: false
 
+env:
+  UV_PYTHON: "3.12"
+
 permissions:
   contents: write
 
@@ -38,15 +41,15 @@ jobs:
       issue: ${{ steps.plan.outputs.issue }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
+          enable-cache: true
       - name: Install
-        run: pip install -e .
+        run: uv sync --frozen --no-dev
       - name: Which books, which issue
         id: plan
         run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
+          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
           import json, re, sys
           from datetime import datetime, timezone
           from blog2epub.config import load_config
@@ -74,18 +77,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
+          enable-cache: true
 
       - name: Install
-        run: pip install -e ".[covers,svg]"
+        run: uv sync --frozen --no-dev --extra covers --extra svg
 
       # Each volume's cover is rendered from its template during the build. Best effort: if
       # Chromium cannot be set up, the build falls back to the committed cover image and says so.
       - name: Install Chromium for the covers
         continue-on-error: true
-        run: python -m playwright install --with-deps chromium
+        run: uv run python -m playwright install --with-deps chromium
 
       # A unique key per job so the newest cache is always the one saved; restore-keys picks up
       # the previous job's (or the weekly sync's) cache.
@@ -98,13 +101,13 @@ jobs:
             blog2epub-cache-
 
       - name: Sync
-        run: blog2epub -v sync "${{ matrix.book }}" ${{ inputs.full == true && '--full' || '' }}
+        run: uv run blog2epub -v sync "${{ matrix.book }}" ${{ inputs.full == true && '--full' || '' }}
 
       - name: Build
         id: build
         run: |
-          blog2epub -v build "${{ matrix.book }}" --issue "${{ needs.plan.outputs.issue }}" --report build.json
-          python - <<'PY' >> "$GITHUB_OUTPUT"
+          uv run blog2epub -v build "${{ matrix.book }}" --issue "${{ needs.plan.outputs.issue }}" --report build.json
+          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           r = json.load(open("build.json"))
           book = r["books"][0]

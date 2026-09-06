@@ -8,7 +8,7 @@ and a test suite that runs offline in a few seconds.
 ```bash
 git clone https://github.com/jaydotsee/blog2epub.git
 cd blog2epub
-make setup          # venv + editable install with the dev tools
+make setup          # uv sync --all-extras: .venv from uv.lock with the dev tools
 make check          # ruff, mypy, pytest
 ```
 
