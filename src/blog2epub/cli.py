@@ -321,14 +321,33 @@ def _issue(value: str) -> str:
     return value
 
 
+_SET_HELP = (
+    "override a config value for this run: KEY=VALUE for a `defaults` key, ID.KEY=VALUE for one "
+    "blog or book. Repeatable. The value is read as YAML, so numbers, booleans, dates and lists "
+    "all work: --set request_delay=2 --set tyk.split=month --set apigee.sitemap.max=800"
+)
+
+
+def _add_set(parser: argparse.ArgumentParser, dest: str = "cmd_overrides") -> None:
+    """`--set`, accepted both before the subcommand and after it, because both get typed.
+
+    argparse would let a subparser's empty default clobber the outer list, so each subcommand
+    collects into its own dest and main() concatenates the two.
+    """
+    parser.add_argument("--set", action="append", default=[], dest=dest, metavar="KEY=VALUE", help=_SET_HELP)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="blog2epub", description="Monitor blogs and turn them into EPUB books.")
     p.add_argument("-c", "--config", default="blogs.yaml", help="path to blogs.yaml (default: ./blogs.yaml)")
     p.add_argument("-v", "--verbose", action="count", default=0, help="-v for info, -vv for debug")
+    _add_set(p, dest="overrides")
     p.add_argument("--version", action="version", version=f"blog2epub {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("list", help="show configured blogs and books").set_defaults(func=cmd_list)
+    lst = sub.add_parser("list", help="show configured blogs and books")
+    _add_set(lst)
+    lst.set_defaults(func=cmd_list)
 
     d = sub.add_parser("detect", help="probe a URL and report which source would be used")
     d.add_argument("url")
@@ -344,6 +363,7 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         s = sub.add_parser(name, help=help_)
         s.add_argument("ids", nargs="*", help="blog or book ids (default: all)")
+        _add_set(s)
         if name != "build":
             s.add_argument("--full", action="store_true", help="re-fetch every post, retry failed images")
             s.add_argument(
@@ -376,7 +396,9 @@ def build_parser() -> argparse.ArgumentParser:
             )
         s.set_defaults(func=func)
 
-    sub.add_parser("status", help="show cache and output state").set_defaults(func=cmd_status)
+    st = sub.add_parser("status", help="show cache and output state")
+    _add_set(st)
+    st.set_defaults(func=cmd_status)
     return p
 
 
@@ -385,8 +407,9 @@ def main(argv: list[str] | None = None) -> int:
     level = logging.WARNING - 10 * min(args.verbose, 2)
     logging.basicConfig(level=level, format="%(levelname)s %(name)s: %(message)s")
     logging.getLogger("urllib3").setLevel(logging.WARNING)
+    overrides = [*args.overrides, *getattr(args, "cmd_overrides", [])]
     try:
-        settings = load_config(args.config)
+        settings = load_config(args.config, overrides)
     except ConfigError as exc:
         print(f"config error: {exc}", file=sys.stderr)
         return 1

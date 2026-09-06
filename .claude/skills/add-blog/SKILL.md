@@ -104,6 +104,17 @@ Then confirm the entry parses and reads as intended:
 bin/blog2epub list
 ```
 
+Try a value before committing to it rather than editing the file and forgetting to put it back.
+`--set` overrides any config key for one run — `KEY=VALUE` for a `defaults` key, `ID.KEY=VALUE`
+for one blog or book, dotted for a nested mapping — and goes through the same validation:
+
+```bash
+bin/blog2epub build <id> --set <id>.max_posts=20 --set <id>.split=none --set output_dir=/tmp/try
+```
+
+A 20-post sample build takes a minute and shows whether the chapters, covers and nav are right
+before you spend two hours on the whole archive.
+
 ## Phase 4 — Sync
 
 ```bash

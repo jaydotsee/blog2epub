@@ -50,6 +50,14 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 - `build` gained `--report FILE`, the same JSON `run` writes, with one entry per volume.
 
 ### Added
+- **`--set KEY=VALUE` overrides any config value for one run.** `KEY=VALUE` sets a `defaults` key,
+  `ID.KEY=VALUE` sets it on one blog or book, and a dotted key reaches into a nested mapping
+  (`--set apigee.sitemap.max=800`). Repeatable, and accepted either before the subcommand or
+  after it. The value is read as YAML, so numbers, booleans, dates and lists all mean what they
+  look like. Overrides are applied to the parsed config before anything is built, so they go
+  through exactly the checks a line in the file would: an unknown key is refused, `50MB` is
+  parsed into bytes, `split` is validated. Trying `--set tyk.split=month` no longer means editing
+  `blogs.yaml` and remembering to put it back.
 - **The MuleSoft blog.** `blogs.mulesoft.com` from 2008 to today: 2,505 posts and 7,243 images as
   nineteen year volumes, 368 MB, which makes it the largest book here. It joins the API Management
   Digest as a twelfth source. Of the 2,737 posts the API lists, 218 are excluded as
