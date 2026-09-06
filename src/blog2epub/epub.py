@@ -578,7 +578,8 @@ def _wants_readability(book: BookConfig, post: Post) -> bool:
 # barely compress, so their file size is an upper bound.
 SIZE_MARGIN = 0.97
 VOLUME_OVERHEAD = 1_500_000
-OUTPUT_RE = re.compile(r"^(?P<book>.+)-(?P<issue>\d{8})\.(?P<volume>\d+)\.epub$")
+# <book>-<issue>[-<slug>].epub, and the <book>-<issue>.<n>.epub that the first issues used.
+OUTPUT_RE = re.compile(r"^(?P<book>.+)-(?P<issue>\d{8})(?:[.-][^.]+)?\.epub$")
 _CHAPTER_HREF_RE = re.compile(r'href="(ch-\d{4}\.xhtml)(#[^"]*)?"')
 
 
@@ -737,6 +738,7 @@ class VolumePlan:
     chapters: list[Chapter]
     title: str  # "Tyk Blog 2024", "Axway Blog, Vol. 2", "Tyk Blog 2018, part 1 of 2"
     label: str  # "2024", "Vol. 2 of 3", "2018, part 1 of 2"; empty for a single unsplit volume
+    slug: str = ""  # what the filename calls this volume: "2024", "2018-part1", "vol2", "2024-03"
 
 
 def _pack(book: BookConfig, prepared: Prepared, chapters: list[Chapter]) -> list[list[Chapter]]:
@@ -777,31 +779,32 @@ def plan_volumes(book: BookConfig, prepared: Prepared) -> list[VolumePlan]:
     chapters = prepared.chapters
     if book.split == "none":
         return [VolumePlan(chapters, book.title, "")]
-    groups: list[tuple[str, list[Chapter]]]
+    groups: list[tuple[str, str, list[Chapter]]]
     if book.split == "size":
-        groups = [("", chapters)]
+        groups = [("", "", chapters)]
     else:
-        keyed: dict[str, tuple[str, list[Chapter]]] = {}
+        keyed: dict[str, tuple[str, str, list[Chapter]]] = {}
         for ch in chapters:
             label, key = (ch.post.year, ch.post.year) if book.split == "year" else _month_label(ch)
-            keyed.setdefault(key, (label, []))[1].append(ch)
+            keyed.setdefault(key, (label, key, []))[2].append(ch)
         groups = list(keyed.values())
 
     plans: list[VolumePlan] = []
     sep = " " if book.split == "year" else ", "
-    for label, group in groups:
+    for label, key, group in groups:
         parts = _pack(book, prepared, group)
         for i, part in enumerate(parts, start=1):
             if book.split == "size":
                 plans.append(VolumePlan(part, book.title, ""))  # numbered below, once the count is known
             elif len(parts) == 1:
-                plans.append(VolumePlan(part, f"{book.title}{sep}{label}", label))
+                plans.append(VolumePlan(part, f"{book.title}{sep}{label}", label, key))
             else:
                 sub = f"{label}, part {i} of {len(parts)}"
-                plans.append(VolumePlan(part, f"{book.title}{sep}{sub}", sub))
+                plans.append(VolumePlan(part, f"{book.title}{sep}{sub}", sub, f"{key}-part{i}"))
     if book.split == "size" and len(plans) > 1:
         for n, plan in enumerate(plans, start=1):
-            plan.title, plan.label = f"{book.title}, Vol. {n}", f"Vol. {n} of {len(plans)}"
+            plan.title = f"{book.title}, Vol. {n}"
+            plan.label, plan.slug = f"Vol. {n} of {len(plans)}", f"vol{n}"
     return plans
 
 
@@ -1065,10 +1068,13 @@ def build_book(
     results: list[BuildResult] = []
     for n, plan in enumerate(volumes, start=1):
         chapters, title, label = plan.chapters, plan.title, plan.label
-        out_path = output_dir / f"{book.id}-{issue}.{n}.epub"
+        # The name says which volume this is, not just its number: a bare ordinal sorts wrongly
+        # (.1 .10 .11 .2) and means nothing once the file is out of the release page's context.
+        stem = f"{book.id}-{issue}" + (f"-{plan.slug}" if plan.slug else "")
+        out_path = output_dir / f"{stem}.epub"
         cover = static_cover
         if template is not None:
-            cover_out = output_dir / "covers" / f"{book.id}-{issue}.{n}.jpg"
+            cover_out = output_dir / "covers" / f"{stem}.jpg"
             cover = _render_volume_cover(
                 book,
                 template,

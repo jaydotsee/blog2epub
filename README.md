@@ -528,9 +528,12 @@ file should be. It is the reason books are cut into volumes.
 
 ## Volumes
 
-A book is written as one or more **volumes**, `output/<book>-<issue>.<n>.epub`, where the issue
-is the build date as `YYYYMMDD` and `n` counts from 1 in reading order. The `split` key says
-where the cuts go:
+A book is written as one or more **volumes**, `output/<book>-<issue>-<volume>.epub`, where the
+issue is the build date as `YYYYMMDD` and the volume says which part of the archive it holds —
+`tyk-20260906-2024.epub`, `kong-20260906-vol2.epub`. A book that fits in one volume drops the
+suffix: `apigee-20260906.epub`. Every downloaded file therefore names its issue and its contents
+without needing the release page for context, and a directory of them sorts into reading order.
+The `split` key says where the cuts go:
 
 - `year` (the default) and `month` cut on the posts' dates, one volume per calendar period. A
   year is a stable unit: next issue's *Tyk Blog 2023* holds the same posts as this one's, and
@@ -614,11 +617,12 @@ network.
 07:00 UTC, and on demand from the Actions tab → *Release books* → *Run workflow*. A manual run
 takes `books` (`all`, or ids like `tyk,kong`), `issue` (a `YYYYMMDD`, default today) and `full`;
 the monthly run takes every book with the issue dated `YYYYMM01`. The books run **in parallel**,
-each syncing, building with a cover per volume, and publishing to **two tags**:
+each syncing, building with a cover per volume, and publishing to **two tags** (the assets carry
+the issue in their names, so a file downloaded from either tag says which issue it is):
 
 | Tag | What it is |
 | --- | --- |
-| `tyk-20260906` | The **issue**: its volumes `tyk-20260906.1.epub`, `.2`, … with a table of them in the notes. Kept for good. Run the workflow again with the same `issue` and the files are replaced, not added to. |
+| `tyk-20260906` | The **issue**: its volumes `tyk-20260906-2026.epub`, `-2025`, … with a table of them in the notes. Kept for good. Run the workflow again with the same `issue` and the files are replaced, not added to. |
 | `tyk-latest` | The **newest issue**, moved on every run. A stable link: `https://github.com/jaydotsee/blog2epub/releases/tag/tyk-latest`. |
 
 Nothing waits on anything else: a throttled source holds up only its own book, and `--jobs`

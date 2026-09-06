@@ -60,7 +60,7 @@ def test_size_split_packs_posts_in_reading_order_under_the_budget(tmp_path, blog
     # room for two 300 kB images per volume.
     results = _build(blog, store, tmp_path, max_book_bytes=2_300_000)
     assert [r.posts for r in results] == [2, 2]
-    assert [r.path.name for r in results] == [f"demo-{ISSUE}.1.epub", f"demo-{ISSUE}.2.epub"]
+    assert [r.path.name for r in results] == [f"demo-{ISSUE}-vol1.epub", f"demo-{ISSUE}-vol2.epub"]
     assert [(r.volume, r.volumes, r.label, r.title) for r in results] == [
         (1, 2, "Vol. 1 of 2", "Demo Blog, Vol. 1"),
         (2, 2, "Vol. 2 of 2", "Demo Blog, Vol. 2"),
@@ -106,8 +106,9 @@ def test_a_small_book_is_one_volume_with_no_volume_label(tmp_path, blog, store):
     results = _build(blog, store, tmp_path)  # split: size at the 200 MB default
     assert len(results) == 1
     r = results[0]
+    # One volume needs no suffix at all: demo-20260905.epub
     assert (r.path.name, r.title, r.label, r.volume, r.volumes) == (
-        f"demo-{ISSUE}.1.epub",
+        f"demo-{ISSUE}.epub",
         "Demo Blog",
         "",
         1,
@@ -159,9 +160,9 @@ def test_a_rebuild_removes_the_previous_issue_but_not_another_books_files(tmp_pa
     out = tmp_path / "out"
     out.mkdir()
     stale = [
-        out / "demo-20250101.1.epub",
-        out / "demo-20250101.2.epub",
-        out / "demo.epub",
+        out / "demo-20250101-2023.epub",  # the current shape
+        out / "demo-20250101.2.epub",  # the shape the first issues used
+        out / "demo.epub",  # and the shapes before issues existed
         out / "demo-2019.epub",
     ]
     other = [out / "demo-extra-20250101.1.epub", out / "demonstration.epub"]
@@ -170,7 +171,7 @@ def test_a_rebuild_removes_the_previous_issue_but_not_another_books_files(tmp_pa
     build_book(_book(blog), {blog.id: (blog, store)}, out, issue=ISSUE)
     assert not any(p.exists() for p in stale)
     assert all(p.exists() for p in other)
-    assert [p.name for p in book_outputs(out, "demo")] == [f"demo-{ISSUE}.1.epub"]
+    assert [p.name for p in book_outputs(out, "demo")] == [f"demo-{ISSUE}.epub"]
 
 
 def test_book_outputs_is_exact_on_the_id(tmp_path):
@@ -250,12 +251,12 @@ def test_a_template_cover_is_rendered_once_per_volume(tmp_path, blog, store, mon
         issue=ISSUE,
     )
     assert [r.posts for r in results] == [2, 1]
-    assert [out.name for out, _ in seen] == [f"demo-{ISSUE}.1.jpg", f"demo-{ISSUE}.2.jpg"]
+    assert [out.name for out, _ in seen] == [f"demo-{ISSUE}-vol1.jpg", f"demo-{ISSUE}-vol2.jpg"]
     assert [v["issue_number"] for _, v in seen] == [f"{ISSUE}.1", f"{ISSUE}.2"]
     assert [v["count"] for _, v in seen] == ["2", "1"]
     assert [v["volume_label"] for _, v in seen] == ["Vol. 1 of 2", "Vol. 2 of 2"]
     for r in results:
-        assert r.cover is not None and r.cover.name == f"demo-{ISSUE}.{r.volume}.jpg"
+        assert r.cover is not None and r.cover.name == f"demo-{ISSUE}-vol{r.volume}.jpg"
         assert "OEBPS/Images/cover.jpg" in zipfile.ZipFile(r.path).namelist()
 
 

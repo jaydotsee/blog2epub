@@ -24,8 +24,11 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   The planner weighs text as the zip will store it and images at their file size, so an archive
   of any length arrives readable. Links to a post that landed in another volume go back to the
   post's own URL.
-- **Issues are `YYYYMMDD` and volumes are `YYYYMMDD.n`.** Output files are
-  `<book>-<YYYYMMDD>.<n>.epub`, the title page says `Issue 20260905.2 · Volume 2 of 3`, and
+- **Issues are `YYYYMMDD`, and every file names its issue and its contents.** Output files are
+  `<book>-<YYYYMMDD>-<volume>.epub` — `tyk-20260906-2024.epub`, `kong-20260906-vol2.epub`, and
+  plain `apigee-20260906.epub` when a book is a single volume — so a downloaded asset identifies
+  itself without the release page and a directory of them sorts into reading order. The title
+  page says `Issue 20260905.2 · Volume 2 of 3`, and
   `build`/`run` take `--issue YYYYMMDD` so a release built on a later day keeps its date.
   A rebuild removes the book's files from earlier issues.
 - **Releases run monthly, and every book has a stable tag.** `release.yml` runs on the 1st of
