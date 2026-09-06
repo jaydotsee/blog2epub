@@ -174,8 +174,10 @@ Fonts are bundled under `covers/fonts/` so rendering needs no network and is ide
 Books are cut into one volume per year by default (`split: year`); `month`, `size` and `none`
 are the alternatives, and except with `none` no volume exceeds `max_book_bytes` (200 MB): a year
 that outgrows it is cut inside the year. A digest with a rolling window wants `split: size`, or a
-January issue is cut in two at New Year. Output is `<id>-<issue>.<n>.epub`, the issue being the
-build date as `YYYYMMDD`; `build --issue` pins it. See `plan_volumes` in `epub.py` for how posts
+January issue is cut in two at New Year. Output is `<id>-<issue>-<volume>.epub` (`tyk-20260906-2024.epub`, `kong-20260906-vol2.epub`;
+no suffix when the book is one volume), the issue being the build date as `YYYYMMDD`;
+`build --issue` pins it. `OUTPUT_RE` still recognises the older `<id>-<issue>.<n>.epub` so a
+rebuild cleans up files from the first issues. See `plan_volumes` in `epub.py` for how posts
 are weighed.
 
 ### 8. Build and validate

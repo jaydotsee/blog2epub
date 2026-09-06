@@ -160,7 +160,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: "${{ steps.build.outputs.title }} — Issue ${{ needs.plan.outputs.issue }}"
           body: ${{ steps.build.outputs.body }}
-          files: output/${{ matrix.book }}-${{ needs.plan.outputs.issue }}.*.epub
+          files: output/${{ matrix.book }}-${{ needs.plan.outputs.issue }}*.epub
           make_latest: false
 
       # The rolling tag has to move to this commit, or the release page shows the old one.
@@ -180,5 +180,5 @@ jobs:
             Every issue is kept under its own tag, `${{ matrix.book }}-YYYYMMDD`.
 
             ${{ steps.build.outputs.body }}
-          files: output/${{ matrix.book }}-${{ needs.plan.outputs.issue }}.*.epub
+          files: output/${{ matrix.book }}-${{ needs.plan.outputs.issue }}*.epub
           make_latest: false

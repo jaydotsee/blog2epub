@@ -134,7 +134,8 @@ def test_build_book_split_by_year_and_custom_cover(tmp_path, blog, store):
     cover.write_bytes(PNG_1x1)
     results = build_book(book, {blog.id: (blog, store)}, tmp_path / "out", cover_path=cover, issue="20260905")
     # Volumes are numbered in reading order (asc: oldest year first) and named after the issue.
-    assert [r.path.name for r in results] == ["demo-20260905.1.epub", "demo-20260905.2.epub"]
+    # The name says which year each volume holds, so a downloaded file still identifies itself.
+    assert [r.path.name for r in results] == ["demo-20260905-2023.epub", "demo-20260905-2024.epub"]
     assert [(r.title, r.label, r.issue_number) for r in results] == [
         ("Demo Blog 2023", "2023", "20260905.1"),
         ("Demo Blog 2024", "2024", "20260905.2"),
