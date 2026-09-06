@@ -659,7 +659,6 @@ tests/                         pytest suite; runs offline with a fake HTTP clien
 .github/workflows/ci.yml       ruff, mypy, pytest + epubcheck on every push
 .github/workflows/release.yml  manual: sync, build, publish each book to <book>-<issue> and <book>-latest
 .github/workflows/sync.yml     weekly: keep the download cache warm, publish nothing
-.github/workflows/release.yml  dated release of one book
 ```
 
 ## Development
