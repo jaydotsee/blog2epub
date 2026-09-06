@@ -1,13 +1,20 @@
-# Publish books. Manual only: Actions tab -> "Release books" -> Run workflow.
+# Publish books: every month on the 1st, and whenever you press the button.
 #
-# Each book selected becomes an issue, <book>-<YYYYMMDD>, holding its volumes
-# <book>-<YYYYMMDD>.<n>.epub with a table of them in the notes, and <book>-latest is moved to
-# the same files so there is always one link to the newest Tyk, Kong, ... A re-run of the same
-# issue replaces its files. Books are built one after another so each sync lands in the shared
-# download cache that the weekly sync.yml keeps warm.
+# Each book becomes an issue, <book>-<YYYYMMDD>, holding its volumes <book>-<YYYYMMDD>.<n>.epub
+# with a table of them in the notes, and <book>-latest is moved to the same files so there is
+# always one link to the newest Tyk, Kong, ... A re-run of the same issue replaces its files.
+# Books are built one after another so each sync lands in the shared download cache that the
+# weekly sync.yml keeps warm.
+#
+# The monthly run takes every book, with the issue dated YYYYMM01. It suits the api-management
+# digest in particular, whose `since: 1m` window means each issue is the month just gone.
+# Note that GitHub disables scheduled workflows in a repository with no activity for 60 days;
+# a push or a manual run re-enables them.
 name: Release books
 
 on:
+  schedule:
+    - cron: "0 7 1 * *"       # the 1st of every month, 07:00 UTC (an hour after sync.yml's slot)
   workflow_dispatch:
     inputs:
       books:
@@ -30,8 +37,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: cache            # one job at a time touches the download cache
-  cancel-in-progress: false
+  group: release          # never two publishing runs at once; sync.yml may run alongside,
+  cancel-in-progress: false   # since this workflow only reads the cache
 
 jobs:
   plan:
@@ -54,6 +61,7 @@ jobs:
           from datetime import datetime, timezone
           from blog2epub.config import load_config
           known = [b.id for b in load_config("blogs.yaml").all_books()]
+          # The inputs context is empty on a scheduled run, so empty means every book, today.
           asked = "${{ inputs.books }}".strip()
           books = known if asked in ("", "all") else [b.strip() for b in asked.split(",") if b.strip()]
           unknown = [b for b in books if b not in known]
@@ -70,8 +78,7 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
-      max-parallel: 1       # sequential, so every book's sync is in the cache the next one restores
+      fail-fast: false      # a book that fails does not stop the others
       matrix:
         book: ${{ fromJSON(needs.plan.outputs.books) }}
     steps:
@@ -90,18 +97,22 @@ jobs:
         continue-on-error: true
         run: uv run python -m playwright install --with-deps chromium
 
-      # A unique key per job so the newest cache is always the one saved; restore-keys picks up
-      # the previous job's (or the weekly sync's) cache.
+      # Restore only. Books run in parallel, and if each saved its own copy the lineage would
+      # fork: every run would restore whichever job happened to finish last, holding one book's
+      # blogs and nothing else. sync.yml is the single writer, so the cache stays whole. What a
+      # release fetches on top is at most a week of posts, and next Monday's sync persists it.
       - name: Restore download cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: cache
-          key: blog2epub-cache-${{ github.run_id }}-${{ matrix.book }}
+          key: blog2epub-cache-${{ github.run_id }}
           restore-keys: |
             blog2epub-cache-
 
+      # --jobs syncs the book's blogs at once, so a throttled source (Apigee takes 1.5s a
+      # request) does not gate the other ten in the digest. Blogs sharing a host still queue.
       - name: Sync
-        run: uv run blog2epub -v sync "${{ matrix.book }}" ${{ inputs.full == true && '--full' || '' }}
+        run: uv run blog2epub -v sync "${{ matrix.book }}" --jobs 4 ${{ inputs.full == true && '--full' || '' }}
 
       - name: Build
         id: build

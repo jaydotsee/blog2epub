@@ -5,6 +5,12 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 ## [Unreleased]
 
 ### Changed
+- **Nothing waits on the slowest source.** Books now release in parallel (the release matrix had
+  been sequential), and `sync`/`run` take `--jobs N` (default 4) to sync a book's blogs at once,
+  so a throttled site such as Apigee — 1.5 seconds a request — holds up only its own book rather
+  than the pipeline. Blogs sharing a host are serialised by a per-host lock, so parallelism never
+  becomes extra load on a site. `sync.yml` is now the only writer of the download cache and the
+  release jobs restore it read-only, since parallel savers would fork the cache lineage.
 - **uv is the package manager.** `uv.lock` pins every dependency; `uv sync --all-extras` (or
   `make setup`) builds `.venv` from it, the dev tools live in a PEP 735 `dev` group rather than
   an extra, and the Makefile and every workflow run through `uv run`. `bin/blog2epub` runs the
@@ -22,9 +28,10 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   `<book>-<YYYYMMDD>.<n>.epub`, the title page says `Issue 20260905.2 · Volume 2 of 3`, and
   `build`/`run` take `--issue YYYYMMDD` so a release built on a later day keeps its date.
   A rebuild removes the book's files from earlier issues.
-- **Releases are manual, and every book has a stable tag.** `release.yml` runs only from the
-  Actions tab (`books: all` or a list, an optional `issue` date, `full`); tag and branch pushes
-  no longer publish. Each book goes to `<book>-<YYYYMMDD>`, the issue, kept with a table of its
+- **Releases run monthly, and every book has a stable tag.** `release.yml` runs on the 1st of
+  every month at 07:00 UTC — every book, issue `YYYYMM01`, which matches the digest's rolling
+  `since: 1m` window — and on demand from the Actions tab (`books: all` or a list, an optional
+  `issue` date, `full`); tag and branch pushes no longer publish. Each book goes to `<book>-<YYYYMMDD>`, the issue, kept with a table of its
   volumes in the notes, and to `<book>-latest`, moved to the newest issue on every run. Both are
   cleared before upload, so re-running an issue replaces its files rather than adding to them.
   Books build one after another so each sync lands in the shared cache. The weekly monitor is

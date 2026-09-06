@@ -190,8 +190,9 @@ first paragraph, ends at the real conclusion, and contains no other post.
 
 ### 9. Ship it as a release
 
-Releases are manual and nothing else publishes. Actions tab → **Release books** → *Run
-workflow* with `books: kong` (or `all`) and, optionally, an `issue` date; or from a terminal:
+Releases run on the 1st of every month (every book, issue `YYYYMM01`) and on demand. To publish
+now: Actions tab → **Release books** → *Run workflow* with `books: kong` (or `all`) and,
+optionally, an `issue` date; or from a terminal:
 
 ```bash
 gh workflow run release.yml -f books=kong            # issue defaults to today, UTC
@@ -204,7 +205,13 @@ a table of them in the notes; and `<book>-latest`, moved to the same files on ev
 is one stable link per book. Re-running an issue clears its assets first, so it replaces rather
 than accumulates. Books run one after another so each sync lands in the shared cache, which the
 weekly `sync.yml` keeps warm without building or publishing anything. Do not add tag or branch
-triggers back: a push must never publish.
+triggers back: a push must never publish, only the schedule and the button.
+
+Books release in parallel, and `sync --jobs N` (default 4) syncs a book's blogs at once, so one
+throttled source delays only itself. Two rules hold that together and are easy to break:
+`sync.yml` is the **only** writer of the download cache — release jobs use `actions/cache/restore`,
+because parallel savers would fork the lineage — and blogs sharing a host are serialised by a
+per-host lock in `_sync_blogs`, so concurrency never turns into extra load on a site.
 
 ## Gotchas, and what they look like
 

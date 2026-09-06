@@ -8,6 +8,9 @@ import logging
 import os
 import re
 import sys
+import threading
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -21,7 +24,7 @@ from .http import HttpClient
 from .models import utcnow_iso
 from .sources import SourceError, resolve_source
 from .store import BlogStore
-from .sync import sync_blog
+from .sync import SyncResult, sync_blog
 
 log = logging.getLogger("blog2epub")
 
@@ -103,6 +106,43 @@ def _build_line(r: BuildResult) -> str:
     return line
 
 
+DEFAULT_JOBS = 4  # blogs synced at once; one slow host should not hold up the rest
+
+
+def _sync_blogs(
+    settings: Settings, blogs: list[BlogConfig], *, full: bool, prune: bool, jobs: int
+) -> list[tuple[BlogConfig, BlogStore, SyncResult | Exception]]:
+    """Sync each blog, up to `jobs` at a time, and return the results in the order given.
+
+    Blogs are independent — each has its own cache directory and HTTP client — so the only
+    thing to protect is politeness: two blogs on the same host take turns, so a site never
+    sees more requests than its own `request_delay` allows.
+    """
+    host_locks: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
+    out_lock = threading.Lock()
+
+    def one(blog: BlogConfig) -> tuple[BlogConfig, BlogStore, SyncResult | Exception]:
+        store = BlogStore(settings.cache_dir, blog.id)
+        try:
+            with host_locks[urlsplit(blog.url).netloc.lower()]:
+                result: SyncResult | Exception = sync_blog(
+                    blog, settings, _client(settings, blog), store, full=full, prune=prune
+                )
+        except (SourceError, requests.RequestException) as exc:
+            result = exc
+        with out_lock:  # one blog's lines stay together even when several finish at once
+            if isinstance(result, Exception):
+                log.error("%s: %s", blog.id, result)
+            else:
+                print("\n".join([result.summary(), *(f"  ! {e}" for e in result.errors)]))
+        return blog, store, result
+
+    if jobs <= 1 or len(blogs) <= 1:
+        return [one(b) for b in blogs]
+    with ThreadPoolExecutor(max_workers=min(jobs, len(blogs))) as pool:
+        return list(pool.map(one, blogs))
+
+
 # ---- commands ------------------------------------------------------------------
 def cmd_list(settings: Settings, args: argparse.Namespace) -> int:
     print("blogs:")
@@ -160,21 +200,10 @@ def _prefix_regex(url: str) -> str:
 
 
 def cmd_sync(settings: Settings, args: argparse.Namespace) -> int:
-    rc = 0
-    for blog in _select_blogs(settings, args.ids):
-        store = BlogStore(settings.cache_dir, blog.id)
-        try:
-            result = sync_blog(
-                blog, settings, _client(settings, blog), store, full=args.full, prune=args.prune
-            )
-        except (SourceError, requests.RequestException) as exc:
-            log.error("%s: %s", blog.id, exc)
-            rc = 2
-            continue
-        print(result.summary())
-        for err in result.errors:
-            print(f"  ! {err}")
-    return rc
+    synced = _sync_blogs(
+        settings, _select_blogs(settings, args.ids), full=args.full, prune=args.prune, jobs=args.jobs
+    )
+    return 2 if any(isinstance(r, Exception) for _, _, r in synced) else 0
 
 
 def cmd_build(settings: Settings, args: argparse.Namespace) -> int:
@@ -205,20 +234,16 @@ def cmd_run(settings: Settings, args: argparse.Namespace) -> int:
     report: dict = {"changed": False, "issue": args.issue, "blogs": [], "books": []}
     rc = 0
     changed_blogs: set[str] = set()
-    for blog in _select_blogs(settings, args.ids):
-        store = BlogStore(settings.cache_dir, blog.id)
+    synced = _sync_blogs(
+        settings, _select_blogs(settings, args.ids), full=args.full, prune=args.prune, jobs=args.jobs
+    )
+    for blog, store, result in synced:
         entry: dict = {"id": blog.id, "title": blog.title, "url": blog.url}
-        try:
-            result = sync_blog(
-                blog, settings, _client(settings, blog), store, full=args.full, prune=args.prune
-            )
-        except (SourceError, requests.RequestException) as exc:
-            log.error("%s: %s", blog.id, exc)
-            entry["error"] = str(exc)
+        if isinstance(result, Exception):
+            entry["error"] = str(result)
             report["blogs"].append(entry)
             rc = 2
             continue
-        print(result.summary())
         entry.update(
             {
                 "source": result.source,
@@ -319,6 +344,14 @@ def build_parser() -> argparse.ArgumentParser:
             s.add_argument("--full", action="store_true", help="re-fetch every post, retry failed images")
             s.add_argument(
                 "--prune", action="store_true", help="drop cached posts the source no longer lists"
+            )
+            s.add_argument(
+                "--jobs",
+                type=int,
+                default=DEFAULT_JOBS,
+                metavar="N",
+                help=f"blogs to sync at once (default {DEFAULT_JOBS}; 1 for one at a time). "
+                "Blogs on the same host still take turns.",
             )
         if name == "run":
             s.add_argument("--force", action="store_true", help="rebuild even when nothing changed")
