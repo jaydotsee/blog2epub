@@ -40,7 +40,7 @@ jobs:
       books: ${{ steps.plan.outputs.books }}
       issue: ${{ steps.plan.outputs.issue }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -75,7 +75,7 @@ jobs:
       matrix:
         book: ${{ fromJSON(needs.plan.outputs.books) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: astral-sh/setup-uv@v6
         with:
