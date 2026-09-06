@@ -88,6 +88,30 @@ jobs:
           echo "title=$title" >> "$GITHUB_OUTPUT"
           ls -la output/
 
+      # An issue is one set of files, so re-running it replaces them. action-gh-release only
+      # adds, which would leave the previous shape behind: rebuild a book that was split by
+      # year as a single file and the release would carry both. Runs after Build so a failed
+      # build never empties a good release.
+      - name: Clear the issue's existing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.which.outputs.book }}-${{ steps.which.outputs.issue }}"
+          if ! ls output/${{ steps.which.outputs.book }}*.epub >/dev/null 2>&1; then
+            echo "::error::Build produced no EPUB; refusing to clear $tag"
+            exit 1
+          fi
+          id=$(gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq .id 2>/dev/null || true)
+          if [ -z "$id" ]; then
+            echo "No existing release for $tag; nothing to clear."
+            exit 0
+          fi
+          gh api "repos/${{ github.repository }}/releases/$id/assets" --paginate --jq '.[] | "\(.id) \(.name)"' |
+            while read -r asset name; do
+              echo "removing $name"
+              gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$asset"
+            done
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
