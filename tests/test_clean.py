@@ -208,3 +208,42 @@ def test_invalid_urls_are_rejected_or_encoded():
     assert "post]" not in xhtml and "post%5D" in xhtml  # encoded, link kept
     assert "managerhost" not in xhtml  # unusable, href dropped
     assert 'href="https://ok.example/a%20b?x=1#f"' in xhtml  # untouched, no double-encoding
+
+
+def test_a_figure_inside_a_paragraph_is_lifted_out():
+    # WordPress drops a figure straight into a paragraph; a p may hold phrasing content only.
+    out, _ = clean_html(
+        '<p><figure><img src="https://e.org/a.png" alt="x"/><figcaption>Cap</figcaption></figure></p>',
+        "https://e.org/post",
+        image_resolver=lambda u: "../Images/a.png",
+    )
+    assert "<figure" in out and "Cap" in out
+    assert "<p><figure" not in out
+
+
+def test_a_video_wrapper_div_inside_a_paragraph_is_lifted_out_keeping_its_text():
+    out, _ = clean_html(
+        '<p>Before <div class="wrap"><span>Embed</span></div> after</p>',
+        "https://e.org/post",
+        image_resolver=lambda u: None,
+    )
+    assert "Before" in out and "Embed" in out and "after" in out
+    assert "<p>Before <div" not in out
+
+
+def test_a_definition_list_with_no_descriptions_becomes_plain_blocks():
+    # A WordPress gallery emits dl > dt alone; epubcheck requires a dd after the terms.
+    out, _ = clean_html(
+        "<dl><dt>One</dt><dt>Two</dt></dl>",
+        "https://e.org/post",
+        image_resolver=lambda u: None,
+    )
+    assert "<dl" not in out and "<dt" not in out
+    assert "One" in out and "Two" in out
+
+
+def test_a_real_definition_list_is_left_alone():
+    out, _ = clean_html(
+        "<dl><dt>Term</dt><dd>Meaning</dd></dl>", "https://e.org/post", image_resolver=lambda u: None
+    )
+    assert "<dl>" in out and "<dt>" in out and "<dd>" in out

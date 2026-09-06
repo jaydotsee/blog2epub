@@ -1,3 +1,4 @@
+import re
 import zipfile
 
 from lxml import etree
@@ -131,12 +132,19 @@ def test_build_book_split_by_year_and_custom_cover(tmp_path, blog, store):
     book.split = "year"
     cover = tmp_path / "cover.png"
     cover.write_bytes(PNG_1x1)
-    results = build_book(book, {blog.id: (blog, store)}, tmp_path / "out", cover_path=cover)
-    assert sorted(r.path.name for r in results) == ["demo-2023.epub", "demo-2024.epub"]
+    results = build_book(book, {blog.id: (blog, store)}, tmp_path / "out", cover_path=cover, issue="20260905")
+    # Volumes are numbered in reading order (asc: oldest year first) and named after the issue.
+    assert [r.path.name for r in results] == ["demo-20260905.1.epub", "demo-20260905.2.epub"]
+    assert [(r.title, r.label, r.issue_number) for r in results] == [
+        ("Demo Blog 2023", "2023", "20260905.1"),
+        ("Demo Blog 2024", "2024", "20260905.2"),
+    ]
+    assert (results[0].first_date, results[0].last_date) == ("2023-05-01", "2023-06-01")
     z = zipfile.ZipFile(results[0].path)
     assert "OEBPS/Images/cover.png" in z.namelist()
     assert 'src="../Images/cover.png"' in z.read("OEBPS/Text/cover.xhtml").decode()
-    assert results[0].title == "Demo Blog 2023"
+    title_page = z.read("OEBPS/Text/title.xhtml").decode()
+    assert "Issue 20260905.1" in title_page and "Volume 1 of 2" in title_page
 
 
 def test_group_by_none_flat_nav(tmp_path, blog, store):
@@ -164,8 +172,15 @@ def test_multi_blog_book_grouped_by_blog(tmp_path, blog, store):
     p.url, p.blog_id = "https://other.example/nine/", "other"
     other_store.put_post(p)
     other_store.save()
+    # A digest is one issue whatever years its posts span, so it cuts by size, not by year.
     book = BookConfig(
-        id="digest", title="Digest", blogs=["other", "demo"], group_by="blog", order="desc", max_posts=3
+        id="digest",
+        title="Digest",
+        blogs=["other", "demo"],
+        group_by="blog",
+        order="desc",
+        max_posts=3,
+        split="size",
     )
     sources = {"demo": (blog, store), "other": (other, other_store)}
     entries = select_entries(book, sources)
@@ -281,3 +296,17 @@ def test_year_month_grouping_newest_first(tmp_path, blog, store):
     assert "<h1>June 2023</h1>" in sec and 'class="kicker">2023</p>' in sec
     title = z.read("OEBPS/Text/title.xhtml").decode()
     assert '<p class="issue">Issue 20' in title
+
+
+def test_title_strip_applies_at_build_time():
+    # A build-time rule, so editing it and rebuilding is enough — nothing is fetched again.
+    from blog2epub.epub import _strip_title
+
+    strip = [re.compile(r"\s*\|\s*Ambassador(\s+Labs)?\s*$")]
+    assert _strip_title("6 Reasons You Should Take the CKAD | Ambassador", strip) == (
+        "6 Reasons You Should Take the CKAD"
+    )
+    assert _strip_title("Extending Knative for fun and profit | Ambassador Labs", strip) == (
+        "Extending Knative for fun and profit"
+    )
+    assert _strip_title("Ambassador patterns explained", strip) == "Ambassador patterns explained"

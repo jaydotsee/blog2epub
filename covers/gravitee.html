@@ -52,6 +52,8 @@
   .strip { margin-top: 46px; border-top: 3px solid rgba(255,243,239,.28); padding-top: 24px; display: flex; justify-content: space-between;
            font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 35px; letter-spacing: 3px; text-transform: uppercase; }
   .strip .sep { color: var(--flame); }
+  .vol:empty { display: none; }
+  .vol::before { content: "\00a0\00b7\00a0"; }
 </style>
 </head>
 <body>
@@ -83,7 +85,7 @@
 
   <div class="frame">
     <div class="masthead"><div class="name">GRAVITEE</div><div class="dot"></div><div class="blog">BLOG</div></div>
-    <div class="issue"><span>Issue <b>$issue_number</b></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
+    <div class="issue"><span>Issue <b>$issue_number</b><span class="vol">$volume_label</span></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
 
     <div class="lines">
       <div class="line"><div class="kicker">$kicker1</div><div class="title">$title1</div></div>
@@ -91,12 +93,12 @@
       <div class="line"><div class="kicker">$kicker3</div><div class="title">$title3</div></div>
     </div>
 
-    <div class="badge"><div class="big">$count</div><div class="small">POSTS</div><div class="tiny">$first_year &ndash; $last_year</div></div>
+    <div class="badge"><div class="big">$count</div><div class="small">POSTS</div><div class="tiny">$years</div></div>
 
     <div class="headline">
       <div class="over">THE COMPLETE</div>
       <div class="big"><span>EVENT-NATIVE</span><span class="alt">ARCHIVE</span></div>
-      <div class="dek">Every post from the <b>Gravitee</b> blog, $first_year to $last_year: API management, event-native gateways, access management and agentic AI.</div>
+      <div class="dek">Every post from the <b>Gravitee</b> blog, $years_prose: API management, event-native gateways, access management and agentic AI.</div>
     </div>
 
     <div class="strip"><span>API Management</span><span class="sep">/</span><span>Event Native</span><span class="sep">/</span><span>Access</span><span class="sep">/</span><span>Agentic AI</span></div>

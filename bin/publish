@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Sync one or more books and build whatever changed: the cron entry point.
+#
+#   bin/publish tyk                      # one book (or a blog id: its standalone book)
+#   bin/publish tyk kong                 # several, in turn
+#   bin/publish --force api-management   # rebuild even if nothing new was fetched
+#   bin/publish --full --issue 20260906 axway
+#
+# Each book's volumes land in output/ as <book>-<YYYYMMDD>.<n>.epub. A log of the run goes to
+# logs/<ids>-<YYYYMMDD-HHMM>.log and a one-line summary to logs/publish.log, so a crontab entry
+# needs no redirection of its own:
+#
+#   # m  h  dom mon dow  command
+#   0    6  *   *   1    /home/you/blog2epub/bin/publish tyk
+#   30   6  *   *   1    /home/you/blog2epub/bin/publish kong
+#   0    7  1   *   *    /home/you/blog2epub/bin/publish --force api-management
+#
+# Runs are serialised on the download cache: a second publish started while one is running
+# waits for it rather than fetching alongside it. Exit code is blog2epub's: 0 when everything
+# it was asked for synced and built, 2 when a blog failed (the others are still built).
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=bin/_uv.sh
+. "$here/bin/_uv.sh"
+
+flags=()
+ids=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --full|--force|--prune) flags+=("$1") ;;
+    --issue) flags+=("$1" "${2:?--issue needs a YYYYMMDD}"); shift ;;
+    --issue=*) flags+=("--issue" "${1#--issue=}") ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -*) echo "unknown option $1" >&2; exit 64 ;;
+    *) ids+=("$1") ;;
+  esac
+  shift
+done
+if [ ${#ids[@]} -eq 0 ]; then
+  echo "usage: bin/publish [--full] [--force] [--prune] [--issue YYYYMMDD] <book-or-blog-id> [more ids]" >&2
+  exit 64
+fi
+
+cd "$here"
+mkdir -p logs
+stamp="$(date -u +%Y%m%d-%H%M)"
+slug="$(IFS=-; echo "${ids[*]}")"
+log="logs/$slug-$stamp.log"
+report="logs/$slug-$stamp.json"
+
+echo "== $(date -u +%FT%TZ) publish ${ids[*]} ${flags[*]-}" | tee -a "$log"
+
+# Hold the lock on a descriptor so the wait happens here, in bash, and the run stays in bash
+# too (flock -c would hand it to /bin/sh). Waiting, not failing, is what a queued cron job wants.
+# macOS has no flock; there the runs simply are not serialised.
+mkdir -p cache
+if command -v flock >/dev/null 2>&1; then
+  exec 9>cache/.publish.lock
+  flock 9
+fi
+
+set +e
+"$UV" run --frozen --all-extras --project "$here" blog2epub -v run \
+  ${flags[@]+"${flags[@]}"} --report "$report" "${ids[@]}" >>"$log" 2>&1
+rc=$?
+set -e
+
+built="$(grep -c '^built ' "$log" || true)"
+echo "$(date -u +%FT%TZ) ${ids[*]}: exit $rc, $built volume(s) built, log $log" | tee -a logs/publish.log
+tail -n 5 "$log"
+exit "$rc"

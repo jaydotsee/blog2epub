@@ -58,6 +58,8 @@
   .strip { margin-top: 44px; border-top: 2px solid var(--line); padding-top: 24px; display: flex; justify-content: space-between; align-items: center;
            font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 34px; letter-spacing: 3px; text-transform: uppercase; color: var(--grey); }
   .strip .sep { color: var(--line); }
+  .vol:empty { display: none; }
+  .vol::before { content: "\00a0\00b7\00a0"; }
 </style>
 </head>
 <body>
@@ -88,7 +90,7 @@
     <div class="kicker-top">GOOGLE CLOUD</div>
     <div class="masthead"><div class="name">APIGEE</div><div class="blog">BLOG</div></div>
     <div class="issue">
-      <span>Issue <b>$issue_number</b></span><span class="dot" style="background:var(--red)"></span>
+      <span>Issue <b>$issue_number</b><span class="vol">$volume_label</span></span><span class="dot" style="background:var(--red)"></span>
       <span>$issue</span><span class="dot" style="background:var(--yellow)"></span>
       <span>$url</span>
     </div>
@@ -99,12 +101,12 @@
       <div class="line"><div class="kicker">$kicker3</div><div class="title">$title3</div></div>
     </div>
 
-    <div class="badge"><div class="big">$count</div><div class="small">POSTS</div><div class="tiny">$first_year &ndash; $last_year</div></div>
+    <div class="badge"><div class="big">$count</div><div class="small">POSTS</div><div class="tiny">$years</div></div>
 
     <div class="headline">
       <div class="over">THE COMPLETE</div>
       <div class="big"><span>API</span><span class="accent">MANAGEMENT</span><span>ARCHIVE</span></div>
-      <div class="dek">Every <b>Apigee</b> and API management post from the Google Cloud blog, $first_year to $last_year: proxies, governance, hybrid deployments and the road to agentic APIs.</div>
+      <div class="dek">Every <b>Apigee</b> and API management post from the Google Cloud blog, $years_prose: proxies, governance, hybrid deployments and the road to agentic APIs.</div>
     </div>
 
     <div class="strip"><span>API Proxies</span><span class="sep">|</span><span>Governance</span><span class="sep">|</span><span>Hybrid</span><span class="sep">|</span><span>AI &amp; Agents</span></div>

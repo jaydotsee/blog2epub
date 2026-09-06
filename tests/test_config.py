@@ -1,6 +1,6 @@
 import pytest
 
-from blog2epub.config import ConfigError, load_config
+from blog2epub.config import BlogConfig, ConfigError, load_config
 
 
 def test_load_config_merges_defaults(tmp_path):
@@ -105,3 +105,8 @@ def test_invalid_books(tmp_path, body):
     cfg.write_text(body)
     with pytest.raises(ConfigError):
         load_config(cfg)
+
+
+def test_title_strip_must_be_a_valid_regex():
+    with pytest.raises(ConfigError, match="title_strip"):
+        BlogConfig(id="b", url="https://e.org", title_strip=["(unclosed"])

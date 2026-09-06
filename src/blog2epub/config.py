@@ -38,9 +38,32 @@ def _check_choice(owner: str, attr: str, value: str, allowed: set[str]) -> None:
         raise ConfigError(f"{owner}: `{attr}` must be one of {sorted(allowed)}, not {value!r}")
 
 
+SPLITS = {"size", "year", "month", "none"}
+# Send to Kindle rejects files over 200 MB, and nothing else reads a bigger one comfortably.
+DEFAULT_MAX_BOOK_BYTES = 200_000_000
+_SIZE_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([kmg]?)b?\s*$", re.I)
+_SIZE_UNITS = {"": 1, "k": 1_000, "m": 1_000_000, "g": 1_000_000_000}
+
+
+def parse_size(value: Any, owner: str = "", attr: str = "max_book_bytes") -> int:
+    """Bytes from an int or a string like "200MB", "150 M", "5000000"."""
+    if isinstance(value, bool):
+        raise ConfigError(f"{owner}: `{attr}` must be a size, not {value!r}")
+    if isinstance(value, int | float):
+        size = int(value)
+    else:
+        m = _SIZE_RE.match(str(value))
+        if not m:
+            raise ConfigError(f"{owner}: `{attr}` must be bytes or a size like 200MB, not {value!r}")
+        size = int(float(m.group(1)) * _SIZE_UNITS[m.group(2).lower()])
+    if size <= 0:
+        raise ConfigError(f"{owner}: `{attr}` must be positive, not {value!r}")
+    return size
+
+
 @dataclass
 class BookConfig:
-    """One EPUB (or one EPUB per year when split) built from one or more blogs."""
+    """One title built from one or more blogs, written as one or more EPUB volumes."""
 
     id: str
     blogs: list[str]
@@ -56,7 +79,12 @@ class BookConfig:
     images: bool = True
     group_by: str = "year"  # year | year-month | month | blog | none  -> the "part" level of the TOC
     order: str = "asc"  # asc = oldest first (book), desc = newest first (magazine)
-    split: str = "none"  # none | year
+    # How the book becomes files. `year` (the default) and `month` cut on the posts' dates; `size`
+    # cuts only where max_book_bytes says; `none` is one file whatever the size. Except with `none`
+    # no volume exceeds max_book_bytes: a year that outgrew it is cut by size inside the year.
+    # Volumes are numbered <issue>.1, <issue>.2, ... and each gets its own cover.
+    split: str = "year"  # year | month | size | none
+    max_book_bytes: int = DEFAULT_MAX_BOOK_BYTES  # bytes, or a string like "200MB"
     demote_headings: bool = True
     readability: str = "auto"  # auto | always | never
     excerpts: bool = True  # show excerpts on the part/contents pages
@@ -77,7 +105,8 @@ class BookConfig:
             f"book {self.id!r}", "group_by", self.group_by, {"year", "year-month", "month", "blog", "none"}
         )
         _check_choice(f"book {self.id!r}", "order", self.order, {"asc", "desc"})
-        _check_choice(f"book {self.id!r}", "split", self.split, {"none", "year"})
+        _check_choice(f"book {self.id!r}", "split", self.split, SPLITS)
+        self.max_book_bytes = parse_size(self.max_book_bytes, f"book {self.id!r}")
         _check_choice(f"book {self.id!r}", "readability", self.readability, {"auto", "always", "never"})
         _check_choice(f"book {self.id!r}", "svg_images", self.svg_images, {"raster", "keep", "drop"})
         _check_date(f"book {self.id!r}", "since", self.since)
@@ -97,6 +126,7 @@ _BOOK_OPTS = (
     "group_by",
     "order",
     "split",
+    "max_book_bytes",
     "demote_headings",
     "readability",
     "excerpts",
@@ -125,6 +155,10 @@ class BlogConfig:
     min_chars: int = 150
     keep: list[str] = field(default_factory=list)  # CSS selectors: the article container(s)
     remove: list[str] = field(default_factory=list)  # CSS selectors: clutter to drop from every post
+    # Regexes matched against the end of every post title and dropped when they hit. The generic
+    # rules in extract.py already remove a tail the page's own <h1> or domain disowns; this is for
+    # a stale brand they cannot know about, such as the "| Ambassador" a migration left on Gravitee.
+    title_strip: list[str] = field(default_factory=list)
     extra_css: str = ""  # appended to the stylesheet of every book containing this blog
     request_delay: float | None = None
     wordpress: dict[str, Any] = field(default_factory=dict)
@@ -141,7 +175,8 @@ class BlogConfig:
     cover: str | None = None
     group_by: str = "year"
     order: str = "asc"
-    split: str = "none"
+    split: str = "year"
+    max_book_bytes: int = DEFAULT_MAX_BOOK_BYTES
     demote_headings: bool = True
     readability: str = "auto"
     excerpts: bool = True
@@ -172,6 +207,11 @@ class BlogConfig:
                 ) from exc
         _check_selectors(f"blog {self.id!r}", "keep", self.keep)
         _check_selectors(f"blog {self.id!r}", "remove", self.remove)
+        for pattern in self.title_strip:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ConfigError(f"blog {self.id!r}: invalid title_strip regex {pattern!r}: {exc}") from exc
         _check_date(f"blog {self.id!r}", "since", self.since)
         _check_date(f"blog {self.id!r}", "until", self.until)
         self.as_book()  # validates the book-level choices

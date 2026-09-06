@@ -55,6 +55,8 @@
 
   .strip { position: absolute; left: 96px; right: 96px; bottom: 84px; border-top: 3px solid rgba(255,255,255,.3); padding-top: 22px; font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 28px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); line-height: 1.5; }
   .strip b { color: var(--amber); font-weight: 800; }
+  .vol:empty { display: none; }
+  .vol::before { content: "\00a0\00b7\00a0"; }
 </style>
 </head>
 <body>
@@ -82,7 +84,7 @@
       <div class="over">API MANAGEMENT</div>
       <div class="name">DIGEST <span class="tag">MONTHLY</span></div>
     </div>
-    <div class="issue"><span>Issue <b>$issue_number</b></span><span class="bar"></span><span><b>$blog_count</b> sources</span><span class="bar"></span><span>the last 30 days of API management writing</span></div>
+    <div class="issue"><span>Issue <b>$issue_number</b><span class="vol">$volume_label</span></span><span class="bar"></span><span><b>$blog_count</b> sources</span><span class="bar"></span><span>the last 30 days of API management writing</span></div>
 
     <div class="lead">
       <div>

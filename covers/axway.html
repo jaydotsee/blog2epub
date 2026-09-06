@@ -51,6 +51,8 @@
   .strip { margin-top: 42px; border-top: 2px solid var(--line); padding-top: 24px; display: flex; justify-content: space-between;
            font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 34px; letter-spacing: 3px; text-transform: uppercase; color: var(--grey); }
   .strip .sep { color: var(--crimson); }
+  .vol:empty { display: none; }
+  .vol::before { content: "\00a0\00b7\00a0"; }
 </style>
 </head>
 <body>
@@ -79,7 +81,7 @@
   <div class="frame">
     <div class="kicker-top">ENTERPRISE INTEGRATION</div>
     <div class="masthead"><div class="name">AXWAY</div><div class="blog">BLOG</div></div>
-    <div class="issue"><span>Issue <b>$issue_number</b></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
+    <div class="issue"><span>Issue <b>$issue_number</b><span class="vol">$volume_label</span></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
 
     <div class="lines">
       <div class="line"><div class="kicker">$kicker1</div><div class="title">$title1</div></div>
@@ -87,12 +89,12 @@
       <div class="line"><div class="kicker">$kicker3</div><div class="title">$title3</div></div>
     </div>
 
-    <div class="badge"><div class="big">$count</div><div class="small">POSTS</div><div class="tiny">$first_year &ndash; $last_year</div></div>
+    <div class="badge"><div class="big">$count</div><div class="small">POSTS</div><div class="tiny">$years</div></div>
 
     <div class="headline">
       <div class="over">THE COMPLETE</div>
       <div class="big"><span>INTEGRATION</span><span class="accent">ARCHIVE</span></div>
-      <div class="dek">Every post from the <b>Axway</b> blog, $first_year to $last_year: API management, managed file transfer, B2B integration and the platforms enterprises run on.</div>
+      <div class="dek">Every post from the <b>Axway</b> blog, $years_prose: API management, managed file transfer, B2B integration and the platforms enterprises run on.</div>
     </div>
 
     <div class="strip"><span>API Management</span><span class="sep">/</span><span>MFT</span><span class="sep">/</span><span>B2B</span><span class="sep">/</span><span>Amplify</span></div>

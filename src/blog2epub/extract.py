@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from lxml import html
 from readability import Document
@@ -20,6 +21,70 @@ def _meta(doc: html.HtmlElement, *names: str) -> str | None:
             if el is not None and el.get("content"):
                 return el.get("content").strip()
     return None
+
+
+MIN_YEAR = 1995  # anything older than the web is a placeholder, not a publication date
+
+
+def _plausible_date(value: str | None) -> str | None:
+    """Drop the placeholder dates CMSes emit for "unset" (HubSpot writes 1970-01-01)."""
+    if not value or not isinstance(value, str) or not value.strip():
+        return None
+    v = value.strip()
+    year = re.match(r"(\d{4})", v)
+    if year and not (MIN_YEAR <= int(year.group(1)) <= 2100):
+        return None
+    return v
+
+
+TITLE_SEPARATORS = ("|", "\u2013", "\u2014", "-", "\u00b7", "\u00bb", "::", ":")
+MAX_SITE_SUFFIX = 40
+
+
+def _site_label(url: str) -> str:
+    """The blog's own name as its domain spells it: blog.axway.com -> "axway"."""
+    host = urlsplit(url).hostname or ""
+    parts = [p for p in host.split(".") if p not in ("www", "blog", "www2")]
+    return parts[0].lower() if parts else ""
+
+
+def _is_site_name(tail: str, label: str) -> bool:
+    """Is this trailing fragment the site naming itself? "Gravitee.io" against gravitee.io."""
+    word = re.sub(r"[^a-z0-9]", "", tail.lower())
+    if len(word) < 4 or len(label) < 4:
+        return False
+    return word.startswith(label) or label.startswith(word)
+
+
+def _strip_site_suffix(title: str, doc: html.HtmlElement, url: str) -> str:
+    """Drop a trailing " | Site Name" that the page itself shows is not part of the headline.
+
+    og:title and <title> routinely carry the site name; the <h1> does not. Two things can
+    show a tail is boilerplate, and nothing else counts: the page's own <h1> ends the
+    headline earlier, or the tail is simply the site naming itself. So a title that
+    genuinely contains a pipe survives, and so does a real subtitle after a dash.
+    """
+    separated = [
+        (title[:cut].strip(), title[cut:].lstrip(sep).strip())
+        for sep in TITLE_SEPARATORS
+        for cut in [title.rfind(sep)]
+        if cut > 0 and len(title) - cut <= MAX_SITE_SUFFIX
+    ]
+    label = _site_label(url)
+    for head, tail in separated:
+        if head and tail and _is_site_name(tail, label):
+            return head
+
+    h1 = doc.find(".//h1")
+    if h1 is None:
+        return title
+    headline = re.sub(r"\s+", " ", h1.text_content()).strip()
+    if len(headline) < 10 or headline == title or not title.startswith(headline):
+        return title
+    rest = title[len(headline) :].strip()
+    if len(rest) <= MAX_SITE_SUFFIX and rest.startswith(TITLE_SEPARATORS):
+        return headline
+    return title
 
 
 def _jsonld(doc: html.HtmlElement) -> dict[str, Any]:
@@ -42,9 +107,14 @@ def _jsonld(doc: html.HtmlElement) -> dict[str, Any]:
                 types = item.get("@type")
                 types = types if isinstance(types, list) else [types]
                 if any(t in ("Article", "BlogPosting", "NewsArticle", "TechArticle") for t in types):
-                    out.setdefault("datePublished", item.get("datePublished"))
-                    out.setdefault("dateModified", item.get("dateModified"))
-                    out.setdefault("headline", item.get("headline"))
+                    # A page can carry several Article nodes, some with placeholder dates.
+                    # setdefault would let the first empty or bogus one win, so test the value.
+                    for key in ("datePublished", "dateModified"):
+                        value = _plausible_date(item.get(key))
+                        if value and not out.get(key):
+                            out[key] = value
+                    if item.get("headline") and not out.get("headline"):
+                        out["headline"] = item["headline"]
                     author = item.get("author")
                     if isinstance(author, list) and author:
                         author = author[0]
@@ -68,13 +138,15 @@ def extract_article(
         title = h1.text_content().strip() if h1 is not None else ""
     if not title and doc.find(".//title") is not None:
         title = doc.findtext(".//title", "").strip()
-    title = re.sub(r"\s+", " ", title)
+    title = _strip_site_suffix(re.sub(r"\s+", " ", title), doc, url)
 
-    date = ld.get("datePublished") or _meta(doc, "article:published_time", "datePublished", "date")
+    date = ld.get("datePublished") or _plausible_date(
+        _meta(doc, "article:published_time", "datePublished", "date")
+    )
     if not date:
         t = doc.find(".//time[@datetime]")
-        date = t.get("datetime") if t is not None else None
-    modified = ld.get("dateModified") or _meta(doc, "article:modified_time", "dateModified")
+        date = _plausible_date(t.get("datetime")) if t is not None else None
+    modified = ld.get("dateModified") or _plausible_date(_meta(doc, "article:modified_time", "dateModified"))
     author = ld.get("author") or _meta(doc, "author", "article:author")
     excerpt = _meta(doc, "description", "og:description")
     featured = _meta(doc, "og:image", "twitter:image")

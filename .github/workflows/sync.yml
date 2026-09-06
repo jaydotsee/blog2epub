@@ -1,0 +1,56 @@
+# Weekly sync, and nothing else: fetch what is new into the download cache so a manual release
+# (release.yml) starts warm. GitHub evicts an Actions cache after seven days unused, and without
+# this a release after an idle fortnight re-fetches every post and image — an hour for the
+# biggest archive instead of minutes. Builds nothing, publishes nothing. Delete the schedule
+# block below if you would rather nothing ran unasked.
+name: Sync the cache
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"        # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Re-fetch every post (ignore the cache)"
+        type: boolean
+        default: false
+
+env:
+  UV_PYTHON: "3.12"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache            # never alongside a release
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --frozen --no-dev
+
+      # A unique key per run so the newest cache is always the one saved; restore-keys picks
+      # up the previous run's, or a release's.
+      - name: Restore download cache
+        uses: actions/cache@v4
+        with:
+          path: cache
+          key: blog2epub-cache-${{ github.run_id }}
+          restore-keys: |
+            blog2epub-cache-
+
+      - name: Sync every blog
+        run: uv run blog2epub -v sync ${{ inputs.full == true && '--full' || '' }} | tee sync.txt
+
+      - name: Summarise
+        run: |
+          { echo "## Sync"; echo; echo '```'; cat sync.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

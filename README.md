@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/jaydotsee/blog2epub/actions/workflows/ci.yml"><img src="https://github.com/jaydotsee/blog2epub/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/jaydotsee/blog2epub/actions/workflows/monitor.yml"><img src="https://github.com/jaydotsee/blog2epub/actions/workflows/monitor.yml/badge.svg" alt="Monitor"></a>
+  <a href="https://github.com/jaydotsee/blog2epub/actions/workflows/sync.yml"><img src="https://github.com/jaydotsee/blog2epub/actions/workflows/sync.yml/badge.svg" alt="Sync"></a>
   <a href="https://github.com/jaydotsee/blog2epub/releases"><img src="https://img.shields.io/github/v/release/jaydotsee/blog2epub?include_prereleases&label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue" alt="Python 3.10 to 3.13">
   <img src="https://img.shields.io/badge/EPUB%203-epubcheck%20clean-2ea44f" alt="EPUB 3, epubcheck clean">
@@ -34,9 +34,11 @@ and cross-links that stay inside the book. A book can be one blog's complete arc
 magazine-style digest that combines several blogs over a date range. Every book it produces passes
 the W3C [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
 
-It ships configured with four books: three complete archives — [Tyk](https://tyk.io/blog)
-(627 posts), [Kong](https://konghq.com/blog) (900 posts) and
-[Apigee](https://cloud.google.com/blog/products/apigee) (244 posts, back to 2011) — and the
+It ships configured with six books: five complete archives — [Tyk](https://tyk.io/blog)
+(627 posts), [Kong](https://konghq.com/blog) (900 posts),
+[Apigee](https://cloud.google.com/blog/products/apigee) (244 posts),
+[Axway](https://blog.axway.com) (1,968 posts, back to 2011) and
+[Gravitee](https://www.gravitee.io/blog) (656 posts) — and the
 **API Management Digest**, a monthly issue drawn from eleven API-management blogs. All are
 published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
 
@@ -102,10 +104,14 @@ exposes.
 - **Magazine digests.** Combine any number of blogs into one book, newest first, with a lead
   image per article and the blog name in every byline. Rolling windows (`since: 7d`, `1m`, `1y`)
   give a fresh issue on every build.
-- **Covers with live cover lines.** HTML templates rendered to JPG, with the newest post titles,
-  the post count and an issue number. Or point `cover:` at your own image.
-- **Scriptable and automated.** A plain CLI, a JSON report, a weekly GitHub Actions monitor
-  publishing to a rolling release, and an on-demand workflow for dated releases.
+- **Volumes that fit a reader.** A book is cut into one volume per year by default (or by
+  month, or only where a 200 MB budget says — Send to Kindle's limit, which no volume exceeds
+  either way); each volume is `<book>-<issue>.<n>.epub` with its own cover and navigation.
+- **Covers with live cover lines.** HTML templates rendered once per volume, with that volume's
+  newest post titles, post count, year span and issue number. Or point `cover:` at your own image.
+- **Scriptable, published by hand.** A plain CLI, a JSON report, and a GitHub Actions workflow
+  you run when you want an issue out: every book to its own dated tag plus a `<book>-latest`
+  that always holds the newest. A weekly job keeps the download cache warm and publishes nothing.
 
 ## How it works
 
@@ -152,34 +158,53 @@ posts with date, author, blog and excerpt.
 
 ## Installation
 
-Requires Python 3.10 or newer.
+The project is managed with [uv](https://docs.astral.sh/uv/); `uv.lock` pins every dependency.
+Requires Python 3.10 or newer, which uv will fetch if you have none.
 
 ```bash
 git clone https://github.com/jaydotsee/blog2epub.git
 cd blog2epub
-make setup            # creates .venv and installs blog2epub with the dev tools
+uv sync --all-extras          # .venv from the lockfile: blog2epub, the dev tools, every extra
+uv run playwright install chromium   # once, for the covers (optional)
 ```
 
-or, without the Makefile:
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
-```
-
-Image downscaling is part of a plain install. Java is only needed for `make epubcheck` and the
-optional validator test. Cover rendering needs the `covers` extra (Playwright) and a Chromium.
-SVG rasterisation needs the `svg` extra (cairosvg, which needs the cairo library: `libcairo2` on
-Debian and Ubuntu, `cairo` on Homebrew); `make setup` installs it.
+`make setup` does the first line. Image downscaling is part of a plain install. Java is only
+needed for `make epubcheck` and the optional validator test. Cover rendering needs the `covers`
+extra (Playwright) and a Chromium. SVG rasterisation needs the `svg` extra (cairosvg, which
+needs the cairo library: `libcairo2` on Debian and Ubuntu, `cairo` on Homebrew). Without
+either, the build says what it fell back to and carries on.
 
 ## Quick start
 
+`bin/blog2epub` runs the CLI through uv from any directory — no activation, and a fresh clone
+builds its environment on first use:
+
 ```bash
-.venv/bin/blog2epub list                    # what is configured
-.venv/bin/blog2epub run tyk                 # sync + build → output/tyk.epub
-.venv/bin/blog2epub run api-management      # sync its eleven blogs, build the digest
-.venv/bin/blog2epub status                  # cache and output state
+bin/blog2epub list                    # what is configured
+bin/blog2epub run tyk                 # sync + build → output/tyk-<issue>.1.epub, .2, ...
+bin/blog2epub run api-management      # sync its eleven blogs, build the digest
+bin/blog2epub status                  # cache and output state
 ```
+
+`uv run blog2epub ...` is the same thing from inside the checkout.
+
+### Scheduling with cron
+
+`bin/publish` is the cron entry point: one book (or blog) per line, each on its own schedule.
+It syncs, builds whatever changed, logs to `logs/<ids>-<date>.log` with a one-line summary in
+`logs/publish.log`, finds uv even from cron's bare `PATH`, and serialises on the download cache
+so two entries that overlap queue rather than fetch alongside each other.
+
+```crontab
+# m  h  dom mon dow  command
+0    6  *   *   1    /home/you/blog2epub/bin/publish tyk
+30   6  *   *   1    /home/you/blog2epub/bin/publish kong
+0    7  1   *   *    /home/you/blog2epub/bin/publish --force api-management
+```
+
+`--force` rebuilds even when nothing new was fetched (a rolling digest wants that), `--full`
+re-fetches everything, `--issue YYYYMMDD` pins the issue date. The exit code is blog2epub's:
+`2` when a blog failed, with the other books still built.
 
 ### Adding a blog
 
@@ -188,14 +213,14 @@ candidate extraction rules, a real extraction of five posts with a check for oth
 in, the site's brand colours, and a draft config entry.
 
 ```bash
-.venv/bin/python scripts/probe_blog.py https://example.com/blog
+uv run scripts/probe_blog.py https://example.com/blog
 ```
 
 `AGENTS.md` explains what to do with the answers and the traps to avoid; the `/add-blog` skill
 walks the whole path from URL to published release. For a quick look at just the source:
 
 ```
-$ .venv/bin/blog2epub detect https://konghq.com/blog
+$ bin/blog2epub detect https://konghq.com/blog
 source: feed (https://konghq.com/feed/)
 posts:  10
   2026-09-03T15:02:11+00:00  Kong Gateway Now Supports FIPS 140-3  https://konghq.com/blog/product-releases/kong-gateway-fips-140-3
@@ -290,11 +315,12 @@ Any blog or book key may also appear under `defaults`.
 | `author`, `description`, `publisher`, `language` | – / `en` | EPUB metadata; the description also appears on the title page and generated cover. |
 | `since`, `until` | – | Only posts published in this range. A date, or a rolling window like `7d`, `2w`, `3m`, `1y` measured from the time of the build. |
 | `max_posts` | – | Keep the N most recent posts across all the book's blogs. |
-| `cover` | – | JPG/PNG path relative to `blogs.yaml`, or a URL (downloaded once). Otherwise a cover is generated. |
+| `cover` | – | An HTML template (rendered once per volume, see [Magazine covers](#magazine-covers)), a JPG/PNG path relative to `blogs.yaml`, or a URL (downloaded once). Otherwise a cover is generated. |
 | `images` | `true` | Embed images. `false` gives a text-only edition. |
 | `group_by` | `year` | Part level of the TOC: `year`, `year-month` (years with month sub-sections), `month`, `blog` or `none`. |
 | `order` | `asc` | `asc` reads oldest to newest like a book; `desc` is magazine order. |
-| `split` | `none` | `year` writes one EPUB per year (`<id>-<year>.epub`). |
+| `split` | `year` | How the book is cut into volumes: `year` and `month` cut on the posts' dates; `size` cuts only where `max_book_bytes` says; `none` is one file whatever the size. |
+| `max_book_bytes` | `200MB` | No volume exceeds this, whatever the split (except `none`): a year that outgrows it is cut by size inside the year. Bytes, or `150MB`, `1.5GB`. |
 | `demote_headings` | `true` | Shift headings inside posts down so the post title is the only `h1`. |
 | `readability` | `auto` | Build-time readability pass: `auto` (feed bodies only), `always`, `never`. |
 | `excerpts` | `true` | Excerpts on the part pages. |
@@ -405,13 +431,13 @@ before them in reading order.
     group_by: year-month
 ```
 
-**A blog's complete archive, one file per year.** Big archives with images get large (the full
-tyk.io book is about 50 MB). Split it:
+**A blog's complete archive as few files as possible.** The default is one volume per year (see
+[Volumes](#volumes)); to cut only where the size budget says:
 
 ```yaml
   - id: tyk
     url: https://tyk.io/blog
-    split: year               # output/tyk-2015.epub ... output/tyk-2026.epub
+    split: size               # output/tyk-20260905.1.epub, .2, ... each under max_book_bytes
 ```
 
 **A weekly issue.** Newest first, grouped by blog, always the last seven days at build time:
@@ -476,7 +502,7 @@ is a tag page; the posts live under other product sections. Match where they rea
 
 ## The complete-archive books
 
-Two blogs are configured as complete archives, newest first, with year → month navigation and
+Five blogs are configured as complete archives, newest first, with year → month navigation and
 their own covers:
 
 | Book | Source | Posts | Notes |
@@ -484,6 +510,8 @@ their own covers:
 | `tyk` | WordPress REST API | 627 | The API delivers every post with full metadata in seven requests. |
 | `kong` | `sitemaps/blogs.xml` | 900 | The feed carries only the latest ten, so the sitemap is used instead. |
 | `apigee` | Google's `cloudblog` sitemap | 244 | The URL given is a tag page, not a section; posts live under other product paths. |
+| `axway` | WordPress REST API | 1,968 | The longest archive here, back to 2011, across API management, MFT and B2B. |
+| `gravitee` | HubSpot sitemap | 656 | Gravitee publishes through HubSpot, so the archive is in that sitemap, not the site's own. |
 
 Kong's pages prerender twenty related-post cards into every article, which readability alone
 mistakes for part of the story, so the entry uses a `keep` selector for the article body plus
@@ -491,10 +519,41 @@ mistakes for part of the story, so the entry uses a `keep` selector for the arti
 [Site rules](#site-rules) on a modern JavaScript-rendered site. Apigee is the worked example of a
 blog URL that is a tag page: nothing lives under `/blog/products/apigee`, so the entry matches
 where the posts really are and walks only the English partitions of Google's 1058-file sitemap
-index.
+index. Gravitee is the worked example of a blog whose archive lives on the platform it publishes
+through: its own sitemap knows nothing of the posts, HubSpot's has all of them, and the two
+disagree about trailing slashes, which `get_text_tolerant` absorbs.
+
+Axway is the largest book here: 1,968 posts and 4,799 images come to 291 MB, which no single
+file should be. It is the reason books are cut into volumes.
+
+## Volumes
+
+A book is written as one or more **volumes**, `output/<book>-<issue>.<n>.epub`, where the issue
+is the build date as `YYYYMMDD` and `n` counts from 1 in reading order. The `split` key says
+where the cuts go:
+
+- `year` (the default) and `month` cut on the posts' dates, one volume per calendar period. A
+  year is a stable unit: next issue's *Tyk Blog 2023* holds the same posts as this one's, and
+  only the current year's volume grows.
+- `size` cuts only where `max_book_bytes` says, packing posts in reading order into as few
+  volumes as fit. Most books then fit in one, simply `<book>-<issue>.1.epub`.
+- `none` writes one file whatever the size.
+
+Whatever the split, no volume exceeds `max_book_bytes` — `200MB` unless you say otherwise,
+because that is what Send to Kindle accepts — except with `none`. The planner weighs each post's
+text as the zip will store it and its images at their file size, counting an image shared by
+several posts once per volume, so the cut lands where the budget says and the actual file comes
+in under it. A year that outgrows the budget is cut inside the year and its parts numbered
+(*Tyk Blog 2018, part 1 of 2*).
+
+Each volume is a complete book of its own: its own cover, title page (`Issue 20260905.2 ·
+Volume 2 of 12`), contents and navigation, and a title such as *Tyk Blog 2024* or, with
+`split: size`, *Axway Blog, Vol. 2*. A link to a post that landed in another volume goes back to the post's web page rather
+than dangling. Rebuilding a book removes its files from earlier issues; `blog2epub build
+--issue 20260905` pins the issue when a release is built on a later day.
 
 ```bash
-.venv/bin/blog2epub run kong     # sync + build → output/kong.epub
+bin/blog2epub run kong     # sync + build → output/kong-<issue>.<n>.epub
 ```
 
 ## The API Management Digest
@@ -502,11 +561,13 @@ index.
 `blogs.yaml` ships a second book, `api-management`: a monthly digest of the last 30 days of posts
 from API Changelog, API Evangelist, API Scene, APIDAYS (which publishes on API Scene), Axway,
 Bruno Pedro, Gravitee, Kong, Nordic APIs, Postman and Tyk. It uses a rolling `since: 1m` window
-measured at build time, one part per blog, newest first, and its own cover. The digest-only blogs
-carry `since: 3m` so their first sync stays small; the cache accumulates from then on.
+measured at build time, one part per blog, newest first, and its own cover. It sets `split: size`
+because an issue is one thing whatever years its thirty days span — the year default would cut a
+January digest in two at New Year. The digest-only blogs carry `since: 3m` so their first sync
+stays small; the cache accumulates from then on.
 
 ```bash
-.venv/bin/blog2epub run api-management     # sync its blogs, build output/api-management.epub
+bin/blog2epub run api-management     # sync its blogs, build output/api-management-<issue>.1.epub
 ```
 
 Because the window rolls, the weekly workflow always produces a fresh issue; the release workflow
@@ -515,14 +576,17 @@ Because the window rolls, the weekly workflow always produces a fresh issue; the
 ## Magazine covers
 
 <p align="center">
-  <img src="covers/tyk.jpg" width="30%" alt="Tyk Blog cover">
-  <img src="covers/kong.jpg" width="30%" alt="Kong Blog cover">
-  <img src="covers/api-management.jpg" width="30%" alt="API Management Digest cover">
+  <img src="covers/tyk.jpg" width="19%" alt="Tyk Blog cover">
+  <img src="covers/kong.jpg" width="19%" alt="Kong Blog cover">
+  <img src="covers/apigee.jpg" width="19%" alt="Apigee Blog cover">
+  <img src="covers/axway.jpg" width="19%" alt="Axway Blog cover">
+  <img src="covers/gravitee.jpg" width="19%" alt="Gravitee Blog cover">
 </p>
 
-`covers/tyk.jpg`, `covers/kong.jpg` and `covers/api-management.jpg` are rendered from the HTML
-templates next to them by `scripts/render_cover.py`, each in its blog's own brand palette: Tyk's
-purple, Kong's acid lime on near-black, and teal and amber for the digest. The Tyk cover uses a masthead, three
+Every book has a cover rendered from the HTML template next to it by `scripts/render_cover.py`,
+each in its blog's own brand palette: Tyk's purple, Kong's acid lime on near-black, Google's four
+colours for Apigee, Axway's crimson on warm off-white, Gravitee's flame on near-black, and teal
+and amber for the digest. The Tyk cover uses a masthead, three
 kicker-plus-title cover lines taken from the newest cached posts, a hexagon badge with the post
 count and year span, and a topic strip. The digest cover uses the month as its headline, the lead
 post as the main cover line, four more posts with their blog names as kickers, a post-count stamp
@@ -532,44 +596,46 @@ and the list of sources. Re-render them after a sync to refresh the cover lines:
 make cover        # installs the `covers` extra (Playwright) and renders every cover
 ```
 
-The cover carries an issue number, the render date as `2026.09.05`, and the title page inside the
-book repeats it as `Issue 2026.09.05` from the build date. The weekly workflow re-renders the cover
-before building, so both stay current. Copy a template to make a cover for another blog or book;
-the placeholders (`$count`, `$issue`, `$issue_number`, `$month`, `$kicker1`, `$title1`, ...) work
-for any id. Fonts are bundled under `covers/fonts/` (SIL Open Font License), so rendering is
-identical everywhere and needs no network.
+Those JPGs are previews. The real covers are rendered by the build itself: when `cover:` names an
+HTML template, every volume gets the template filled with **its own** post count, year span,
+cover lines and issue number (`20260905.2`), plus `$volume_label` (*2024* for a year split,
+*Vol. 2 of 3* for a size split, empty for a book that is one volume), so a twelve-volume archive
+has twelve different covers and the title page inside each repeats the same issue number. Without Playwright the build uses the image beside the
+template and says so. Copy a template to make a cover for another blog or book; the placeholders
+(`$count`, `$years` — *2015 – 2026*, or just *2015* for a one-year volume — `$years_prose`,
+`$first_year`, `$last_year`, `$issue`, `$issue_number`, `$volume`, `$volumes`, `$volume_label`,
+`$month`, `$kicker1`, `$title1`, ...) work for any id. Fonts are bundled under
+`covers/fonts/` (SIL Open Font License), so rendering is identical everywhere and needs no
+network.
 
-## Keeping books current with GitHub Actions
+## Publishing with GitHub Actions
 
-`.github/workflows/monitor.yml` runs every Monday at 06:00 UTC and on demand:
+Releases are manual. Nothing publishes unless you press the button.
 
-1. restores `cache/` from the previous run with `actions/cache`, so only new posts are fetched;
-2. re-renders the covers so cover lines and issue numbers match this run;
-3. runs `blog2epub run --report report.json`, which rebuilds every book whose blogs changed;
-4. uploads all EPUBs as a workflow artifact (kept 30 days);
-5. when something changed, refreshes the rolling **`latest`** GitHub release, so the newest books
-   are always at `https://github.com/jaydotsee/blog2epub/releases/tag/latest`;
-6. writes a summary to the job page.
+**`Release books`** (`.github/workflows/release.yml`) — Actions tab → *Release books* → *Run
+workflow*. It takes `books` (`all`, or ids like `tyk,kong`), `issue` (a `YYYYMMDD`, default
+today) and `full`. For each book, one after another so every sync lands in the shared cache, it
+syncs, builds with a cover per volume, and publishes to **two tags**:
 
-"Run workflow" accepts two switches: `force` rebuilds every book, `full` ignores the cache and
-re-fetches everything. Nothing generated is committed; `cache/` and `output/` are git-ignored.
+| Tag | What it is |
+| --- | --- |
+| `tyk-20260906` | The **issue**: its volumes `tyk-20260906.1.epub`, `.2`, … with a table of them in the notes. Kept for good. Run the workflow again with the same `issue` and the files are replaced, not added to. |
+| `tyk-latest` | The **newest issue**, moved on every run. A stable link: `https://github.com/jaydotsee/blog2epub/releases/tag/tyk-latest`. |
 
-`.github/workflows/release.yml` publishes one book as a **dated release**. Three ways to run it,
-all producing the tag `<book>-<YYYY.MM.DD>` with the EPUB attached:
+**`Sync the cache`** (`.github/workflows/sync.yml`) runs every Monday and on demand. It only
+fetches what is new into the download cache and publishes nothing: GitHub evicts an Actions
+cache after seven days unused, and without this a release after an idle fortnight re-fetches
+every post and image — an hour for the biggest archive instead of minutes. Delete its `schedule`
+block if you would rather nothing ran unasked.
 
-```bash
-git tag -a tyk-2026.09.05 -m "Tyk Blog, issue 2026.09.05" && git push origin tyk-2026.09.05
-git push origin main:release/tyk-2026.09.05        # for hosts that block tag pushes
-# or: Actions tab → "Release a book" → Run workflow → book id
-```
-
-To run somewhere else, any scheduler that can call `blog2epub run` works: the cache directory is
-the only state.
+Nothing generated is committed; `cache/` and `output/` are git-ignored. To run somewhere else,
+any scheduler that can call `blog2epub run` works: the cache directory is the only state.
 
 ## Reading the books
 
 - **Kobo, PocketBook, Tolino, Boox, Apple Books, Calibre:** copy the `.epub` over as is.
-- **Kindle:** Send to Kindle accepts EPUB up to 200 MB via the web and app, 25 MB via email.
+- **Kindle:** Send to Kindle accepts EPUB up to 200 MB via the web and app, 25 MB via email;
+  `max_book_bytes` keeps every volume under the first limit.
   Amazon's converter treats a book as fixed layout ("original layout preserved, similar to PDF")
   when it finds content it cannot reflow, SVG images in particular. blog2epub therefore rasterises
   SVG images and the generated cover to PNG by default (`svg_images: raster`, which needs the
@@ -610,18 +676,19 @@ src/blog2epub/
   assets/styles.css            e-reader friendly stylesheet
 tests/                         pytest suite; runs offline with a fake HTTP client
 .github/workflows/ci.yml       ruff, mypy, pytest + epubcheck on every push
-.github/workflows/monitor.yml  weekly sync/build/release
-.github/workflows/release.yml  dated release of one book
+.github/workflows/release.yml  manual: sync, build, publish each book to <book>-<issue> and <book>-latest
+.github/workflows/sync.yml     weekly: keep the download cache warm, publish nothing
 ```
 
 ## Development
 
 ```bash
-make check            # ruff (lint + format check), mypy, pytest
+make check            # ruff (lint + format check), mypy, pytest — all through `uv run`
 make format           # apply ruff fixes and formatting
 make test
 make epubcheck        # build everything, then validate with the W3C checker (needs Java)
 EPUBCHECK_JAR=path/to/epubcheck.jar make test   # also runs the validator inside the test suite
+uv lock               # after changing dependencies in pyproject.toml; commit uv.lock
 ```
 
 [AGENTS.md](AGENTS.md) is the working guide: ground rules, the recipe pattern for adding a blog,
@@ -645,9 +712,11 @@ HTTP client.
 - **A blog is unreachable**: it is reported as an error and the run continues with the other blogs;
   the exit code is 2 so CI notices. Books that include the failed blog are still built from what
   the cache holds.
-- **Book too large**: images dominate. Every build reports what optimisation saved; if it says
-  nothing, check the log for a Pillow error. Then lower `max_image_width` or `image_quality`, or
-  use `split: year` or `images: false`.
+- **Book too large**: a volume never exceeds `max_book_bytes` unless the book has
+  `split: none`, so a "too large" file means that, or a budget set higher than the reader takes.
+  Images dominate; every build reports what optimisation saved, and if it says nothing, check
+  the log for a Pillow error. Then lower `max_image_width` or `image_quality`, set
+  `max_book_bytes` smaller, or use `images: false`.
 - **Kindle shows "original layout preserved" / no font size control**: the converter met SVG. Make
   sure the `svg` extra is installed (the build warns when it is not) or set `svg_images: drop`.
 - **A post is missing**: check `include`/`exclude`, `since`/`until`, and whether the source lists

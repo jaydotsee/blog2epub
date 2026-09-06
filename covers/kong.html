@@ -56,6 +56,8 @@
   .strip { margin-top: 50px; border-top: 3px solid rgba(231,237,229,.32); padding-top: 26px; display: flex; justify-content: space-between; align-items: center;
            font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 37px; letter-spacing: 3px; text-transform: uppercase; }
   .strip .sep { color: var(--lime); }
+  .vol:empty { display: none; }
+  .vol::before { content: "\00a0\00b7\00a0"; }
 </style>
 </head>
 <body>
@@ -105,7 +107,7 @@
       <div class="name">KONG</div>
       <div class="blog">BLOG</div>
     </div>
-    <div class="issue"><span>Issue <b>$issue_number</b></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span><span class="bar"></span><span>Complete archive</span></div>
+    <div class="issue"><span>Issue <b>$issue_number</b><span class="vol">$volume_label</span></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span><span class="bar"></span><span>Complete archive</span></div>
 
     <div class="lines">
       <div class="line"><div class="kicker">$kicker1</div><div class="title">$title1</div></div>
@@ -116,13 +118,13 @@
     <div class="badge">
       <div class="big">$count</div>
       <div class="small">POSTS</div>
-      <div class="tiny">$first_year &ndash; $last_year</div>
+      <div class="tiny">$years</div>
     </div>
 
     <div class="headline">
       <div class="over">THE COMPLETE</div>
       <div class="big"><span>GATEWAY</span><span class="alt">ARCHIVE</span></div>
-      <div class="under">$first_year &ndash; $last_year</div>
+      <div class="under">$years</div>
       <div class="dek">Every post from the <b>Kong</b> blog: API gateways, service mesh, AI gateways and the platform engineering that connects them.</div>
     </div>
 

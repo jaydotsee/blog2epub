@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Run the blog2epub CLI from anywhere, through uv, without activating anything:
+#
+#   bin/blog2epub list
+#   bin/blog2epub run tyk
+#   bin/blog2epub -v build kong --issue 20260906
+#
+# `uv run --frozen` uses the environment the lockfile describes and creates it on first use,
+# so a fresh clone needs nothing but uv. Every extra is included, so the covers render and
+# SVGs rasterise when Chromium and cairo are present; the build says so when they are not.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=bin/_uv.sh
+. "$here/bin/_uv.sh"
+
+exec "$UV" run --frozen --all-extras --project "$here" blog2epub "$@"

@@ -17,7 +17,8 @@ defaults:
   max_image_bytes: 8000000    # skip images larger than this
   group_by: year              # year | year-month | month | blog | none  -> the "part" level of the navigation
   order: asc                  # asc = oldest post first (reads like a book); desc = newest first (magazine)
-  split: none                 # none = one EPUB per book; year = one EPUB per year
+  split: year                 # year | month | size | none: how a book is cut into volumes (see README)
+  max_book_bytes: 200MB       # no volume exceeds this (except with `none`); Send to Kindle's limit
   demote_headings: true       # shift headings inside posts down so the post title stays the only h1
   readability: auto           # auto | always | never  (see README)
   excerpts: true              # excerpts on the contents pages
@@ -34,7 +35,7 @@ blogs:
       - "^https://tyk\\.io/blog/"     # only posts whose URL matches one of these regexes
     exclude: []
     # since: "2020-01-01"     # lower bound on publication date; "1y", "3m", "2w", "7d" work too
-    cover: covers/tyk.jpg     # rendered by `make cover`; a jpg/png path (relative to this file) or a URL
+    cover: covers/tyk.html   # an HTML template is rendered per volume; a jpg/png path or URL is used as is
     order: desc               # newest post first
     group_by: year-month      # contents: year -> month -> posts
     # keep: ["article.post"]  # CSS selectors: the article container(s), Calibre-recipe style
@@ -76,7 +77,7 @@ blogs:
     source: wordpress        # the REST API returns posts only, so no include regex is needed
     order: desc              # newest post first
     group_by: year-month     # contents: year -> month -> posts
-    cover: covers/axway.jpg  # rendered by `make cover`
+    cover: covers/axway.html
   - id: brunopedro
     title: "Bruno Pedro"
     url: https://brunopedro.com
@@ -95,9 +96,13 @@ blogs:
     sitemap: { url: https://www.gravitee.io/sitemap.hubspot.xml }
     include:
       - "^https://www\\.gravitee\\.io/blog/[^/]+/?$"
+    # A batch of posts migrated in still carries Ambassador Labs' SEO title. The page is
+    # Gravitee's now, so that trailing brand is stale furniture rather than attribution.
+    title_strip:
+      - "\\s*\\|\\s*Ambassador(\\s+Labs)?\\s*$"
     order: desc              # newest post first
     group_by: year-month     # contents: year -> month -> posts
-    cover: covers/gravitee.jpg
+    cover: covers/gravitee.html
   - id: kong
     title: "Kong Blog"
     url: https://konghq.com/blog
@@ -124,7 +129,7 @@ blogs:
       - "span.agent"
     order: desc               # newest post first
     group_by: year-month      # contents: year -> month -> posts
-    cover: covers/kong.jpg    # rendered by `make cover`
+    cover: covers/kong.html
   - id: nordicapis
     title: "Nordic APIs"
     url: https://nordicapis.com/blog
@@ -158,7 +163,7 @@ blogs:
       - "^https://cloud\\.google\\.com/blog/(products/api-management/|[^ ]*apigee)"
     order: desc               # newest post first
     group_by: year-month      # contents: year -> month -> posts
-    cover: covers/apigee.jpg  # rendered by `make cover`
+    cover: covers/apigee.html
 
 books:
   - id: api-management
@@ -169,4 +174,7 @@ books:
     since: 1m                 # rolling 30-day window, measured at build time
     group_by: blog            # one part per blog
     order: desc               # newest first
-    cover: covers/api-management.jpg   # rendered by `make cover`
+    # One issue, whatever years its thirty days span: the year default would cut a January
+    # digest in two at New Year. Size only, which for a month of posts is one file.
+    split: size
+    cover: covers/api-management.html

@@ -1,102 +1,173 @@
-# Build one book and publish it as a dated GitHub release.
+# Publish books. Manual only: Actions tab -> "Release books" -> Run workflow.
 #
-# Three ways to run it (all produce the release tag <book>-<YYYY.MM.DD>):
-#   git tag tyk-2026.09.05 && git push origin tyk-2026.09.05
-#   git push origin main:release/tyk-2026.09.05          (a throwaway branch, for hosts that block tag pushes)
-#   Actions tab -> "Release a book" -> Run workflow with the book id
-name: Release a book
+# Each book selected becomes an issue, <book>-<YYYYMMDD>, holding its volumes
+# <book>-<YYYYMMDD>.<n>.epub with a table of them in the notes, and <book>-latest is moved to
+# the same files so there is always one link to the newest Tyk, Kong, ... A re-run of the same
+# issue replaces its files. Books are built one after another so each sync lands in the shared
+# download cache that the weekly sync.yml keeps warm.
+name: Release books
 
 on:
-  push:
-    tags:
-      - "*-[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]"
-    branches:
-      - "release/*-[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]"
   workflow_dispatch:
     inputs:
-      book:
-        description: "Book id from blogs.yaml (e.g. tyk, api-management)"
+      books:
+        description: "Book ids from blogs.yaml, comma-separated, or `all`"
         required: true
-        default: "tyk"
+        default: "all"
+      issue:
+        description: "Issue date as YYYYMMDD (default: today, UTC). Re-use a date to replace that issue's files."
+        required: false
+        default: ""
       full:
         description: "Re-fetch every post (ignore the cache)"
         type: boolean
         default: false
 
+env:
+  UV_PYTHON: "3.12"
+
 permissions:
   contents: write
 
 concurrency:
-  group: monitor          # share the cache lock with the weekly monitor
+  group: cache            # one job at a time touches the download cache
   cancel-in-progress: false
 
 jobs:
-  release:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      books: ${{ steps.plan.outputs.books }}
+      issue: ${{ steps.plan.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --frozen --no-dev
+      - name: Which books, which issue
+        id: plan
+        run: |
+          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, re, sys
+          from datetime import datetime, timezone
+          from blog2epub.config import load_config
+          known = [b.id for b in load_config("blogs.yaml").all_books()]
+          asked = "${{ inputs.books }}".strip()
+          books = known if asked in ("", "all") else [b.strip() for b in asked.split(",") if b.strip()]
+          unknown = [b for b in books if b not in known]
+          if unknown:
+              sys.exit(f"::error::unknown book(s) {unknown}; configured: {known}")
+          issue = "${{ inputs.issue }}".strip() or datetime.now(timezone.utc).strftime("%Y%m%d")
+          if not re.fullmatch(r"\d{8}", issue):
+              sys.exit(f"::error::issue must be YYYYMMDD, not {issue!r}")
+          print(f"books={json.dumps(books)}")
+          print(f"issue={issue}")
+          PY
+
+  release:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1       # sequential, so every book's sync is in the cache the next one restores
+      matrix:
+        book: ${{ fromJSON(needs.plan.outputs.books) }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
-
-      - name: Which book
-        id: which
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            name="${GITHUB_REF_NAME#release/}"
-            book="${name%-*}"; issue="${name##*-}"
-          else
-            book="${{ inputs.book }}"; issue="$(date -u +%Y.%m.%d)"
-          fi
-          if [ -z "$book" ]; then
-            echo "::error::No book id. Dispatch with a book, or push a release/<book>-<date> branch."
-            exit 1
-          fi
-          echo "book=$book" >> "$GITHUB_OUTPUT"
-          echo "issue=$issue" >> "$GITHUB_OUTPUT"
-          echo "Releasing $book as issue $issue"
+          enable-cache: true
 
       - name: Install
-        run: pip install -e ".[covers,svg]"
+        run: uv sync --frozen --no-dev --extra covers --extra svg
 
+      # Each volume's cover is rendered from its template during the build. Best effort: if
+      # Chromium cannot be set up, the build falls back to the committed cover image and says so.
+      - name: Install Chromium for the covers
+        continue-on-error: true
+        run: uv run python -m playwright install --with-deps chromium
+
+      # A unique key per job so the newest cache is always the one saved; restore-keys picks up
+      # the previous job's (or the weekly sync's) cache.
       - name: Restore download cache
         uses: actions/cache@v4
         with:
           path: cache
-          key: blog2epub-cache-${{ github.run_id }}
+          key: blog2epub-cache-${{ github.run_id }}-${{ matrix.book }}
           restore-keys: |
             blog2epub-cache-
 
       - name: Sync
-        run: blog2epub -v sync "${{ steps.which.outputs.book }}" ${{ inputs.full == true && '--full' || '' }}
-
-      - name: Render cover
-        continue-on-error: true
-        run: |
-          if [ -f "covers/${{ steps.which.outputs.book }}.html" ]; then
-            python -m playwright install --with-deps chromium
-            if grep -q "^  - id: ${{ steps.which.outputs.book }}$" blogs.yaml; then target="--blog"; else target="--book"; fi
-            python scripts/render_cover.py $target "${{ steps.which.outputs.book }}" --template "covers/${{ steps.which.outputs.book }}.html" --out "covers/${{ steps.which.outputs.book }}.jpg"
-          fi
+        run: uv run blog2epub -v sync "${{ matrix.book }}" ${{ inputs.full == true && '--full' || '' }}
 
       - name: Build
         id: build
         run: |
-          blog2epub -v build "${{ steps.which.outputs.book }}"
-          title=$(python -c "import sys; from blog2epub.config import load_config; print(load_config('blogs.yaml').book(sys.argv[1]).title)" "${{ steps.which.outputs.book }}")
-          echo "title=$title" >> "$GITHUB_OUTPUT"
+          uv run blog2epub -v build "${{ matrix.book }}" --issue "${{ needs.plan.outputs.issue }}" --report build.json
+          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          r = json.load(open("build.json"))
+          book = r["books"][0]
+          if book.get("error") or not book["built"]:
+              raise SystemExit(f"::error::{book.get('error') or 'nothing was built'}")
+          print(f"title={book['title']}")
+          vols = book["built"]
+          lines = [f"{book['title']}, issue {r['issue']}, built by blog2epub.", ""]
+          if len(vols) > 1:
+              lines.append(f"{sum(v['posts'] for v in vols)} posts in {len(vols)} volumes, each under the size Send to Kindle accepts:")
+              lines.append("")
+              lines.append("| File | Volume | Posts | Covers | Size |")
+              lines.append("| --- | --- | --- | --- | --- |")
+              for v in vols:
+                  span = f"{v['first_date']} to {v['last_date']}" if v["first_date"] else ""
+                  lines.append(f"| `{v['file']}` | {v['label'] or v['title']} | {v['posts']} | {span} | {v['bytes'] / 1e6:.1f} MB |")
+          else:
+              v = vols[0]
+              span = f", {v['first_date']} to {v['last_date']}" if v["first_date"] else ""
+              lines.append(f"`{v['file']}`: {v['posts']} posts{span}, {v['bytes'] / 1e6:.1f} MB.")
+          lines += ["", "EPUB 3, validated with epubcheck. Copy to your e-reader or send to Kindle."]
+          print("body<<EOF"); print("\n".join(lines)); print("EOF")
+          PY
           ls -la output/
 
-      - name: Publish release
+      # An issue is one set of files, so re-running it replaces them; the rolling tag likewise.
+      # Both run after Build, so a failed build never empties a good release.
+      - name: Clear the issue's and the rolling release's existing assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/clear_release_assets.sh "${{ matrix.book }}-${{ needs.plan.outputs.issue }}"
+          scripts/clear_release_assets.sh "${{ matrix.book }}-latest"
+
+      - name: Publish the issue
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.which.outputs.book }}-${{ steps.which.outputs.issue }}
+          tag_name: ${{ matrix.book }}-${{ needs.plan.outputs.issue }}
           target_commitish: ${{ github.sha }}
-          name: "${{ steps.build.outputs.title }} — Issue ${{ steps.which.outputs.issue }}"
-          body: |
-            ${{ steps.build.outputs.title }}, built ${{ steps.which.outputs.issue }} by blog2epub.
+          name: "${{ steps.build.outputs.title }} — Issue ${{ needs.plan.outputs.issue }}"
+          body: ${{ steps.build.outputs.body }}
+          files: output/${{ matrix.book }}-${{ needs.plan.outputs.issue }}.*.epub
+          make_latest: false
 
-            EPUB 3, validated with epubcheck. Copy to your e-reader or send to Kindle.
-          files: output/${{ steps.which.outputs.book }}*.epub
+      # The rolling tag has to move to this commit, or the release page shows the old one.
+      - name: Point the rolling tag here
+        run: |
+          git tag -f "${{ matrix.book }}-latest" "${{ github.sha }}"
+          git push -f origin "refs/tags/${{ matrix.book }}-latest"
+
+      - name: Publish as the book's latest
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ matrix.book }}-latest
+          target_commitish: ${{ github.sha }}
+          name: "${{ steps.build.outputs.title }} — latest (issue ${{ needs.plan.outputs.issue }})"
+          body: |
+            The newest issue of ${{ steps.build.outputs.title }}, currently ${{ needs.plan.outputs.issue }}.
+            Every issue is kept under its own tag, `${{ matrix.book }}-YYYYMMDD`.
+
+            ${{ steps.build.outputs.body }}
+          files: output/${{ matrix.book }}-${{ needs.plan.outputs.issue }}.*.epub
           make_latest: false

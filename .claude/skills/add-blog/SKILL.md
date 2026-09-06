@@ -33,7 +33,7 @@ Skip the question when the user has already answered it in their request.
 ## Phase 1 — Probe
 
 ```bash
-.venv/bin/python scripts/probe_blog.py <url>
+uv run scripts/probe_blog.py <url>
 ```
 
 Read the whole report before deciding anything. It gives you: every source that answers and the
@@ -59,7 +59,7 @@ cards) and readability has swallowed them. Fix it before going further:
 3. Re-run the probe with the rules and confirm bleed is zero on **every** sample:
 
 ```bash
-.venv/bin/python scripts/probe_blog.py <url> --keep "[class*='Article_body']" \
+uv run scripts/probe_blog.py <url> --keep "[class*='Article_body']" \
     --remove "[class*='Card_card']" --remove "[class*='Newsletter']"
 ```
 
@@ -77,13 +77,13 @@ apply the answers from phase 0. Comment every non-obvious rule with *why* it is 
 Then confirm the entry parses and reads as intended:
 
 ```bash
-.venv/bin/blog2epub list
+bin/blog2epub list
 ```
 
 ## Phase 4 — Sync
 
 ```bash
-.venv/bin/blog2epub -v sync <id>
+bin/blog2epub -v sync <id>
 ```
 
 A large archive takes many minutes at the polite request delay, so **run it in the background** and
@@ -95,7 +95,9 @@ are namespaced per source, so every post would be cached twice.
 ## Phase 5 — Cover
 
 Copy the closest template in `covers/` to `covers/<id>.html` and restyle it with the brand colours
-the probe found. Make it look like its blog and unlike the other books. Then:
+the probe found. Make it look like its blog and unlike the other books. Keep the
+`$volume_label` span beside the issue number: a split archive uses it to say *Vol. 2 of 3*. Set
+`cover: covers/<id>.html` on the entry; the build renders the template once per volume. Then:
 
 ```bash
 make cover
@@ -107,27 +109,37 @@ titles, and the count and year range are right.
 ## Phase 6 — Build and validate
 
 ```bash
-.venv/bin/blog2epub build <id>
-make epubcheck          # must report zero errors AND zero warnings
+bin/blog2epub build <id>
+make epubcheck          # must report zero errors AND zero warnings, for every volume
 ```
 
-Warnings are not acceptable: they are how Kindle decides a book is malformed. Then open two or
-three chapters and confirm the body starts and ends where the real article does.
+A big archive comes out as several volumes, `output/<id>-<YYYYMMDD>.<n>.epub`, each under
+200 MB with its own cover under `output/covers/`. Look at one cover per volume: the label, count
+and year span must describe that volume. Warnings are not acceptable: they are how Kindle decides
+a book is malformed. Then open two or three chapters and confirm the body starts and ends where
+the real article does, including one that links to a post in another volume — the link must
+point at the web, not at a chapter file that is not there.
 
 ## Phase 7 — Document, commit, release
 
 - Add the book to the README's book table and to `CHANGELOG.md` under *Unreleased*.
 - `make check` must pass.
 - Commit and push to `main`.
-- If the user wanted a release now:
+- If the user wanted a release now, run the workflow — releases are manual and nothing else
+  publishes:
 
 ```bash
-git tag -a <id>-$(date -u +%Y.%m.%d) -m "<Title>, issue $(date -u +%Y.%m.%d)"
-git push origin <id>-$(date -u +%Y.%m.%d)
+gh workflow run release.yml -f books=<id>          # issue defaults to today, UTC
 ```
 
-`release.yml` syncs, renders the cover, builds and publishes the release with the EPUB attached.
-Confirm it succeeded rather than assuming; report the release URL.
+  or Actions tab → **Release books** → *Run workflow* → `books: <id>`. Without `gh` or the
+  permission to dispatch, say so and give the user those two lines rather than pushing a tag or
+  a branch: a push must never publish.
+
+`release.yml` syncs, builds with a cover per volume, and publishes to `<id>-<YYYYMMDD>` (the
+issue, kept) and `<id>-latest` (moved to the newest issue), with a table of the volumes in the
+notes; re-running the same issue replaces the files. Confirm it succeeded rather than assuming;
+report both release URLs and the volume count.
 
 ## Report back
 
