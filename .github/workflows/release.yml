@@ -1,13 +1,20 @@
-# Publish books. Manual only: Actions tab -> "Release books" -> Run workflow.
+# Publish books: every month on the 1st, and whenever you press the button.
 #
-# Each book selected becomes an issue, <book>-<YYYYMMDD>, holding its volumes
-# <book>-<YYYYMMDD>.<n>.epub with a table of them in the notes, and <book>-latest is moved to
-# the same files so there is always one link to the newest Tyk, Kong, ... A re-run of the same
-# issue replaces its files. Books are built one after another so each sync lands in the shared
-# download cache that the weekly sync.yml keeps warm.
+# Each book becomes an issue, <book>-<YYYYMMDD>, holding its volumes <book>-<YYYYMMDD>.<n>.epub
+# with a table of them in the notes, and <book>-latest is moved to the same files so there is
+# always one link to the newest Tyk, Kong, ... A re-run of the same issue replaces its files.
+# Books are built one after another so each sync lands in the shared download cache that the
+# weekly sync.yml keeps warm.
+#
+# The monthly run takes every book, with the issue dated YYYYMM01. It suits the api-management
+# digest in particular, whose `since: 1m` window means each issue is the month just gone.
+# Note that GitHub disables scheduled workflows in a repository with no activity for 60 days;
+# a push or a manual run re-enables them.
 name: Release books
 
 on:
+  schedule:
+    - cron: "0 7 1 * *"       # the 1st of every month, 07:00 UTC (an hour after sync.yml's slot)
   workflow_dispatch:
     inputs:
       books:
@@ -54,6 +61,7 @@ jobs:
           from datetime import datetime, timezone
           from blog2epub.config import load_config
           known = [b.id for b in load_config("blogs.yaml").all_books()]
+          # The inputs context is empty on a scheduled run, so empty means every book, today.
           asked = "${{ inputs.books }}".strip()
           books = known if asked in ("", "all") else [b.strip() for b in asked.split(",") if b.strip()]
           unknown = [b for b in books if b not in known]

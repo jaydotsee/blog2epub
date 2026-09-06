@@ -610,23 +610,27 @@ network.
 
 ## Publishing with GitHub Actions
 
-Releases are manual. Nothing publishes unless you press the button.
-
-**`Release books`** (`.github/workflows/release.yml`) — Actions tab → *Release books* → *Run
-workflow*. It takes `books` (`all`, or ids like `tyk,kong`), `issue` (a `YYYYMMDD`, default
-today) and `full`. For each book, one after another so every sync lands in the shared cache, it
-syncs, builds with a cover per volume, and publishes to **two tags**:
+**`Release books`** (`.github/workflows/release.yml`) runs **on the 1st of every month** at
+07:00 UTC, and on demand from the Actions tab → *Release books* → *Run workflow*. A manual run
+takes `books` (`all`, or ids like `tyk,kong`), `issue` (a `YYYYMMDD`, default today) and `full`;
+the monthly run takes every book with the issue dated `YYYYMM01`. For each book, one after
+another so every sync lands in the shared cache, it syncs, builds with a cover per volume, and
+publishes to **two tags**:
 
 | Tag | What it is |
 | --- | --- |
 | `tyk-20260906` | The **issue**: its volumes `tyk-20260906.1.epub`, `.2`, … with a table of them in the notes. Kept for good. Run the workflow again with the same `issue` and the files are replaced, not added to. |
 | `tyk-latest` | The **newest issue**, moved on every run. A stable link: `https://github.com/jaydotsee/blog2epub/releases/tag/tyk-latest`. |
 
-**`Sync the cache`** (`.github/workflows/sync.yml`) runs every Monday and on demand. It only
-fetches what is new into the download cache and publishes nothing: GitHub evicts an Actions
-cache after seven days unused, and without this a release after an idle fortnight re-fetches
-every post and image — an hour for the biggest archive instead of minutes. Delete its `schedule`
-block if you would rather nothing ran unasked.
+**`Sync the cache`** (`.github/workflows/sync.yml`) runs every Monday at 06:00 UTC and on
+demand. It only fetches what is new into the download cache and publishes nothing: GitHub evicts
+an Actions cache after seven days unused, so the weekly run is what keeps the monthly release
+down to minutes rather than re-fetching every post and image.
+
+The monthly cadence suits the digest exactly — `api-management` uses a rolling `since: 1m`
+window, so each issue is the month just gone. GitHub disables scheduled workflows in a
+repository with no activity for 60 days; a push or a manual run re-enables them. Delete either
+`schedule:` block to go back to publishing by hand only.
 
 Nothing generated is committed; `cache/` and `output/` are git-ignored. To run somewhere else,
 any scheduler that can call `blog2epub run` works: the cache directory is the only state.

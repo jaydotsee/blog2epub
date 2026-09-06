@@ -22,9 +22,10 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   `<book>-<YYYYMMDD>.<n>.epub`, the title page says `Issue 20260905.2 · Volume 2 of 3`, and
   `build`/`run` take `--issue YYYYMMDD` so a release built on a later day keeps its date.
   A rebuild removes the book's files from earlier issues.
-- **Releases are manual, and every book has a stable tag.** `release.yml` runs only from the
-  Actions tab (`books: all` or a list, an optional `issue` date, `full`); tag and branch pushes
-  no longer publish. Each book goes to `<book>-<YYYYMMDD>`, the issue, kept with a table of its
+- **Releases run monthly, and every book has a stable tag.** `release.yml` runs on the 1st of
+  every month at 07:00 UTC — every book, issue `YYYYMM01`, which matches the digest's rolling
+  `since: 1m` window — and on demand from the Actions tab (`books: all` or a list, an optional
+  `issue` date, `full`); tag and branch pushes no longer publish. Each book goes to `<book>-<YYYYMMDD>`, the issue, kept with a table of its
   volumes in the notes, and to `<book>-latest`, moved to the newest issue on every run. Both are
   cleared before upload, so re-running an issue replaces its files rather than adding to them.
   Books build one after another so each sync lands in the shared cache. The weekly monitor is
