@@ -374,6 +374,26 @@ def _fix_lists(root: html.HtmlElement) -> None:
 _PHRASING_ONLY = _INLINE_TAGS | {"p", "h1", "h2", "h3", "h4", "h5", "h6", "dt"}
 
 
+def _flatten_markup_in_pre(root: html.HtmlElement) -> None:
+    """Put unescaped markup inside a `pre` back where it belongs: in the code, as text.
+
+    A `pre` takes phrasing content, so a `table` inside one is invalid however it got there.
+    It gets there when an author pastes a config snippet and the publishing platform parses
+    the angle brackets instead of escaping them - MuleSoft's Splunk post is the example, its
+    saved-search XML read as an HTML table. The tags were meant to be read, not obeyed, so
+    they are re-serialised into the block rather than lifted out of it, which would scatter a
+    code listing across the page.
+    """
+    for pre in list(root.iter("pre")):
+        if not any(isinstance(d.tag, str) and d.tag in _BLOCK_TAGS for d in pre.iterdescendants()):
+            continue
+        text = pre.text or ""
+        for child in list(pre):
+            text += html.tostring(child, encoding="unicode")  # the child's tail comes with it
+            pre.remove(child)
+        pre.text = text
+
+
 def _unwrap_blocks_out_of_phrasing(root: html.HtmlElement) -> None:
     """Lift a block element out of a `p` (or inline tag) that cannot legally contain it.
 
@@ -473,6 +493,7 @@ def clean_html(
             el.drop_tag()
 
     _fix_lists(root)
+    _flatten_markup_in_pre(root)
     _unwrap_blocks_out_of_phrasing(root)
     _unnest_links(root)
 

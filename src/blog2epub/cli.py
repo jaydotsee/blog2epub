@@ -31,7 +31,9 @@ log = logging.getLogger("blog2epub")
 
 def _client(settings: Settings, blog: BlogConfig | None = None) -> HttpClient:
     delay = blog.request_delay if blog and blog.request_delay is not None else settings.request_delay
-    return HttpClient(settings.user_agent, delay=delay, timeout=settings.timeout)
+    agent = (blog.user_agent if blog else None) or settings.user_agent
+    timeout = blog.timeout if blog and blog.timeout is not None else settings.timeout
+    return HttpClient(agent, delay=delay, timeout=timeout)
 
 
 def _select_books(settings: Settings, ids: list[str]) -> list[BookConfig]:

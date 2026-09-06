@@ -134,25 +134,39 @@ class WordPressSource(Source):
     def fetch(self, refs: list[PostRef]) -> Iterator[Post]:
         ids = [r.extra["id"] for r in refs]
         for start in range(0, len(ids), PER_PAGE):
-            batch = ids[start : start + PER_PAGE]
-            params = self._params(
-                include=",".join(map(str, batch)),
-                _fields=FETCH_FIELDS,
-                _embed="author,wp:term,wp:featuredmedia",
-            )
-            # `include` must not be combined with date filters, or WP silently drops posts.
-            params.pop("after", None)
-            params.pop("before", None)
-            params.pop("categories", None)
-            try:
-                items = self.client.get_json(_join(self.api_base, self.post_type), params=params)
-            except requests.RequestException as exc:
-                # A long archive is many batches; losing one to a hiccup should not cost the
-                # rest. The posts stay uncached and the next sync picks them up.
-                log.warning("batch of %d posts starting %s failed, skipping: %s", len(batch), batch[0], exc)
-                continue
-            for item in items:
+            for item in self._fetch_batch(ids[start : start + PER_PAGE]):
                 yield self._to_post(item)
+
+    def _fetch_batch(self, batch: list[int]) -> list[dict[str, Any]]:
+        """The posts in `batch`, halving the request when the API refuses the whole of it.
+
+        A long archive is many batches, and losing one to a hiccup should not cost the rest.
+        One unserialisable old post - a deleted author, a term that no longer exists - makes
+        WordPress answer 500 for every batch it appears in, so a whole batch failing says
+        nothing about the other 99 posts in it. Split until the culprit is alone, name it, and
+        keep the rest. Posts left unfetched stay uncached and the next sync tries them again.
+        """
+        params = self._params(
+            include=",".join(map(str, batch)),
+            _fields=FETCH_FIELDS,
+            _embed="author,wp:term,wp:featuredmedia",
+        )
+        # `include` must not be combined with date filters, or WP silently drops posts.
+        params.pop("after", None)
+        params.pop("before", None)
+        params.pop("categories", None)
+        try:
+            items: list[dict[str, Any]] = self.client.get_json(
+                _join(self.api_base, self.post_type), params=params
+            )
+        except requests.RequestException as exc:
+            if len(batch) == 1:
+                log.warning("post %s cannot be fetched, skipping: %s", batch[0], exc)
+                return []
+            half = len(batch) // 2
+            log.warning("batch of %d posts starting %s failed, splitting: %s", len(batch), batch[0], exc)
+            return self._fetch_batch(batch[:half]) + self._fetch_batch(batch[half:])
+        return items
 
     def _to_post(self, item: dict[str, Any]) -> Post:
         embedded = item.get("_embedded") or {}

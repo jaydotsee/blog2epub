@@ -262,9 +262,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--keep", action="append", default=[], help="candidate keep selector (repeatable)")
     ap.add_argument("--remove", action="append", default=[], help="candidate remove selector (repeatable)")
     ap.add_argument("--delay", type=float, default=0.5, help="seconds between requests (be polite)")
+    ap.add_argument(
+        "--user-agent",
+        default=UA,
+        help="identify as something else; some edges 403 a UA that carries a contact URL",
+    )
     args = ap.parse_args(argv)
 
-    client = HttpClient(UA, delay=args.delay, timeout=30)
+    client = HttpClient(args.user_agent, delay=args.delay, timeout=30)
 
     if args.from_config:
         # Iterate on an entry that is already written: use its source and rules, not detection.

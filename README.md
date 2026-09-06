@@ -34,12 +34,13 @@ and cross-links that stay inside the book. A book can be one blog's complete arc
 magazine-style digest that combines several blogs over a date range. Every book it produces passes
 the W3C [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
 
-It ships configured with six books: five complete archives — [Tyk](https://tyk.io/blog)
+It ships configured with seven books: six complete archives — [Tyk](https://tyk.io/blog)
 (627 posts), [Kong](https://konghq.com/blog) (900 posts),
 [Apigee](https://cloud.google.com/blog/products/apigee) (244 posts),
-[Axway](https://blog.axway.com) (1,968 posts, back to 2011) and
-[Gravitee](https://www.gravitee.io/blog) (656 posts) — and the
-**API Management Digest**, a monthly issue drawn from eleven API-management blogs. All are
+[Axway](https://blog.axway.com) (1,968 posts, back to 2011),
+[Gravitee](https://www.gravitee.io/blog) (656 posts) and
+[MuleSoft](https://blogs.mulesoft.com) (2,723 posts, back to 2008) — and the
+**API Management Digest**, a monthly issue drawn from twelve API-management blogs. All are
 published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
 
 The idea comes from Facundo Olano's [Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/):
@@ -275,7 +276,7 @@ entry overrides them.
 | `cache_dir` | `cache` | Per-blog download cache. |
 | `user_agent` | `blog2epub/0.1` | Sent with every request. Put a contact URL in it. |
 | `request_delay` | `0.5` | Seconds between requests. Be polite. |
-| `timeout` | `30` | Request timeout in seconds. |
+| `timeout` | `30` | Request timeout in seconds. A `Retry-After` from a throttling host is honoured up to a minute and no further: one third-party image host answering `Retry-After: 1800` would otherwise park a whole sync over a single picture. |
 
 Any blog or book key may also appear under `defaults`.
 
@@ -300,6 +301,8 @@ Any blog or book key may also appear under `defaults`.
 | `remove` | `[]` | CSS selectors for clutter to drop from every post (share bars, newsletter boxes, related posts). |
 | `extra_css` | – | CSS appended to every book that contains this blog. Chapters carry `class="blog-<id>"` for scoping. |
 | `request_delay` | inherits | Per-blog override. |
+| `timeout` | inherits | Per-blog override. A slow API is not a broken one: `mulesoft` needs about 40s to assemble a batch of 100 embedded posts, and at the 30s default every batch costs four attempts. |
+| `user_agent` | inherits | Per-blog override. Some edges answer 403 to any `User-Agent` that looks like a crawler, the contact URL included, while the site's own `robots.txt` welcomes crawlers; `mulesoft` is the worked example. Identify honestly, just not in a shape the filter rejects. |
 | `wordpress` | `{}` | `api` (base URL), `post_type`, `categories` (ids), `params` (extra query params such as `author`). |
 | `feed` | `{}` | `url` of the feed when discovery fails. |
 | `sitemap` | `{}` | `url` of the sitemap when discovery fails; `include` (regexes) picks which partitions of a sitemap index to walk; `max` raises the 200-file cap. Large sites partition by date and language. |
@@ -502,7 +505,7 @@ is a tag page; the posts live under other product sections. Match where they rea
 
 ## The complete-archive books
 
-Five blogs are configured as complete archives, newest first, with year → month navigation and
+Six blogs are configured as complete archives, newest first, with year → month navigation and
 their own covers:
 
 | Book | Source | Posts | Notes |
@@ -512,6 +515,7 @@ their own covers:
 | `apigee` | Google's `cloudblog` sitemap | 244 | The URL given is a tag page, not a section; posts live under other product paths. |
 | `axway` | WordPress REST API | 1,968 | The longest archive here, back to 2011, across API management, MFT and B2B. |
 | `gravitee` | HubSpot sitemap | 656 | Gravitee publishes through HubSpot, so the archive is in that sitemap, not the site's own. |
+| `mulesoft` | WordPress REST API | 2,723 | The longest archive here, back to 2008, of the 2,737 the API lists. Its edge 403s a crawler-shaped `User-Agent`, so the entry sets its own. |
 
 Kong's pages prerender twenty related-post cards into every article, which readability alone
 mistakes for part of the story, so the entry uses a `keep` selector for the article body plus
@@ -523,8 +527,14 @@ index. Gravitee is the worked example of a blog whose archive lives on the platf
 through: its own sitemap knows nothing of the posts, HubSpot's has all of them, and the two
 disagree about trailing slashes, which `get_text_tolerant` absorbs.
 
-Axway is the largest book here: 1,968 posts and 4,799 images come to 291 MB, which no single
-file should be. It is the reason books are cut into volumes.
+MuleSoft is the largest book here: 2,723 posts and 7,755 images across nineteen years come to
+406 MB, and Axway's 1,968 posts to 291 MB. Neither should be a single file, which is why books
+are cut into volumes. MuleSoft is also the worked example of a site whose edge rejects the
+crawler it is happy to be crawled by: `blogs.mulesoft.com` answers 403 to a `User-Agent`
+carrying a contact URL while its `robots.txt` disallows only `/wp-admin/`, so the entry sets a
+shorter `user_agent` that still says what it is, and a longer `timeout`, because the API needs
+about 40 seconds to assemble a batch of 100 posts. Eight of its 2,737 posts are left out: the
+site's own API answers 500 for them, and has done on every attempt.
 
 ## Volumes
 
@@ -563,7 +573,7 @@ bin/blog2epub run kong     # sync + build → output/kong-<issue>.<n>.epub
 
 `blogs.yaml` ships a second book, `api-management`: a monthly digest of the last 30 days of posts
 from API Changelog, API Evangelist, API Scene, APIDAYS (which publishes on API Scene), Axway,
-Bruno Pedro, Gravitee, Kong, Nordic APIs, Postman and Tyk. It uses a rolling `since: 1m` window
+Bruno Pedro, Gravitee, Kong, MuleSoft, Nordic APIs, Postman and Tyk. It uses a rolling `since: 1m` window
 measured at build time, one part per blog, newest first, and its own cover. It sets `split: size`
 because an issue is one thing whatever years its thirty days span — the year default would cut a
 January digest in two at New Year. The digest-only blogs carry `since: 3m` so their first sync
@@ -579,17 +589,18 @@ Because the window rolls, the weekly workflow always produces a fresh issue; the
 ## Magazine covers
 
 <p align="center">
-  <img src="covers/tyk.jpg" width="19%" alt="Tyk Blog cover">
-  <img src="covers/kong.jpg" width="19%" alt="Kong Blog cover">
-  <img src="covers/apigee.jpg" width="19%" alt="Apigee Blog cover">
-  <img src="covers/axway.jpg" width="19%" alt="Axway Blog cover">
-  <img src="covers/gravitee.jpg" width="19%" alt="Gravitee Blog cover">
+  <img src="covers/tyk.jpg" width="16%" alt="Tyk Blog cover">
+  <img src="covers/kong.jpg" width="16%" alt="Kong Blog cover">
+  <img src="covers/apigee.jpg" width="16%" alt="Apigee Blog cover">
+  <img src="covers/axway.jpg" width="16%" alt="Axway Blog cover">
+  <img src="covers/gravitee.jpg" width="16%" alt="Gravitee Blog cover">
+  <img src="covers/mulesoft.jpg" width="16%" alt="MuleSoft Blog cover">
 </p>
 
 Every book has a cover rendered from the HTML template next to it by `scripts/render_cover.py`,
 each in its blog's own brand palette: Tyk's purple, Kong's acid lime on near-black, Google's four
-colours for Apigee, Axway's crimson on warm off-white, Gravitee's flame on near-black, and teal
-and amber for the digest. The Tyk cover uses a masthead, three
+colours for Apigee, Axway's crimson on warm off-white, Gravitee's flame on near-black,
+MuleSoft's blue and teal on deep navy, and teal and amber for the digest. The Tyk cover uses a masthead, three
 kicker-plus-title cover lines taken from the newest cached posts, a hexagon badge with the post
 count and year span, and a topic strip. The digest cover uses the month as its headline, the lead
 post as the main cover line, four more posts with their blog names as kickers, a post-count stamp

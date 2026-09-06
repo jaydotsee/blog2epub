@@ -10,6 +10,24 @@ from urllib3.util.retry import Retry
 
 log = logging.getLogger(__name__)
 
+# The longest Retry-After we will sit out. A post can embed an image from anywhere, and one
+# third-party host answering 429 with `Retry-After: 1800` would otherwise park the whole sync
+# for half an hour over a single picture. Wait the polite amount up to a point, then move on:
+# a skipped image is logged and tried again next sync, a stalled sync is just stalled.
+RETRY_AFTER_MAX = 60.0
+
+
+class CappedRetry(Retry):
+    """urllib3's Retry, honouring Retry-After but never for longer than RETRY_AFTER_MAX."""
+
+    def get_retry_after(self, response: Any) -> float | None:
+        after = super().get_retry_after(response)
+        if after is None:
+            return None
+        if after > RETRY_AFTER_MAX:
+            log.debug("Retry-After %.0fs capped to %.0fs", after, RETRY_AFTER_MAX)
+        return min(after, RETRY_AFTER_MAX)
+
 
 class HttpClient:
     """A small polite HTTP client: one User-Agent, retries with backoff, a delay between requests."""
@@ -19,7 +37,7 @@ class HttpClient:
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": user_agent, "Accept-Language": "en"})
-        retry = Retry(
+        retry = CappedRetry(
             total=4,
             backoff_factor=1.5,
             status_forcelist=(429, 500, 502, 503, 504),

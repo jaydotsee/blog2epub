@@ -247,3 +247,25 @@ def test_a_real_definition_list_is_left_alone():
         "<dl><dt>Term</dt><dd>Meaning</dd></dl>", "https://e.org/post", image_resolver=lambda u: None
     )
     assert "<dl>" in out and "<dt>" in out and "<dd>" in out
+
+
+def test_markup_inside_pre_stays_in_the_code_block():
+    """A `pre` takes phrasing content, so a `table` inside it is invalid however it got there.
+
+    It gets there when a platform parses a pasted config snippet instead of escaping it -
+    MuleSoft's Splunk post, whose saved-search XML was read as an HTML table. The tags were
+    meant to be read: they come back as text rather than being lifted out, which would scatter
+    the listing across the page.
+    """
+    # The real shape: a Splunk dashboard pasted whole. The parser reads <panel> and <query> as
+    # unknown inline elements and leaves them in the pre, so the <table> among them stays there
+    # too, and stripping the unknown tags later leaves a table inside a pre.
+    out, _ = _clean('<pre class="p"><panel><table><query>host=x | sort</query></table></panel></pre>')
+    assert "<table>" not in out and "&lt;table&gt;" in out
+    assert "host=x | sort" in out
+    assert out.count("<pre") == 1
+
+
+def test_a_pre_of_plain_code_is_left_alone():
+    out, _ = _clean("<pre>def f():\n    return <em>1</em></pre>")
+    assert "<em>1</em>" in out
