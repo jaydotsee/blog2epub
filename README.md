@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/jaydotsee/blog2epub/actions/workflows/ci.yml"><img src="https://github.com/jaydotsee/blog2epub/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/jaydotsee/blog2epub/actions/workflows/monitor.yml"><img src="https://github.com/jaydotsee/blog2epub/actions/workflows/monitor.yml/badge.svg" alt="Monitor"></a>
+  <a href="https://github.com/jaydotsee/blog2epub/actions/workflows/sync.yml"><img src="https://github.com/jaydotsee/blog2epub/actions/workflows/sync.yml/badge.svg" alt="Sync"></a>
   <a href="https://github.com/jaydotsee/blog2epub/releases"><img src="https://img.shields.io/github/v/release/jaydotsee/blog2epub?include_prereleases&label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue" alt="Python 3.10 to 3.13">
   <img src="https://img.shields.io/badge/EPUB%203-epubcheck%20clean-2ea44f" alt="EPUB 3, epubcheck clean">
@@ -109,8 +109,9 @@ exposes.
   either way); each volume is `<book>-<issue>.<n>.epub` with its own cover and navigation.
 - **Covers with live cover lines.** HTML templates rendered once per volume, with that volume's
   newest post titles, post count, year span and issue number. Or point `cover:` at your own image.
-- **Scriptable and automated.** A plain CLI, a JSON report, a weekly GitHub Actions monitor
-  publishing to a rolling release, and an on-demand workflow for dated releases.
+- **Scriptable, published by hand.** A plain CLI, a JSON report, and a GitHub Actions workflow
+  you run when you want an issue out: every book to its own dated tag plus a `<book>-latest`
+  that always holds the newest. A weekly job keeps the download cache warm and publishes nothing.
 
 ## How it works
 
@@ -588,36 +589,28 @@ template and says so. Copy a template to make a cover for another blog or book; 
 `covers/fonts/` (SIL Open Font License), so rendering is identical everywhere and needs no
 network.
 
-## Keeping books current with GitHub Actions
+## Publishing with GitHub Actions
 
-`.github/workflows/monitor.yml` runs every Monday at 06:00 UTC and on demand:
+Releases are manual. Nothing publishes unless you press the button.
 
-1. restores `cache/` from the previous run with `actions/cache`, so only new posts are fetched;
-2. installs Chromium so each volume's cover can be rendered during the build;
-3. runs `blog2epub run --report report.json`, which rebuilds every book whose blogs changed;
-4. uploads all EPUBs as a workflow artifact (kept 30 days);
-5. when something changed, clears and refreshes the rolling **`latest`** GitHub release, so the
-   newest volumes are always at `https://github.com/jaydotsee/blog2epub/releases/tag/latest`;
-6. writes a summary to the job page.
+**`Release books`** (`.github/workflows/release.yml`) — Actions tab → *Release books* → *Run
+workflow*. It takes `books` (`all`, or ids like `tyk,kong`), `issue` (a `YYYYMMDD`, default
+today) and `full`. For each book, one after another so every sync lands in the shared cache, it
+syncs, builds with a cover per volume, and publishes to **two tags**:
 
-"Run workflow" accepts two switches: `force` rebuilds every book, `full` ignores the cache and
-re-fetches everything. Nothing generated is committed; `cache/` and `output/` are git-ignored.
+| Tag | What it is |
+| --- | --- |
+| `tyk-20260906` | The **issue**: its volumes `tyk-20260906.1.epub`, `.2`, … with a table of them in the notes. Kept for good. Run the workflow again with the same `issue` and the files are replaced, not added to. |
+| `tyk-latest` | The **newest issue**, moved on every run. A stable link: `https://github.com/jaydotsee/blog2epub/releases/tag/tyk-latest`. |
 
-`.github/workflows/release.yml` publishes one book as a **dated release**: the issue. Three ways
-to run it, all producing the tag `<book>-<YYYYMMDD>` with the volumes attached as
-`<book>-<YYYYMMDD>.<n>.epub` and a table of them in the release notes:
+**`Sync the cache`** (`.github/workflows/sync.yml`) runs every Monday and on demand. It only
+fetches what is new into the download cache and publishes nothing: GitHub evicts an Actions
+cache after seven days unused, and without this a release after an idle fortnight re-fetches
+every post and image — an hour for the biggest archive instead of minutes. Delete its `schedule`
+block if you would rather nothing ran unasked.
 
-```bash
-git tag -a tyk-20260905 -m "Tyk Blog, issue 20260905" && git push origin tyk-20260905
-git push origin main:release/tyk-20260905          # for hosts that block tag pushes
-# or: Actions tab → "Release a book" → Run workflow → book id (the issue is today, UTC)
-```
-
-Re-running an issue replaces its files: the workflow clears the release's assets after a
-successful build and before uploading, so a book that changed shape never carries both.
-
-To run somewhere else, any scheduler that can call `blog2epub run` works: the cache directory is
-the only state.
+Nothing generated is committed; `cache/` and `output/` are git-ignored. To run somewhere else,
+any scheduler that can call `blog2epub run` works: the cache directory is the only state.
 
 ## Reading the books
 
@@ -664,7 +657,8 @@ src/blog2epub/
   assets/styles.css            e-reader friendly stylesheet
 tests/                         pytest suite; runs offline with a fake HTTP client
 .github/workflows/ci.yml       ruff, mypy, pytest + epubcheck on every push
-.github/workflows/monitor.yml  weekly sync/build/release
+.github/workflows/release.yml  manual: sync, build, publish each book to <book>-<issue> and <book>-latest
+.github/workflows/sync.yml     weekly: keep the download cache warm, publish nothing
 .github/workflows/release.yml  dated release of one book
 ```
 

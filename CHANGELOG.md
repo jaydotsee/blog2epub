@@ -15,10 +15,15 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 - **Issues are `YYYYMMDD` and volumes are `YYYYMMDD.n`.** Output files are
   `<book>-<YYYYMMDD>.<n>.epub`, the title page says `Issue 20260905.2 · Volume 2 of 3`, and
   `build`/`run` take `--issue YYYYMMDD` so a release built on a later day keeps its date.
-  A rebuild removes the book's files from earlier issues. Release tags are `<book>-<YYYYMMDD>`;
-  the workflow writes the volume table into the release notes and clears the previous assets
-  first, so re-running an issue replaces its files rather than adding to them. The rolling
-  `latest` release is cleared the same way.
+  A rebuild removes the book's files from earlier issues.
+- **Releases are manual, and every book has a stable tag.** `release.yml` runs only from the
+  Actions tab (`books: all` or a list, an optional `issue` date, `full`); tag and branch pushes
+  no longer publish. Each book goes to `<book>-<YYYYMMDD>`, the issue, kept with a table of its
+  volumes in the notes, and to `<book>-latest`, moved to the newest issue on every run. Both are
+  cleared before upload, so re-running an issue replaces its files rather than adding to them.
+  Books build one after another so each sync lands in the shared cache. The weekly monitor is
+  gone; `sync.yml` takes its slot and only keeps the download cache warm — GitHub evicts an
+  Actions cache after seven days unused — building and publishing nothing.
 - **Every volume gets its own cover.** Point `cover:` at an HTML template (`covers/<id>.html`)
   and the build renders it once per volume with that volume's post count, year span, cover
   lines and issue number; `$volume`, `$volumes` and `$volume_label` ("2024", or "Vol. 2 of 3"

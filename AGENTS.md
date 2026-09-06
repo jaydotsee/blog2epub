@@ -190,17 +190,21 @@ first paragraph, ends at the real conclusion, and contains no other post.
 
 ### 9. Ship it as a release
 
+Releases are manual and nothing else publishes. Actions tab → **Release books** → *Run
+workflow* with `books: kong` (or `all`) and, optionally, an `issue` date; or from a terminal:
+
 ```bash
-git checkout main && git pull
-git tag -a kong-20260905 -m "Kong Blog, issue 20260905"
-git push origin kong-20260905
+gh workflow run release.yml -f books=kong            # issue defaults to today, UTC
+gh workflow run release.yml -f books=all -f issue=20260906
 ```
 
-`release.yml` syncs, builds (rendering a cover per volume) and publishes the release tagged
-`<book>-<YYYYMMDD>` with the volumes attached as `<book>-<YYYYMMDD>.<n>.epub` and a table of
-them in the notes. Re-running an issue clears its assets first, so it replaces rather than
-accumulates. A `release/<book>-<YYYYMMDD>` branch push or the Actions tab do the same thing. The
-weekly `monitor.yml` keeps every book fresh on the rolling `latest` release regardless.
+`release.yml` syncs, builds (rendering a cover per volume) and publishes each book to two tags:
+`<book>-<YYYYMMDD>`, the issue, kept for good with its volumes `<book>-<YYYYMMDD>.<n>.epub` and
+a table of them in the notes; and `<book>-latest`, moved to the same files on every run so there
+is one stable link per book. Re-running an issue clears its assets first, so it replaces rather
+than accumulates. Books run one after another so each sync lands in the shared cache, which the
+weekly `sync.yml` keeps warm without building or publishing anything. Do not add tag or branch
+triggers back: a push must never publish.
 
 ## Gotchas, and what they look like
 
