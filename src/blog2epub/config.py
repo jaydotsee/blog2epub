@@ -161,6 +161,14 @@ class BlogConfig:
     title_strip: list[str] = field(default_factory=list)
     extra_css: str = ""  # appended to the stylesheet of every book containing this blog
     request_delay: float | None = None
+    # Overrides the global user_agent for this blog. Some edges (Akamai in front of MuleSoft)
+    # answer 403 to anything whose UA looks like a crawler, the contact URL included, while the
+    # site's own robots.txt welcomes crawlers. Identify honestly; just do not trip the filter.
+    user_agent: str | None = None
+    # Overrides the global timeout for this blog. A slow API is not a broken one: MuleSoft's
+    # WordPress endpoint needs about 40s to assemble a batch of 100 embedded posts, so the 30s
+    # default turns every batch into four attempts and one long sync.
+    timeout: int | None = None
     wordpress: dict[str, Any] = field(default_factory=dict)
     feed: dict[str, Any] = field(default_factory=dict)
     sitemap: dict[str, Any] = field(default_factory=dict)

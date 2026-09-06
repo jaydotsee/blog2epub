@@ -130,6 +130,27 @@ blogs:
     order: desc               # newest post first
     group_by: year-month      # contents: year -> month -> posts
     cover: covers/kong.html
+  # MuleSoft's blog, 2008 to today, on WordPress behind an Akamai edge. Two things to know:
+  #  * The REST API returns the whole archive (2,700+ posts) as post content, so no include
+  #    regex and no keep/remove selectors are needed. The sitemap lists 3,600+ URLs, but a
+  #    third of those are tag and category indexes that carry no article.
+  #  * The edge answers 403 to any User-Agent that looks like a crawler, a contact URL
+  #    included - our default `blog2epub/0.1 (+https://github.com/jaydotsee/blog2epub)` trips
+  #    it. Their robots.txt disallows only /wp-admin/ and advertises the sitemaps, so the
+  #    block is a bot-pattern false positive; the shorter string below still says who we are.
+  - id: mulesoft
+    title: "MuleSoft Blog"
+    url: https://blogs.mulesoft.com
+    author: "MuleSoft"
+    description: "Every post from the MuleSoft blog: integration, APIs, Anypoint Platform, automation and agentic AI."
+    source: wordpress
+    user_agent: "blog2epub/0.2"
+    timeout: 120              # the API needs ~40s to assemble a batch of 100 embedded posts
+    remove:
+      - ".rt-reading-time"    # "Reading Time: 7 minutes", stamped on the top of every post
+    order: desc               # newest post first
+    group_by: year-month      # contents: year -> month -> posts
+    cover: covers/mulesoft.html
   - id: nordicapis
     title: "Nordic APIs"
     url: https://nordicapis.com/blog
@@ -170,7 +191,7 @@ books:
     title: "API Management Digest"
     description: "A monthly digest: the last 30 days of posts from the API management blogs that matter."
     author: "Various"
-    blogs: [apichangelog, apidays, apievangelist, apiscene, axway, brunopedro, gravitee, kong, nordicapis, postman, tyk]
+    blogs: [apichangelog, apidays, apievangelist, apiscene, axway, brunopedro, gravitee, kong, mulesoft, nordicapis, postman, tyk]
     since: 1m                 # rolling 30-day window, measured at build time
     group_by: blog            # one part per blog
     order: desc               # newest first

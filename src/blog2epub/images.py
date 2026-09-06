@@ -33,6 +33,9 @@ _EXT_FOR_TYPE = {
 }
 
 
+_HTML_START = re.compile(rb"\s*(<!doctype\s+html\b|<html[\s>])", re.I)
+
+
 def sniff_media_type(data: bytes, content_type: str | None, url: str) -> str | None:
     head = data[:16]
     if head.startswith(b"\xff\xd8\xff"):
@@ -45,6 +48,12 @@ def sniff_media_type(data: bytes, content_type: str | None, url: str) -> str | N
         return "image/webp"
     if b"<svg" in data[:2048].lower():
         return "image/svg+xml"
+    # None of the signatures matched, and these bytes are a web page. Neither the header nor
+    # the extension is worth hearing after that: MuleSoft answers a long-deleted image with its
+    # 404 page under `Content-Type: image/png`, and taking it at its word puts an HTML file in
+    # the book as an image, which epubcheck reports as corrupt.
+    if _HTML_START.match(data[:512]):
+        return None
     ct = (content_type or "").split(";")[0].strip().lower()
     if ct in _EXT_FOR_TYPE:
         return ct

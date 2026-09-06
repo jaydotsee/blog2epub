@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import threading
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 import requests
 
-from blog2epub import cli
-from blog2epub.config import BlogConfig
+from blog2epub import cli, http
+from blog2epub.config import BlogConfig, Settings
 from blog2epub.images import fetch_image
 from blog2epub.models import PostRef
 from blog2epub.sources import SourceError
@@ -132,6 +133,31 @@ def test_wordpress_fetch_batch_failure_is_survivable(blog):
     assert list(src.fetch(refs)) == []  # skipped, not raised
 
 
+def test_wordpress_fetch_isolates_the_one_post_the_api_will_not_serve(blog):
+    """One unserialisable post makes WordPress answer 500 for every batch holding it. That says
+    nothing about the other posts in the batch, so the request is halved until the culprit is
+    alone: MuleSoft's 2008 archive has two of these, and they were costing 200 posts."""
+    poison = 7
+    items = [wp_item(i) for i in range(1, 11)]
+
+    def routes(url, params):
+        if "include" in params:
+            asked = [int(i) for i in params["include"].split(",")]
+            if poison in asked:
+                raise requests.HTTPError("500 Server Error")
+            return FakeResponse(200, json.dumps([i for i in items if i["id"] in asked]), {})
+        return FakeResponse(200, json.dumps(items), {"X-WP-TotalPages": "1"})
+
+    class Client(FakeClient):
+        def get(self, url, params=None, allow_404=False, stream=False, **kw):
+            self.requests_made += 1
+            return self.routes(url, params or {})
+
+    src = WordPressSource(blog, Client(routes), "https://example.com/wp-json/wp/v2")
+    got = sorted(p.url for p in src.fetch(src.discover()))
+    assert got == [f"https://example.com/blog/p{i}/" for i in (1, 10, 2, 3, 4, 5, 6, 8, 9)]
+
+
 def test_feed_listing_timeout_is_a_source_error(blog):
     src = FeedSource(blog, Timeout(lambda u, p: None), "https://example.com/feed/")
     with pytest.raises(SourceError):
@@ -177,6 +203,23 @@ def test_sniff_trusts_server_content_type_over_extension():
     assert sniff_media_type(b"\x00" * 16, "application/octet-stream", "https://x/a.png") == "image/png"
     assert sniff_media_type(b"\x00" * 16, None, "https://x/a.jpg") == "image/jpeg"
     assert sniff_media_type(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8, "text/plain", "https://x/x") == "image/png"
+
+
+def test_sniff_refuses_a_web_page_wearing_an_image_extension():
+    """MuleSoft answers some missing images with a page and no content type to admit it. The
+    URL still ends .png, and believing it puts an HTML file in the book as an image, which
+    epubcheck reports as corrupt."""
+    from blog2epub.images import sniff_media_type
+
+    page = b'<!DOCTYPE html><html lang="en"><head><title>Not found</title>'
+    assert sniff_media_type(page, None, "https://x/a.png") is None
+    assert sniff_media_type(page, "application/octet-stream", "https://x/a.png") is None
+    # the site serves that page under an image content type, so the bytes have to win
+    assert sniff_media_type(page, "image/png", "https://x/a.png") is None
+    assert sniff_media_type(b"\n  <HTML>", None, "https://x/a.png") is None
+    # an SVG still opens with markup, and is a real image
+    svg = b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'
+    assert sniff_media_type(svg, None, "https://x/a.svg") == "image/svg+xml"
 
 
 def test_list_survives_a_closed_pipe(tmp_path, monkeypatch, capsys):
@@ -252,7 +295,11 @@ def test_soft_404_pages_are_not_stored_as_posts(tmp_path, blog):
 
 
 def test_a_failed_batch_does_not_lose_the_whole_archive(tmp_path, blog):
-    """A long sync is many batches; one connection failure must not discard the rest."""
+    """A long sync is many batches; one connection failure must not discard the rest.
+
+    The batch request is split rather than abandoned, so a failure that was only the moment
+    costs nothing: the halves succeed and every post lands on this run.
+    """
     from types import SimpleNamespace
 
     from blog2epub.store import BlogStore
@@ -283,13 +330,42 @@ def test_a_failed_batch_does_not_lose_the_whole_archive(tmp_path, blog):
 
     store = BlogStore(settings.cache_dir, blog.id)
     result = sync_blog(blog, settings, Client(flaky), store)
-    # the batch failed, so nothing was stored, but the sync completed and said which posts
-    assert result.new == 0 and len(result.errors) == 3
-    assert all("not fetched" in e for e in result.errors)
+    assert calls["n"] > 1  # the whole batch failed, so it was split and retried
+    assert result.new == 3 and result.errors == []
 
-    # the next run picks them up
-    store2 = BlogStore(settings.cache_dir, blog.id)
-    assert sync_blog(blog, settings, Client(flaky), store2).new == 3
+
+def test_a_post_the_api_never_serves_costs_only_itself(tmp_path, blog):
+    """When the failure is the post and not the moment, the split ends at that one post: the
+    others are stored, the sync says which one is missing, and the next run tries it again."""
+    from types import SimpleNamespace
+
+    from blog2epub.store import BlogStore
+    from blog2epub.sync import sync_blog
+
+    settings = SimpleNamespace(
+        config_path=tmp_path / "blogs.yaml", cache_dir=tmp_path / "cache", output_dir=tmp_path / "out"
+    )
+    items = [wp_item(i) for i in range(1, 4)]
+    routes = make_wp_routes(items)
+
+    def poisoned(url, params):
+        if "include" in params and "2" in params["include"].split(","):
+            raise requests.HTTPError("500 Server Error")
+        return routes(url, params)
+
+    class Client(FakeClient):
+        def get(self, url, params=None, allow_404=False, stream=False, **kw):
+            self.requests_made += 1
+            resp = self.routes(url, params or {})
+            if resp is None:
+                resp = FakeResponse(404)
+            resp.raise_for_status()
+            return resp
+
+    store = BlogStore(settings.cache_dir, blog.id)
+    result = sync_blog(blog, settings, Client(poisoned), store)
+    assert result.new == 2
+    assert [e for e in result.errors if "not fetched" in e and "p2" in e]
 
 
 def test_long_syncs_checkpoint_their_progress(tmp_path, blog, monkeypatch):
@@ -385,3 +461,44 @@ def test_jobs_1_syncs_one_blog_at_a_time(tmp_path, monkeypatch):
     state = _watcher(monkeypatch)
     assert cli.main(["-c", str(cfg), "sync", "--jobs", "1"]) == 0
     assert state["peak"] == 1
+
+
+def test_client_takes_per_blog_http_overrides():
+    # A blog that needs its own manners gets them; anything it leaves unset falls back to
+    # defaults. MuleSoft is why all three exist: an edge that 403s a crawler-shaped agent,
+    # behind an API that needs longer than the default to answer.
+    settings = Settings(
+        config_path=Path("blogs.yaml"),
+        output_dir=Path("output"),
+        cache_dir=Path("cache"),
+        user_agent="blog2epub/0.1 (+https://example/)",
+        request_delay=0.5,
+        timeout=30,
+    )
+    plain = BlogConfig(id="plain", url="https://a.example/")
+    fussy = BlogConfig(
+        id="fussy", url="https://b.example/", user_agent="blog2epub/0.2", request_delay=1.5, timeout=120
+    )
+
+    default = cli._client(settings, plain)
+    assert default.session.headers["User-Agent"] == "blog2epub/0.1 (+https://example/)"
+    assert (default.delay, default.timeout) == (0.5, 30)
+
+    override = cli._client(settings, fussy)
+    assert override.session.headers["User-Agent"] == "blog2epub/0.2"
+    assert (override.delay, override.timeout) == (1.5, 120)
+
+
+def test_retry_after_is_capped():
+    # A post can embed an image from anywhere. One host answering 429 with `Retry-After: 1800`
+    # should cost us a minute, not half an hour: this is what stalled a 2,737-post sync.
+    retry = http.CappedRetry(total=4, respect_retry_after_header=True)
+    long = requests.Response()
+    long.headers["Retry-After"] = "1800"
+    assert retry.get_retry_after(long) == http.RETRY_AFTER_MAX
+
+    short = requests.Response()
+    short.headers["Retry-After"] = "5"
+    assert retry.get_retry_after(short) == 5
+
+    assert retry.get_retry_after(requests.Response()) is None

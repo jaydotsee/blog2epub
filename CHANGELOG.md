@@ -50,6 +50,15 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 - `build` gained `--report FILE`, the same JSON `run` writes, with one entry per volume.
 
 ### Added
+- **The MuleSoft blog.** The whole of `blogs.mulesoft.com`, 2008 to today: 2,723 posts and 7,755
+  images as nineteen year volumes, 406 MB, which makes it the largest book here. It joins the API
+  Management Digest as a twelfth source. Eight of the 2,737 posts the API lists are left out
+  because the site's own API answers 500 for them.
+- **Per-blog `user_agent` and `timeout`.** Both override the global setting for one blog, the way
+  `request_delay` already did. MuleSoft needs both: its edge answers 403 to any agent string that
+  looks like a crawler — a contact URL included, which the default carries — while its
+  `robots.txt` disallows only `/wp-admin/`, and its API needs about 40 seconds to assemble a batch
+  of 100 embedded posts, so the 30-second default cost four attempts a batch.
 - **Collector's editions.** `blog2epub build <book> --collectors`, and `edition: collectors` on
   the release workflow, build a book's whole archive as one file — `<book>-collectors-<issue>.epub`,
   ignoring `split` and `max_book_bytes` — published to `<book>-collectors-<issue>` and
@@ -91,6 +100,23 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   book; `make cover` and the monitor workflow use it.
 
 ### Fixed
+- A `Retry-After` is honoured for at most a minute. A post can embed an image from anywhere, and
+  one third-party host answering `Retry-After: 1800` parked a whole sync for half an hour over a
+  single picture. A skipped image is logged and tried again next sync; a stalled sync is just
+  stalled.
+- A WordPress batch the API refuses is split rather than dropped. One unserialisable old post — a
+  deleted author, a term that no longer exists — makes the API answer 500 for every batch of 100
+  it appears in, which says nothing about the other 99. The request now halves until the culprit
+  is alone and named in the log. Two such posts were costing 200 of MuleSoft's.
+- Bytes beat headers when deciding whether a download is an image. MuleSoft answers a long-deleted
+  image with its 404 page under `Content-Type: image/png`; taking that at its word put four HTML
+  files into the book as images, which epubcheck reports as corrupt.
+- Markup inside a `pre` is put back as text. A `pre` takes phrasing content, so a `table` inside
+  one is invalid however it got there — a Splunk dashboard pasted into a 2019 MuleSoft post, whose
+  angle brackets the platform parsed instead of escaping. Re-serialising keeps the listing whole,
+  where lifting the block out would scatter it across the page.
+- The Tyk cover no longer says "Collector's edition" on every volume; the `$volume_label`
+  placeholder already says so when it is true.
 - Block elements are lifted out of the paragraphs that cannot legally contain them. WordPress
   drops a `figure` or a video-embed `div` straight into a `<p>`; browsers close the paragraph
   silently, epubcheck does not. This was 170 errors across the Axway archive. The repair now
