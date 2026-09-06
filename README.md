@@ -486,7 +486,7 @@ their own covers:
 | `tyk` | WordPress REST API | 627 | The API delivers every post with full metadata in seven requests. |
 | `kong` | `sitemaps/blogs.xml` | 900 | The feed carries only the latest ten, so the sitemap is used instead. |
 | `apigee` | Google's `cloudblog` sitemap | 244 | The URL given is a tag page, not a section; posts live under other product paths. |
-| `axway` | WordPress REST API | 1,968 | The longest archive here, back to 2011. Split into per-year volumes; see below. |
+| `axway` | WordPress REST API | 1,968 | The longest archive here, back to 2011, across API management, MFT and B2B. |
 | `gravitee` | HubSpot sitemap | 656 | Gravitee publishes through HubSpot, so the archive is in that sitemap, not the site's own. |
 
 Kong's pages prerender twenty related-post cards into every article, which readability alone
@@ -499,10 +499,10 @@ index. Gravitee is the worked example of a blog whose archive lives on the platf
 through: its own sitemap knows nothing of the posts, HubSpot's has all of them, and the two
 disagree about trailing slashes, which `get_text_tolerant` absorbs.
 
-Axway is the worked example of an archive too big for one file. Its 1,968 posts come to 291 MB
-as a single EPUB — past Send to Kindle's 200 MB limit and unwieldy on any reader — so the book
-sets `split: year` and builds `output/axway-2011.epub` through `output/axway-2026.epub`, the
-largest 57 MB, at full image quality. Every volume carries the same cover and its own navigation.
+Axway is the largest book here: 1,968 posts and 4,799 images come to 291 MB as a single EPUB.
+That is over Send to Kindle's 200 MB limit, so send it to a Kindle by USB, or set `split: year`
+on the book to get one file per year instead (the largest would be 57 MB). Other readers take
+the single file as is.
 
 ```bash
 .venv/bin/blog2epub run kong     # sync + build → output/kong.epub

@@ -11,9 +11,8 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   `max_image_width` and re-encoded; transparent PNGs above 150 KB are flattened onto white and
   encoded as JPEG, which is what dominates a large archive. The Kong book went from 705 MB to
   236 MB with no visible change on an e-reader.
-- The complete **Axway** archive (1,968 posts, 2011 to 2026) — the longest here, and the first
-  book to use `split: year`, because 291 MB in one file is past Send to Kindle's limit — and the
-  complete **Gravitee** archive (656 posts). Both have covers in their brand palette. Gravitee
+- The complete **Axway** archive (1,968 posts, 2011 to 2026) — the longest here at 291 MB — and
+  the complete **Gravitee** archive (656 posts). Both have covers in their brand palette. Gravitee
   publishes through HubSpot, so its entry reads that sitemap rather than the site's own.
 - Per-blog `title_strip`: regexes matched against the end of a post title and dropped, applied
   at build time so a rule can change without re-fetching. For a stale brand the generic rules
