@@ -50,6 +50,8 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 - `build` gained `--report FILE`, the same JSON `run` writes, with one entry per volume.
 
 ### Added
+- **`bin/publish` takes `--jobs N` and `--set KEY=VALUE`.** The cron entry point could reach
+  neither, so a scheduled run was stuck with the default parallelism and whatever the file said.
 - **`--set KEY=VALUE` overrides any config value for one run.** `KEY=VALUE` sets a `defaults` key,
   `ID.KEY=VALUE` sets it on one blog or book, and a dotted key reaches into a nested mapping
   (`--set apigee.sitemap.max=800`). Repeatable, and accepted either before the subcommand or
@@ -110,6 +112,11 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   book; `make cover` and the monitor workflow use it.
 
 ### Fixed
+- Per-host sync locks are created under a lock of their own. A `defaultdict` lets two threads
+  both miss the same host and each build a lock, after which both hold "the" lock for that host
+  and the site sees two syncs at once. CPython's GIL makes that unreachable today, so it is not
+  a bug anyone has hit — but a free-threaded build would reach it, and the politeness guarantee
+  should not rest on an interpreter detail.
 - Chapters no longer open with `Reading Time: 7 minutes`. The MuleSoft entry drops the plugin's
   stamp with a `remove` selector; it was on every one of its posts.
 - A `Retry-After` is honoured for at most a minute. A post can embed an image from anywhere, and

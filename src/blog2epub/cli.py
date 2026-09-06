@@ -9,7 +9,6 @@ import os
 import re
 import sys
 import threading
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -122,13 +121,21 @@ def _sync_blogs(
     thing to protect is politeness: two blogs on the same host take turns, so a site never
     sees more requests than its own `request_delay` allows.
     """
-    host_locks: defaultdict[str, threading.Lock] = defaultdict(threading.Lock)
+    # One lock per host, created under a lock of its own. A defaultdict would read more nicely,
+    # but two threads can both miss the same key and each build a lock, and then both hold "the"
+    # lock for that host. CPython's GIL hides that today; a free-threaded build would not.
+    host_locks: dict[str, threading.Lock] = {}
+    locks_guard = threading.Lock()
     out_lock = threading.Lock()
+
+    def host_lock(url: str) -> threading.Lock:
+        with locks_guard:
+            return host_locks.setdefault(urlsplit(url).netloc.lower(), threading.Lock())
 
     def one(blog: BlogConfig) -> tuple[BlogConfig, BlogStore, SyncResult | Exception]:
         store = BlogStore(settings.cache_dir, blog.id)
         try:
-            with host_locks[urlsplit(blog.url).netloc.lower()]:
+            with host_lock(blog.url):
                 result: SyncResult | Exception = sync_blog(
                     blog, settings, _client(settings, blog), store, full=full, prune=prune
                 )

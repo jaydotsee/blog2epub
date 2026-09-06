@@ -245,8 +245,9 @@ so two entries that overlap queue rather than fetch alongside each other.
 ```
 
 `--force` rebuilds even when nothing new was fetched (a rolling digest wants that), `--full`
-re-fetches everything, `--issue YYYYMMDD` pins the issue date. The exit code is blog2epub's:
-`2` when a blog failed, with the other books still built.
+re-fetches everything, `--issue YYYYMMDD` pins the issue date, `--jobs N` sets how many blogs
+sync at once, and `--set KEY=VALUE` overrides any config value for that run. The exit code is
+blog2epub's: `2` when a blog failed, with the other books still built.
 
 ### Adding a blog
 
@@ -305,6 +306,30 @@ The JSON report written by `run --report` looks like this and drives the GitHub 
   "books": [{"id": "tyk", "built": [{"path": "output/tyk.epub", "posts": 627, "images": 956, "bytes": 52105534}]}]
 }
 ```
+
+### Syncing several blogs at once
+
+`sync` and `run` fetch `--jobs N` blogs at a time (default 4, `1` for one at a time). Blogs are
+independent — each has its own cache directory and its own HTTP client — so the only thing that
+needs protecting is politeness: **two entries on the same host take turns**, whatever `--jobs`
+says, so a site never sees more requests than its own `request_delay` allows. APIDAYS and API
+Scene publish on one domain, and that is what keeps them from doubling up on it.
+
+```bash
+bin/blog2epub sync --jobs 8            # every blog, eight at a time
+bin/blog2epub sync api-management      # a book id syncs its blogs, four at a time
+bin/blog2epub sync --jobs 1            # one at a time, for a clean log or a fragile network
+```
+
+Measured against three local blogs costing the same per request: 7.9s at `--jobs 1`, 2.9s at
+`--jobs 3`, and 7.9s again when all three are moved onto one host — the speed-up where the hosts
+differ, and none where politeness says there should be none.
+
+What this buys you is that no source gates any other: Apigee takes 1.5 seconds a request by
+configuration, and it no longer holds up the other eleven. What it does **not** do is speed up a
+single blog — one blog's posts and images are fetched in order, politely — so the longest blog
+sets the floor for the whole run. MuleSoft's 2,505 posts and 7,243 images take about two hours
+from cold no matter what `--jobs` is, and everything else finishes behind it.
 
 ### Recipes
 

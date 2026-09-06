@@ -454,6 +454,20 @@ def test_blogs_on_one_host_take_turns(tmp_path, monkeypatch):
     assert state["peak"] == 1
 
 
+def test_one_host_gets_one_lock_under_a_thundering_herd(tmp_path, monkeypatch):
+    """Twelve entries on one host, started together, still reach it one at a time.
+
+    This pins the politeness guarantee under load, not the lock registry: the plain defaultdict
+    this replaced passes here too, because CPython's GIL makes building the missing lock
+    effectively atomic. A free-threaded build is where the two would part company, and that is
+    what the guarded setdefault in `_sync_blogs` is for.
+    """
+    blogs = "".join(f"  - {{id: b{i}, url: https://one.example/{i}}}\n" for i in range(12))
+    state = _watcher(monkeypatch)
+    assert cli.main(["-c", str(_jobs_config(tmp_path, blogs)), "sync", "--jobs", "12"]) == 0
+    assert state["peak"] == 1
+
+
 def test_jobs_1_syncs_one_blog_at_a_time(tmp_path, monkeypatch):
     cfg = _jobs_config(
         tmp_path, "  - {id: a, url: https://a.example/}\n  - {id: b, url: https://b.example/}\n"
