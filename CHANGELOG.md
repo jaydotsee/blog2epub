@@ -117,6 +117,12 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   book; `make cover` and the monitor workflow use it.
 
 ### Fixed
+- **One unreachable source no longer costs the whole release.** `sync` exits 2 when a blog fails
+  and the rest succeed — the point of isolating them — but the release workflow treated that as
+  fatal and never reached the build. The first run ever to publish anything lost the API
+  Management Digest that way: Substack was briefly unreachable at 04:26, the other twelve blogs
+  were fully cached, and a perfectly good issue was never built. Exit 2 now warns and builds from
+  the cache; a bad config still stops the job.
 - **Relative links in a feed or a sitemap resolve.** A Hugo site whose `baseURL` is relative emits
   `/blog/slug/` rather than a URL, in `<link>` and in `<loc>` alike. Those matched no `include`
   regex and fetched nowhere, so agentgateway.dev read as 39 posts and zero readable pages, and its
