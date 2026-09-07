@@ -130,9 +130,25 @@ jobs:
             blog2epub-cache-
 
       # --jobs syncs the book's blogs at once, so a throttled source (Apigee takes 1.5s a
-      # request) does not gate the other ten in the digest. Blogs sharing a host still queue.
+      # request) does not gate the other twelve in the digest. Blogs sharing a host still queue.
+      #
+      # Exit 2 means one blog failed and the rest synced, which is the whole point of isolating
+      # them - so build anyway, from the cache, rather than losing the release. The digest draws
+      # on thirteen sites and the first run to publish anything died here because Substack was
+      # briefly unreachable at 04:26, with the other twelve fully cached and a perfectly good
+      # issue never built. The warning is loud, and a stale source shows up in the volume table
+      # as posts that stop early. Anything else (1: a bad config) is still fatal.
       - name: Sync
-        run: uv run blog2epub -v sync "${{ matrix.book }}" --jobs 4 ${{ inputs.full == true && '--full' || '' }}
+        run: |
+          set +e
+          uv run blog2epub -v sync "${{ matrix.book }}" --jobs 4 ${{ inputs.full == true && '--full' || '' }}
+          rc=$?
+          set -e
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning title=A source failed::Building ${{ matrix.book }} from the cache without it; see the log above for which."
+          elif [ "$rc" -ne 0 ]; then
+            exit "$rc"
+          fi
 
       - name: Build
         id: build
