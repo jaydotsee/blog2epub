@@ -10,6 +10,12 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   that are no longer in the list, so the sidebar mirrors the file.
 
 ### Changed
+- **A blog that cannot be reached says why.** Detection used to fail with only "could not detect
+  a WordPress API, feed or sitemap", which reads the same whether the site has no feed or is
+  refusing us outright. Every rejected probe is now recorded and summarised in the error —
+  grouped by outcome, one example URL each — so a release log shows `HTTP 403` rather than
+  leaving the next reader to re-diagnose it. This is what the digest's Substack source has been
+  hitting on every CI run: it is reachable locally and blocked from GitHub's runners.
 - **Nothing waits on the slowest source.** Books now release in parallel (the release matrix had
   been sequential), and `sync`/`run` take `--jobs N` (default 4) to sync a book's blogs at once,
   so a throttled site such as Apigee — 1.5 seconds a request — holds up only its own book rather
