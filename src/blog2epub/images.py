@@ -6,6 +6,7 @@ import re
 import time
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -197,12 +198,44 @@ def downgrade_modern_css(svg: bytes) -> bytes:
     return _LIGHT_DARK.sub(rb"\1", svg)
 
 
-def cairosvg_available() -> bool:
+@lru_cache(maxsize=1)
+def _load_cairosvg() -> tuple[Any | None, str]:
+    """The cairosvg module and, when it is unusable, why — imported once per process.
+
+    Importing it fails in two different ways. Without the `svg` extra it is simply absent. But
+    the wheel binds to a native cairo that pip does not install, so on a machine with the
+    package and without the library — a plain `brew install` away on macOS — cairocffi raises
+    OSError from dlopen instead. Catching only ImportError let that one abort an entire build
+    over a decorative SVG, when the whole point of this being optional is that it degrades.
+    """
     try:
-        import cairosvg  # noqa: F401, PLC0415  (optional dependency: the `svg` extra)
+        import cairosvg  # noqa: PLC0415  (optional dependency: the `svg` extra)
     except ImportError:
-        return False
-    return True
+        return None, "cairosvg is not installed (pip install 'blog2epub[svg]')"
+    except OSError as exc:
+        # dlopen's message runs to a dozen lines naming every filename it tried. The first line
+        # is the one worth quoting; what the reader needs is the install hint.
+        first = str(exc).splitlines()[0] if str(exc) else type(exc).__name__
+        reason = (
+            f"cairosvg is installed but the cairo library it binds to is missing ({first}); "
+            "install cairo itself: brew install cairo, or apt install libcairo2"
+        )
+        log.warning("SVG images will not be rasterised: %s", reason)
+        return None, reason
+    return cairosvg, ""
+
+
+def _cairosvg() -> Any | None:
+    return _load_cairosvg()[0]
+
+
+def cairosvg_available() -> bool:
+    return _cairosvg() is not None
+
+
+def cairosvg_problem() -> str:
+    """Why cairosvg cannot be used, or "" when it can."""
+    return _load_cairosvg()[1]
 
 
 def rasterize_svg(svg_path: Path, png_path: Path, width: int) -> bool:
@@ -217,9 +250,8 @@ def rasterize_svg(svg_path: Path, png_path: Path, width: int) -> bool:
 
 
 def rasterize_svg_bytes(svg: bytes, width: int, name: str = "SVG") -> bytes | None:
-    try:
-        import cairosvg  # noqa: PLC0415
-    except ImportError:
+    cairosvg = _cairosvg()
+    if cairosvg is None:
         return None
     try:
         return cairosvg.svg2png(bytestring=svg, output_width=width)

@@ -14,6 +14,15 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   from GitHub's runners, so it failed detection in every release run and never contributed a post
   to a published issue. The digest is now twelve blogs.
 
+### Fixed
+- **A missing cairo library no longer aborts a build.** cairosvg is optional twice over: the `svg`
+  extra installs the Python package, and the package binds to a native cairo that pip does not
+  install. With the module present and the library absent — a Mac after `uv sync` without
+  `brew install cairo` — cairocffi raises `OSError` from dlopen rather than `ImportError`, which
+  the import guard did not catch, so a decorative SVG could kill a build after a full sync had
+  already run. Both absences now degrade the way the docs always claimed, and the warning names
+  which half is missing.
+
 ### Changed
 - **A blog that cannot be reached says why.** Detection used to fail with only "could not detect
   a WordPress API, feed or sitemap", which reads the same whether the site has no feed or is

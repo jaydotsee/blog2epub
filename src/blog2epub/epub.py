@@ -18,7 +18,7 @@ from .clean import clean_html, normalize_url, text_of
 from .config import BlogConfig, BookConfig
 from .covers import cover_values, is_template, playwright_available, render_cover_template, static_fallback
 from .extract import readability_pass
-from .images import MEDIA_TYPES, cairosvg_available, optimize_image, rasterize_svg, rasterize_svg_bytes
+from .images import MEDIA_TYPES, cairosvg_problem, optimize_image, rasterize_svg, rasterize_svg_bytes
 from .models import Post, resolve_date
 from .store import BlogStore
 
@@ -714,11 +714,7 @@ def prepare(book: BookConfig, entries: list[Entry]) -> Prepared:
         ch.text_bytes = len(zlib.compress(ch.xhtml.encode("utf-8"), 6))
 
     if svg_kept:
-        why = (
-            "cairosvg is not installed (pip install 'blog2epub[svg]')"
-            if not cairosvg_available()
-            else "cairosvg could not parse them; see the warnings above"
-        )
+        why = cairosvg_problem() or "cairosvg could not parse them; see the warnings above"
         log.warning(
             "%d SVG image(s) kept as SVG because %s; Kindle may treat the book as fixed layout",
             len(svg_kept),
