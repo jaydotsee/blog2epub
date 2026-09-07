@@ -44,11 +44,6 @@ blogs:
 
   # Sources for the API Management Digest. They only need the recent past, so `since: 3m`
   # keeps the first sync small; the cache still accumulates from then on.
-  - id: apichangelog
-    title: "API Changelog"
-    url: https://apichangelog.substack.com
-    standalone: false
-    since: 3m
   - id: apievangelist
     title: "API Evangelist"
     url: https://apievangelist.com
@@ -218,7 +213,7 @@ books:
     title: "API Management Digest"
     description: "A monthly digest: the last 30 days of posts from the API management blogs that matter."
     author: "Various"
-    blogs: [agentgateway, apichangelog, apidays, apievangelist, apiscene, axway, brunopedro, gravitee, kong, mulesoft, nordicapis, postman, tyk]
+    blogs: [agentgateway, apidays, apievangelist, apiscene, axway, brunopedro, gravitee, kong, mulesoft, nordicapis, postman, tyk]
     since: 1m                 # rolling 30-day window, measured at build time
     group_by: blog            # one part per blog
     order: desc               # newest first

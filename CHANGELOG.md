@@ -9,6 +9,11 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   writes the repository description, website link and topics with the gh CLI, and removes topics
   that are no longer in the list, so the sidebar mirrors the file.
 
+### Removed
+- **API Changelog is no longer a digest source.** The Substack is reachable locally but blocked
+  from GitHub's runners, so it failed detection in every release run and never contributed a post
+  to a published issue. The digest is now twelve blogs.
+
 ### Changed
 - **A blog that cannot be reached says why.** Detection used to fail with only "could not detect
   a WordPress API, feed or sitemap", which reads the same whether the site has no feed or is
