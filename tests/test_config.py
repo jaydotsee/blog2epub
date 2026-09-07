@@ -107,6 +107,67 @@ def test_invalid_books(tmp_path, body):
         load_config(cfg)
 
 
+def _write(tmp_path, body):
+    cfg = tmp_path / "blogs.yaml"
+    cfg.write_text(body)
+    return cfg
+
+
+def test_a_book_may_only_name_blogs_that_exist(tmp_path):
+    """The digest names its sources by id, and a name with nothing behind it is a typo.
+
+    This is the shape of the mistake: dropping a source from `blogs` and forgetting the book
+    that lists it. It has to fail at load rather than build a quietly smaller digest.
+    """
+    cfg = _write(
+        tmp_path,
+        "blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: digest\n    blogs: [a, gone]\n",
+    )
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(cfg)
+
+    message = str(excinfo.value)
+    assert "gone" in message
+    assert "'a'" in message  # and it says what was configured, so the typo is obvious
+
+
+def test_a_book_may_not_name_another_book(tmp_path):
+    """Books do not nest: `blogs` holds blog ids, and a book id there resolves to nothing."""
+    cfg = _write(
+        tmp_path,
+        "blogs:\n  - id: a\n    url: https://a\n"
+        "books:\n  - id: inner\n    blogs: [a]\n  - id: outer\n    blogs: [inner]\n",
+    )
+    with pytest.raises(ConfigError, match="inner"):
+        load_config(cfg)
+
+
+def test_a_repeated_blog_is_refused(tmp_path):
+    """select_entries reads the list straight through, so a repeat duplicates every post."""
+    cfg = _write(
+        tmp_path,
+        "blogs:\n  - id: a\n    url: https://a\n  - id: b\n    url: https://b\n"
+        "books:\n  - id: digest\n    blogs: [a, b, a]\n",
+    )
+    with pytest.raises(ConfigError, match="more than once"):
+        load_config(cfg)
+
+
+@pytest.mark.parametrize("value", ["a", "[a, ~]", "[a, 3]", '[a, ""]'])
+def test_blogs_must_be_a_list_of_ids(tmp_path, value):
+    """`blogs: a` is a string, and iterating a string yields characters, not ids.
+
+    Left alone it hunts for a blog called 'a' one letter at a time and blames the config for
+    the letters it cannot find.
+    """
+    cfg = _write(
+        tmp_path,
+        f"blogs:\n  - id: a\n    url: https://a\nbooks:\n  - id: digest\n    blogs: {value}\n",
+    )
+    with pytest.raises(ConfigError, match="must be a list of blog ids"):
+        load_config(cfg)
+
+
 def test_title_strip_must_be_a_valid_regex():
     with pytest.raises(ConfigError, match="title_strip"):
         BlogConfig(id="b", url="https://e.org", title_strip=["(unclosed"])

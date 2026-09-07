@@ -100,6 +100,15 @@ class BookConfig:
             raise ConfigError(f"book id {self.id!r} may only contain letters, digits, '.', '_' and '-'")
         if not self.blogs:
             raise ConfigError(f"book {self.id!r} needs a non-empty `blogs` list")
+        # `blogs: tyk` is a string, and a string iterates as characters: the digest would go
+        # looking for blogs called 't', 'y' and 'k' and blame the config for their absence.
+        if isinstance(self.blogs, str) or not all(isinstance(b, str) and b for b in self.blogs):
+            raise ConfigError(f"book {self.id!r}: `blogs` must be a list of blog ids, not {self.blogs!r}")
+        # A repeated id is read twice by select_entries, so every post of that blog would appear
+        # twice in the book. Nothing downstream deduplicates, so it has to be refused here.
+        repeated = sorted({b for b in self.blogs if self.blogs.count(b) > 1})
+        if repeated:
+            raise ConfigError(f"book {self.id!r}: `blogs` lists {', '.join(repeated)} more than once")
         if not self.title:
             self.title = self.id
         _check_choice(
