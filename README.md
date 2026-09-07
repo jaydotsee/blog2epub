@@ -215,7 +215,7 @@ fell back to and carries on.
 | For | Install | Without it |
 | --- | --- | --- |
 | Magazine covers rendered from the HTML templates | `uv run playwright install chromium` (once), or set `CHROMIUM_PATH` | The committed `covers/<id>.jpg` is used instead |
-| Rasterising SVG diagrams, which Kindle cannot display | the `svg` extra's cairosvg, which needs the cairo library — `libcairo2` on Debian and Ubuntu, `cairo` on Homebrew | SVGs are kept as they are, and Kindle shows a blank |
+| Rasterising SVG diagrams, which Kindle cannot display | two halves: the `svg` extra's cairosvg (already installed by `uv sync --all-extras`) **and** the cairo library it binds to, which pip cannot install — `brew install cairo` on macOS, `apt install libcairo2` on Debian and Ubuntu | SVGs are kept as they are, and Kindle shows a blank. The build says which half is missing |
 | `make epubcheck`, the validator test | Java 11+ | The books are still EPUB 3; you just are not checking them |
 
 Python 3.10 or newer. `uv sync --all-extras` already installs the Python-side extras.
