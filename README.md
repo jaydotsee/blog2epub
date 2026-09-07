@@ -440,7 +440,7 @@ Any blog or book key may also appear under `defaults`.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `id` | required | Output name: `output/<id>.epub`. Must not clash with a blog id. |
-| `blogs` | required | List of blog ids to combine. |
+| `blogs` | required | List of blog ids to combine. Every id must be defined under `blogs`, and none may repeat — a book that names a source it does not have is a config error, not a quietly smaller book. |
 | `title` | `id` | Book title. |
 | `author`, `description`, `publisher`, `language` | – / `en` | EPUB metadata; the description also appears on the title page and generated cover. |
 | `since`, `until` | – | Only posts published in this range. A date, or a rolling window like `7d`, `2w`, `3m`, `1y` measured from the time of the build. |

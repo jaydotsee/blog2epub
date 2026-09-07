@@ -23,6 +23,14 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   already run. Both absences now degrade the way the docs always claimed, and the warning names
   which half is missing.
 
+### Fixed
+- **A book can only name sources that exist.** An id in a book's `blogs` with no matching entry
+  under `blogs` was already refused; a repeated id was not, and `select_entries` reads the list
+  straight through, so every post of that blog appeared twice in the book. A `blogs:` written as
+  a bare string was not caught either — a string iterates as characters, so the digest went
+  hunting for blogs called 't', 'y' and 'k'. Both now fail at load with a message naming the
+  problem.
+
 ### Changed
 - **A blog that cannot be reached says why.** Detection used to fail with only "could not detect
   a WordPress API, feed or sitemap", which reads the same whether the site has no feed or is
