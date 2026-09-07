@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Agentgateway Blog cover</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root {
+    --ink: #0b0e18;        /* site ground, cooler and darker than Tyk's purple-black */
+    --ink-2: #151927;      /* panel */
+    --ink-3: #2a3044;      /* rule */
+    --violet: #8a3ffc;     /* the accent, 14 uses on the home page */
+    --purple: #8023c3;     /* the logo mark */
+    --slate: #b0b4c4;
+    --slate-2: #5a6078;
+    --paper: #dee0ee;
+    --w: 1600px; --h: 2133px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: var(--w); height: var(--h); overflow: hidden; background: var(--ink); }
+  body { font-family: "Barlow", "Liberation Sans", Arial, sans-serif; color: var(--paper); position: relative; }
+
+  /* No blurred glows here: Tyk and MuleSoft both use them, and this site is flat and technical. */
+  .bg { position: absolute; inset: 0; background:
+        linear-gradient(180deg, #10142100 0%, #151927 62%, #0b0e18 100%); }
+  svg.net { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .frame { position: absolute; inset: 0; padding: 96px; display: flex; flex-direction: column; }
+
+  /* The project writes its own name lowercase and unspaced; so does the cover. */
+  .masthead .name { font-family: "Barlow", sans-serif; font-weight: 800; font-size: 132px; letter-spacing: -4px;
+                    color: #fff; line-height: 1; }
+  .masthead .name em { font-style: normal; color: var(--violet); }
+  .masthead .tag { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 42px;
+                   letter-spacing: 9px; color: var(--violet); text-transform: uppercase; margin-top: 14px; }
+
+  .issue { display: flex; gap: 22px; align-items: center; margin-top: 30px; font-weight: 600; font-size: 28px;
+           letter-spacing: 1px; color: var(--slate); }
+  .issue .bar { width: 3px; height: 26px; background: var(--ink-3); }
+
+  .lines { margin-top: 104px; width: 700px; display: flex; flex-direction: column; gap: 46px; }
+  .line { border-left: 4px solid var(--violet); padding-left: 28px; }
+  .line .kicker { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 34px; letter-spacing: 4px;
+                  color: var(--violet); text-transform: uppercase; }
+  .line .title { font-weight: 600; font-size: 42px; line-height: 1.14; color: #fff; margin-top: 10px; text-wrap: balance; }
+
+  /* A rounded square, not Tyk's hexagon or MuleSoft's circle. */
+  .badge { position: absolute; right: 96px; top: 620px; width: 372px; height: 372px; border-radius: 40px;
+           background: linear-gradient(150deg, var(--violet), var(--purple)); padding: 3px;
+           box-shadow: 0 24px 70px rgba(0,0,0,.55); }
+  .badge .inner { width: 100%; height: 100%; border-radius: 37px; background: var(--ink);
+                  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .badge .big { font-family: "Barlow", sans-serif; font-weight: 800; font-size: 132px; line-height: .9; color: #fff; letter-spacing: -4px; }
+  .badge .small { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 30px; letter-spacing: 5px; color: var(--violet); margin-top: 12px; }
+  .badge .tiny { font-weight: 600; font-size: 24px; color: var(--slate); margin-top: 8px; }
+
+  .headline { margin-top: auto; padding-bottom: 26px; }
+  .headline .over { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 40px; letter-spacing: 14px;
+                    color: var(--slate-2); text-transform: uppercase; }
+  .headline .big { font-family: "Barlow", sans-serif; font-weight: 800; font-size: 178px; line-height: .92; letter-spacing: -6px;
+                   margin-top: 20px; color: #fff; }
+  .headline .big span { display: block; }
+  .headline .big span.accent { background: linear-gradient(90deg, var(--violet) 0%, #c9a4ff 100%);
+                               -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .headline .dek { font-size: 34px; line-height: 1.35; color: var(--slate); margin-top: 40px; width: 1180px; }
+  .headline .dek b { color: #fff; font-weight: 600; }
+
+  .strip { margin-top: 44px; border-top: 2px solid var(--ink-3); padding-top: 26px; display: flex; justify-content: space-between;
+           align-items: center; font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 34px;
+           letter-spacing: 4px; text-transform: uppercase; color: var(--slate); }
+  .strip .sep { color: var(--violet); }
+  .vol:empty { display: none; }
+  .vol::before { content: "\00a0\00b7\00a0"; }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <svg class="net" viewBox="0 0 1600 2133" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="wire" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#8A3FFC" stop-opacity=".05"/>
+        <stop offset="1" stop-color="#8A3FFC" stop-opacity=".55"/>
+      </linearGradient>
+    </defs>
+    <!-- A lattice: agents on the left, one gateway column, models on the right. -->
+    <g stroke="#2A3044" stroke-width="1" opacity=".55">
+      <path d="M0 300 H1600 M0 560 H1600 M0 820 H1600 M0 1080 H1600 M0 1340 H1600 M0 1600 H1600"/>
+      <path d="M200 0 V2133 M500 0 V2133 M800 0 V2133 M1100 0 V2133 M1400 0 V2133"/>
+    </g>
+    <!-- Traffic converging on the gateway column, then fanning out again -->
+    <g stroke="url(#wire)" stroke-width="3" fill="none">
+      <path d="M1600 620 H1310 Q1250 620 1250 680 V810"/>
+      <path d="M1600 760 H1350 Q1290 760 1290 800 V812"/>
+      <path d="M1600 980 H1350 Q1290 980 1290 900 V818"/>
+      <path d="M1600 1140 H1310 Q1250 1140 1250 1010 V822"/>
+      <path d="M1250 830 V1180 Q1250 1240 1190 1240 H980"/>
+      <path d="M1290 830 V1320 Q1290 1380 1230 1380 H1020"/>
+    </g>
+    <!-- Nodes: the gateway itself, and the endpoints either side -->
+    <g fill="#8A3FFC">
+      <circle cx="1250" cy="818" r="10"/><circle cx="1290" cy="818" r="10"/>
+      <circle cx="1600" cy="620" r="7"/><circle cx="1600" cy="760" r="7"/>
+      <circle cx="1600" cy="980" r="7"/><circle cx="1600" cy="1140" r="7"/>
+    </g>
+    <g fill="none" stroke="#8A3FFC" stroke-width="2" opacity=".45">
+      <rect x="1198" y="766" width="144" height="104" rx="22"/>
+    </g>
+    <g fill="#5A6078">
+      <circle cx="980" cy="1240" r="6"/><circle cx="1020" cy="1380" r="6"/>
+    </g>
+  </svg>
+
+  <div class="frame">
+    <div class="masthead">
+      <div class="name">agentgateway<em>.</em></div>
+      <div class="tag">Agent Connectivity Solved</div>
+    </div>
+    <div class="issue"><span>Issue $issue_number<span class="vol">$volume_label</span></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
+
+    <div class="lines">
+      <div class="line"><div class="kicker">$kicker1</div><div class="title">$title1</div></div>
+      <div class="line"><div class="kicker">$kicker2</div><div class="title">$title2</div></div>
+      <div class="line"><div class="kicker">$kicker3</div><div class="title">$title3</div></div>
+    </div>
+
+    <div class="badge"><div class="inner">
+      <div class="big">$count</div>
+      <div class="small">POSTS</div>
+      <div class="tiny">$years</div>
+    </div></div>
+
+    <div class="headline">
+      <div class="over">The archive</div>
+      <div class="big"><span>AGENT</span><span class="accent">CONNECTIVITY</span></div>
+      <div class="dek">Every post from the <b>agentgateway</b> blog, $years_prose: <b>MCP</b> and <b>A2A</b> gateways,
+        LLM routing and failover, guardrails, token vaults, and the benchmarks behind them.</div>
+    </div>
+
+    <div class="strip">
+      <span>MCP</span><span class="sep">/</span><span>LLM Routing</span><span class="sep">/</span><span>Guardrails</span><span class="sep">/</span><span>Kubernetes</span>
+    </div>
+  </div>
+</body>
+</html>

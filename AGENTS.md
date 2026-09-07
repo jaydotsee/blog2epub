@@ -306,6 +306,8 @@ per-host lock in `_sync_blogs`, so concurrency never turns into extra load on a 
 | A `table` inside a `pre` fails RSC-005 | A pasted config snippet was parsed rather than escaped | Handled: markup inside a `pre` is re-serialised as text |
 | Volumes full of webinar invitations and job posts | The archive includes `/events/` and `/careers/` sections | `exclude` them by exact path segment, then `sync --prune` |
 | The same sentence opens every chapter | A plugin stamp (`Reading Time: 7 minutes`) inside the body | A `remove` selector. Count repeated chapter openings after the first build |
+| The feed lists posts but none can be fetched (`No scheme supplied`) | A Hugo site with a relative `baseURL`: feed links and sitemap `loc`s are paths, not URLs | Handled: both sources resolve against the document that listed them |
+| A code-heavy post arrives without its code | Readability picked a wrapper above the article, not the article | `keep` the prose container; compare the `pre`/`img` counts under each candidate |
 
 ## Where to change what
 

@@ -50,6 +50,11 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 - `build` gained `--report FILE`, the same JSON `run` writes, with one entry per volume.
 
 ### Added
+- **The agentgateway blog.** `agentgateway.dev/blog/`, the LF project for agent and MCP gateways:
+  39 posts and 88 images across 2025 and 2026, as two year volumes. It joins the API Management
+  Digest as a thirteenth source — AI gateways being where Kong, Gravitee, MuleSoft and Tyk are all
+  writing now. `keep: .prose` because readability picks a wrapper that drops the fourteen code
+  blocks and the diagrams out of a typical post.
 - **`bin/publish` takes `--jobs N` and `--set KEY=VALUE`.** The cron entry point could reach
   neither, so a scheduled run was stuck with the default parallelism and whatever the file said.
 - **`--set KEY=VALUE` overrides any config value for one run.** `KEY=VALUE` sets a `defaults` key,
@@ -112,6 +117,12 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   book; `make cover` and the monitor workflow use it.
 
 ### Fixed
+- **Relative links in a feed or a sitemap resolve.** A Hugo site whose `baseURL` is relative emits
+  `/blog/slug/` rather than a URL, in `<link>` and in `<loc>` alike. Those matched no `include`
+  regex and fetched nowhere, so agentgateway.dev read as 39 posts and zero readable pages, and its
+  sitemap as none at all. Both sources now resolve a location against the document that listed it,
+  which is what a feed reader does; an absolute URL is untouched, so nothing that already worked
+  changes.
 - **Releasing a book works.** Every release run was failing in the step that clears an issue's
   existing assets, and the repository has no releases to show for it. `gh api` writes its error
   body to STDOUT and skips `--jq` when a request fails, so the guard for "no release at this tag

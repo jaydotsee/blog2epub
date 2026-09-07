@@ -23,6 +23,16 @@ NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
 MAX_SITEMAPS = 200  # raise with `sitemap: { max: N }` for date-partitioned indexes
 
 
+def _at(sitemap_url: str, loc: str) -> str:
+    """A `loc` resolved against the sitemap that listed it.
+
+    The sitemap spec requires absolute URLs, and most sites oblige. Hugo does not when baseURL
+    is relative — agentgateway.dev lists `/docs/...` — and a relative loc matches no `include`
+    regex and fetches nowhere. An absolute loc passes through untouched.
+    """
+    return urljoin(sitemap_url, loc.strip())
+
+
 class SitemapSource(Source):
     name = "sitemap"
 
@@ -79,14 +89,14 @@ class SitemapSource(Source):
         if root.tag == f"{NS}sitemapindex":
             for sm in root.iter(f"{NS}sitemap"):
                 loc = sm.findtext(f"{NS}loc")
-                if loc and self._wanted_sitemap(loc.strip()):
+                if loc and self._wanted_sitemap(_at(url, loc)):
                     # skip sitemaps that obviously belong to other content types when we can tell
-                    self._walk(loc.strip(), seen, out)
+                    self._walk(_at(url, loc), seen, out)
         elif root.tag == f"{NS}urlset":
             for u in root.iter(f"{NS}url"):
                 loc = u.findtext(f"{NS}loc")
                 if loc:
-                    out.append((loc.strip(), (u.findtext(f"{NS}lastmod") or "").strip() or None))
+                    out.append((_at(url, loc), (u.findtext(f"{NS}lastmod") or "").strip() or None))
 
     def _wanted_sitemap(self, loc: str) -> bool:
         return not self.sitemap_include or any(p.search(loc) for p in self.sitemap_include)
