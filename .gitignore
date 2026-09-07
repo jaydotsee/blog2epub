@@ -16,4 +16,31 @@ venv/
 .tools/
 .mypy_cache/
 .ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# The filled-in copy a cover template is screenshotted from. covers.py deletes it in a finally,
+# so it only survives a build killed mid-render — but then it sits in covers/ next to tracked
+# templates, and a stray one must never look like a change to pull over.
 .*.render.html
+
+# macOS. Finder writes .DS_Store into any directory you so much as look at, and copying to a
+# non-native filesystem leaves ._ AppleDouble twins beside the originals.
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# editors and local tooling
+.idea/
+.vscode/
+*.swp
+*~
+.claude/settings.local.json
+
+# local environment. Nothing here reads .env today, but a shell that does should never be able
+# to commit whatever is in it.
+.env
+.env.*
+!.env.example
