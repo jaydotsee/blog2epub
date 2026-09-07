@@ -112,6 +112,14 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   book; `make cover` and the monitor workflow use it.
 
 ### Fixed
+- **Releasing a book works.** Every release run was failing in the step that clears an issue's
+  existing assets, and the repository has no releases to show for it. `gh api` writes its error
+  body to STDOUT and skips `--jq` when a request fails, so the guard for "no release at this tag
+  yet" — an empty capture — never fired: a 404 handed back the whole
+  `{"message":"Not Found",...}` blob as the release id, and the next request was built around it
+  (`releases/{"message":"Not Found",...}/assets`, *unsupported protocol scheme ""*). The id is
+  now believed only when it is one, whatever gh prints. Covered by `tests/test_release_script.py`,
+  which drives the script with a fake `gh` and reproduces the 404 exactly.
 - Per-host sync locks are created under a lock of their own. A `defaultdict` lets two threads
   both miss the same host and each build a lock, after which both hold "the" lock for that host
   and the site sees two syncs at once. CPython's GIL makes that unreachable today, so it is not
