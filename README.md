@@ -547,6 +547,22 @@ the tags to throw away. blog2epub has the same two knobs, as CSS selectors, on e
 Find selectors by opening a post in the browser's inspector, or run `detect` and look at one of
 the listed URLs.
 
+### Static-site generators
+
+Hugo, Zola and Docusaurus sites need `keep` more often than WordPress ones, and for a different
+reason. Their themes wrap the article in utility-class containers — `.px-6`, `.max-w-3xl` — that
+a readability scorer rates as highly as the prose but which hold none of it. The tell is an
+extraction that comes out plausible but short, with no images and no code. `.prose`, the Tailwind
+Typography class, is usually the article as written; on `agentgateway` it is the difference
+between nothing and 107 code blocks across the book.
+
+The other Hugo habit is a **relative `baseURL`**, which makes every `<link>` in the feed and every
+`<loc>` in the sitemap a path rather than a URL. blog2epub resolves those against the document
+that listed them, the way a feed reader does, so no configuration is needed — but it is worth
+knowing when a source reports plenty of posts and none of them can be fetched. Hugo also puts the
+*whole* archive in `index.xml`, where a WordPress feed stops at ten, so for these sites the feed
+is often the best source rather than the worst.
+
 ## Recipes
 
 **Newest first, years with month sub-sections.** This is how the Tyk book is configured:

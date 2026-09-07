@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: setup test lint format typecheck check list detect sync build run status epubcheck cover clean
+.PHONY: setup test lint format typecheck check list detect sync build run status epubcheck cover docs clean
 
 # `uv sync` creates .venv from uv.lock with every extra and the dev group; idempotent and fast.
 setup:
@@ -59,6 +59,11 @@ epubcheck: build
 # covers itself, one per volume.
 cover: setup
 	$(UV) run python scripts/render_cover.py --all
+
+# Re-render the README's reader screenshots and the repository social preview from the newest
+# book in output/. Needs a Chromium, as `make cover` does.
+docs: setup
+	$(UV) run python scripts/render_docs.py
 
 clean:
 	rm -rf output .pytest_cache .mypy_cache .ruff_cache
