@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections import deque
 from types import SimpleNamespace
 
 import pytest
-import requests
 
 from blog2epub.config import BlogConfig, ConfigError
 from blog2epub.sources import resolve_source
@@ -43,9 +43,12 @@ class FakeClient:
     """Routes (url, sorted params) -> FakeResponse; records what was requested."""
 
     def __init__(self, routes):
+        from blog2epub.http import PROBE_MEMORY
+
         self.routes = routes  # callable(url, params) -> FakeResponse | None
         self.calls = []
         self.requests_made = 0
+        self.rejected_probes = deque(maxlen=PROBE_MEMORY)
 
     def get(self, url, params=None, allow_404=False, stream=False, **kw):
         self.calls.append((url, dict(params or {})))
@@ -69,12 +72,16 @@ class FakeClient:
 
         return HttpClient.get_text_tolerant(self, url, **kw)
 
+    # Borrowed whole rather than mirrored, so probe recording is exercised here too.
     def try_get(self, url, **kw):
-        try:
-            resp = self.get(url, allow_404=True, **kw)
-        except requests.RequestException:  # mirrors HttpClient.try_get
-            return None
-        return resp if resp.status_code == 200 else None
+        from blog2epub.http import HttpClient
+
+        return HttpClient.try_get(self, url, **kw)
+
+    def _reject(self, url, why):
+        from blog2epub.http import HttpClient
+
+        return HttpClient._reject(self, url, why)
 
 
 BLOG_HTML = (
@@ -256,6 +263,40 @@ def test_resolve_source_fails_cleanly():
     b = BlogConfig(id="x", url="https://nothing.example/blog")
     with pytest.raises(SourceError):
         resolve_source(b, FakeClient(lambda u, p: None))
+
+
+def test_detection_failure_says_what_the_site_answered():
+    """A site that refuses us reads differently from one that simply has no feed.
+
+    The digest's Substack source fails on every CI run and the log said only "could not
+    detect", so there was nothing to tell a 403 from a missing endpoint.
+    """
+    from blog2epub.sources import SourceError
+
+    b = BlogConfig(id="blocked", url="https://blocked.example")
+    client = FakeClient(lambda u, p: FakeResponse(403))
+    with pytest.raises(SourceError) as excinfo:
+        resolve_source(b, client)
+
+    message = str(excinfo.value)
+    assert "403" in message
+    assert "https://blocked.example" in message
+    # every endpoint tried is named, so the next run does not need a second guess
+    assert "feed" in message and "sitemap" in message.lower()
+
+
+def test_a_site_with_no_feed_reads_as_missing_not_refused():
+    """The other half of the distinction: 404s are recorded as plain HTTP 404, not as errors."""
+    from blog2epub.sources import SourceError
+
+    b = BlogConfig(id="bare", url="https://bare.example")
+    client = FakeClient(lambda u, p: None)  # every probe 404s
+    with pytest.raises(SourceError) as excinfo:
+        resolve_source(b, client)
+
+    message = str(excinfo.value)
+    assert "HTTP 404" in message
+    assert "403" not in message
 
 
 def test_store_failed_image_entries(tmp_path):

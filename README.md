@@ -41,7 +41,7 @@ It ships configured with eight books: seven complete archives — [Tyk](https://
 [Gravitee](https://www.gravitee.io/blog) (656 posts) and
 [MuleSoft](https://blogs.mulesoft.com) (2,505 posts, back to 2008) and
 [agentgateway](https://agentgateway.dev/blog/) (39 posts) — and the
-**API Management Digest**, a monthly issue drawn from thirteen API-management blogs. All are
+**API Management Digest**, a monthly issue drawn from twelve API-management blogs. All are
 published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
 
 The idea comes from Facundo Olano's [Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/):
@@ -723,7 +723,7 @@ bin/blog2epub run kong     # sync + build → output/kong-<issue>.<n>.epub
 ## The API Management Digest
 
 `blogs.yaml` ships a second book, `api-management`: a monthly digest of the last 30 days of posts
-from API Changelog, API Evangelist, API Scene, APIDAYS (which publishes on API Scene), Axway,
+from API Evangelist, API Scene, APIDAYS (which publishes on API Scene), Axway,
 Bruno Pedro, Gravitee, Kong, MuleSoft, Nordic APIs, Postman, Tyk and agentgateway. It uses a rolling
 `since: 1m` window
 measured at build time, one part per blog, newest first, and its own cover. It sets `split: size`
@@ -802,7 +802,7 @@ blog2epub build tyk --collectors        # output/tyk-collectors-<today>.epub
 ```
 
 Nothing waits on anything else: a throttled source holds up only its own book, and `--jobs`
-syncs a book's blogs at once so the thirteen-blog digest is not gated by the slowest of them.
+syncs a book's blogs at once so the twelve-blog digest is not gated by the slowest of them.
 Blogs sharing a host still take turns, so no site sees more load than its `request_delay`
 allows. Only `sync.yml` writes the download cache — the release jobs restore it read-only, so
 running in parallel cannot fork it.

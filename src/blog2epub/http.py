@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import deque
 from typing import Any
 
 import requests
@@ -15,6 +16,10 @@ log = logging.getLogger(__name__)
 # for half an hour over a single picture. Wait the polite amount up to a point, then move on:
 # a skipped image is logged and tried again next sync, a stalled sync is just stalled.
 RETRY_AFTER_MAX = 60.0
+
+# How many rejected probes to remember. Detection tries a dozen or so URLs per blog; keeping
+# them all lets the failure say which ones and why.
+PROBE_MEMORY = 24
 
 
 class CappedRetry(Retry):
@@ -49,6 +54,9 @@ class HttpClient:
         self.session.mount("http://", adapter)
         self._last_request = 0.0
         self.requests_made = 0
+        # Why each probe was turned down, for the error message when detection finds nothing.
+        # A client is built per blog, so these never mix between sites.
+        self.rejected_probes: deque[str] = deque(maxlen=PROBE_MEMORY)
 
     def _throttle(self) -> None:
         if self.delay <= 0:
@@ -107,8 +115,16 @@ class HttpClient:
         try:
             resp = self.get(url, allow_404=True, **kwargs)
         except requests.RequestException as exc:
-            log.debug("probe %s failed: %s", url, exc)
+            self._reject(url, f"{type(exc).__name__}: {exc}")
             return None
         if resp.status_code != 200:
+            # A 404 is the ordinary answer to "is there a feed here?"; a 403 means the site is
+            # refusing us and is the thing worth reading in the log afterwards. Record both:
+            # only the failure message tells them apart, and it is only shown when nothing works.
+            self._reject(url, f"HTTP {resp.status_code}")
             return None
         return resp
+
+    def _reject(self, url: str, why: str) -> None:
+        log.debug("probe %s: %s", url, why)
+        self.rejected_probes.append(f"{url} -> {why[:120]}")
