@@ -4,6 +4,11 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### Added
+- **The GitHub About sidebar has a source of truth.** `scripts/set_github_about.sh` (`make about`)
+  writes the repository description, website link and topics with the gh CLI, and removes topics
+  that are no longer in the list, so the sidebar mirrors the file.
+
 ### Changed
 - **Nothing waits on the slowest source.** Books now release in parallel (the release matrix had
   been sequential), and `sync`/`run` take `--jobs N` (default 4) to sync a book's blogs at once,

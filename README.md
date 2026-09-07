@@ -852,6 +852,7 @@ docs/                          README assets (screenshots, social preview)
 scripts/probe_blog.py          works out a new blog's recipe: source, URL shape, rules, colours
 scripts/render_cover.py        renders a cover template to JPG with Playwright
 scripts/render_docs.py         renders the README screenshots and social preview
+scripts/set_github_about.sh    fills in the GitHub About sidebar (description, website, topics)
 src/blog2epub/
   cli.py                       list, detect, sync, build, run, status
   config.py                    YAML → BlogConfig / BookConfig / Settings, validation
@@ -885,6 +886,7 @@ make test
 make epubcheck        # build everything, then validate with the W3C checker (needs Java)
 EPUBCHECK_JAR=path/to/epubcheck.jar make test   # also runs the validator inside the test suite
 uv lock               # after changing dependencies in pyproject.toml; commit uv.lock
+make about            # push the About sidebar (description, website, topics) to GitHub; needs gh
 ```
 
 [AGENTS.md](AGENTS.md) is the working guide: ground rules, the recipe pattern for adding a blog,

@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: setup test lint format typecheck check list detect sync build run status epubcheck cover docs clean
+.PHONY: setup test lint format typecheck check list detect sync build run status epubcheck cover docs about clean
 
 # `uv sync` creates .venv from uv.lock with every extra and the dev group; idempotent and fast.
 setup:
@@ -64,6 +64,11 @@ cover: setup
 # book in output/. Needs a Chromium, as `make cover` does.
 docs: setup
 	$(UV) run python scripts/render_docs.py
+
+# Fill in the repository's About sidebar on GitHub (description, website, topics). Needs the gh
+# CLI logged in; the values live in the script. The social preview image is uploaded by hand.
+about:
+	scripts/set_github_about.sh
 
 clean:
 	rm -rf output .pytest_cache .mypy_cache .ruff_cache
