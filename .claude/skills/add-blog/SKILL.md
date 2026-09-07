@@ -54,7 +54,41 @@ Two judgement calls are yours, not the tool's:
   post on event-driven architecture with it. Check the regex against what it keeps as well as
   what it drops.
 
-**If the probe cannot reach the site, work out why before giving up.**
+**If the probe lists posts but cannot fetch them, read the URLs.**
+
+```
+39 posts
+...
+(skipping unreadable /blog/2026-08-27-agents-on-every-cloud/: No scheme supplied)
+```
+
+That is a **Hugo site with a relative `baseURL`**: `<link>` in the feed and `<loc>` in the
+sitemap are paths, not URLs. Both sources resolve them against the document that listed them
+now, so this is handled — but the same site will look odd in two other ways, and both are
+normal for Hugo:
+
+- **The sitemap covers the whole site**, docs and all, with no separate posts sitemap. Take the
+  feed when it carries the full archive: Hugo publishes every post in `index.xml` by default,
+  where a WordPress feed stops at ten. Check the counts rather than assuming — if the feed and
+  the sitemap agree, the feed is the better source because it has dates and titles.
+- **Readability often picks the wrong container.** Hugo themes wrap the article in utility-class
+  divs (`.px-6`, `.max-w-3xl`) that a scorer likes as much as the prose. The tell is a sample
+  with `images 0` and no code: compare candidates by what they *hold*, not by size.
+
+```bash
+# how many code blocks and images does each candidate actually contain?
+uv run python -c "
+from lxml import html; d = html.parse('/tmp/post.html').getroot()
+for sel in ('.prose', '.content', 'article', 'main'):
+    for e in d.cssselect(sel)[:1]:
+        print(sel, len(e.cssselect('pre')), 'pre', len(e.cssselect('img')), 'img')"
+```
+
+  `.prose` is the Tailwind Typography class and is the right answer on most Hugo and Docusaurus
+  sites; agentgateway is the worked example, where it is the difference between 0 and 107 code
+  blocks across the book.
+
+**If the probe cannot reach the site at all, work out why before giving up.**
 
 - **403 on everything.** Read `robots.txt` first. If crawling is permitted (MuleSoft's disallows
   only `/wp-admin/` and advertises its sitemaps), the edge is filtering on the *shape* of the

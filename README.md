@@ -34,13 +34,14 @@ and cross-links that stay inside the book. A book can be one blog's complete arc
 magazine-style digest that combines several blogs over a date range. Every book it produces passes
 the W3C [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
 
-It ships configured with seven books: six complete archives — [Tyk](https://tyk.io/blog)
+It ships configured with eight books: seven complete archives — [Tyk](https://tyk.io/blog)
 (627 posts), [Kong](https://konghq.com/blog) (900 posts),
 [Apigee](https://cloud.google.com/blog/products/apigee) (244 posts),
 [Axway](https://blog.axway.com) (1,968 posts, back to 2011),
 [Gravitee](https://www.gravitee.io/blog) (656 posts) and
-[MuleSoft](https://blogs.mulesoft.com) (2,505 posts, back to 2008) — and the
-**API Management Digest**, a monthly issue drawn from twelve API-management blogs. All are
+[MuleSoft](https://blogs.mulesoft.com) (2,505 posts, back to 2008) and
+[agentgateway](https://agentgateway.dev/blog/) (39 posts) — and the
+**API Management Digest**, a monthly issue drawn from thirteen API-management blogs. All are
 published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
 
 The idea comes from Facundo Olano's [Turn your blog into a book](https://jorge.olano.dev/blog/turn-your-blog-into-an-ebook/):
@@ -546,6 +547,22 @@ the tags to throw away. blog2epub has the same two knobs, as CSS selectors, on e
 Find selectors by opening a post in the browser's inspector, or run `detect` and look at one of
 the listed URLs.
 
+### Static-site generators
+
+Hugo, Zola and Docusaurus sites need `keep` more often than WordPress ones, and for a different
+reason. Their themes wrap the article in utility-class containers — `.px-6`, `.max-w-3xl` — that
+a readability scorer rates as highly as the prose but which hold none of it. The tell is an
+extraction that comes out plausible but short, with no images and no code. `.prose`, the Tailwind
+Typography class, is usually the article as written; on `agentgateway` it is the difference
+between nothing and 107 code blocks across the book.
+
+The other Hugo habit is a **relative `baseURL`**, which makes every `<link>` in the feed and every
+`<loc>` in the sitemap a path rather than a URL. blog2epub resolves those against the document
+that listed them, the way a feed reader does, so no configuration is needed — but it is worth
+knowing when a source reports plenty of posts and none of them can be fetched. Hugo also puts the
+*whole* archive in `index.xml`, where a WordPress feed stops at ten, so for these sites the feed
+is often the best source rather than the worst.
+
 ## Recipes
 
 **Newest first, years with month sub-sections.** This is how the Tyk book is configured:
@@ -631,7 +648,7 @@ is a tag page; the posts live under other product sections. Match where they rea
 
 ## The complete-archive books
 
-Six blogs are configured as complete archives, newest first, with year → month navigation and
+Seven blogs are configured as complete archives, newest first, with year → month navigation and
 their own covers:
 
 | Book | Source | Posts | Notes |
@@ -642,6 +659,7 @@ their own covers:
 | `axway` | WordPress REST API | 1,968 | The longest archive here, back to 2011, across API management, MFT and B2B. |
 | `gravitee` | HubSpot sitemap | 656 | Gravitee publishes through HubSpot, so the archive is in that sitemap, not the site's own. |
 | `mulesoft` | WordPress REST API | 2,505 | The longest archive here, back to 2008. Its edge 403s a crawler-shaped `User-Agent`, so the entry sets its own, and `/events/` and `/careers/` are excluded. |
+| `agentgateway` | Hugo feed | 39 | A Hugo site with a relative `baseURL`, so every feed link and sitemap `loc` is a path, not a URL. `keep: .prose` because readability drops the code blocks. |
 
 Kong's pages prerender twenty related-post cards into every article, which readability alone
 mistakes for part of the story, so the entry uses a `keep` selector for the article body plus
@@ -706,7 +724,8 @@ bin/blog2epub run kong     # sync + build → output/kong-<issue>.<n>.epub
 
 `blogs.yaml` ships a second book, `api-management`: a monthly digest of the last 30 days of posts
 from API Changelog, API Evangelist, API Scene, APIDAYS (which publishes on API Scene), Axway,
-Bruno Pedro, Gravitee, Kong, MuleSoft, Nordic APIs, Postman and Tyk. It uses a rolling `since: 1m` window
+Bruno Pedro, Gravitee, Kong, MuleSoft, Nordic APIs, Postman, Tyk and agentgateway. It uses a rolling
+`since: 1m` window
 measured at build time, one part per blog, newest first, and its own cover. It sets `split: size`
 because an issue is one thing whatever years its thirty days span — the year default would cut a
 January digest in two at New Year. The digest-only blogs carry `since: 3m` so their first sync
@@ -728,6 +747,7 @@ Because the window rolls, the weekly workflow always produces a fresh issue; the
   <img src="covers/axway.jpg" width="16%" alt="Axway Blog cover">
   <img src="covers/gravitee.jpg" width="16%" alt="Gravitee Blog cover">
   <img src="covers/mulesoft.jpg" width="16%" alt="MuleSoft Blog cover">
+  <img src="covers/agentgateway.jpg" width="16%" alt="Agentgateway Blog cover">
 </p>
 
 Every book has a cover rendered from the HTML template next to it by `scripts/render_cover.py`,
@@ -782,7 +802,7 @@ blog2epub build tyk --collectors        # output/tyk-collectors-<today>.epub
 ```
 
 Nothing waits on anything else: a throttled source holds up only its own book, and `--jobs`
-syncs a book's blogs at once so the twelve-blog digest is not gated by the slowest of them.
+syncs a book's blogs at once so the thirteen-blog digest is not gated by the slowest of them.
 Blogs sharing a host still take turns, so no site sees more load than its `request_delay`
 allows. Only `sync.yml` writes the download cache — the release jobs restore it read-only, so
 running in parallel cannot fork it.

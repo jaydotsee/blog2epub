@@ -157,6 +157,27 @@ blogs:
     order: desc               # newest post first
     group_by: year-month      # contents: year -> month -> posts
     cover: covers/mulesoft.html
+  # agentgateway, the LF project for agent and MCP gateways (started at Solo.io). A Hugo site
+  # whose baseURL is relative, so every link in its feed and every `loc` in its sitemap is a
+  # path rather than a URL - both sources resolve those against the document now. The feed
+  # carries the whole archive, so it is the better source: it has the dates and titles the
+  # sitemap lacks.
+  - id: agentgateway
+    title: "Agentgateway Blog"
+    url: https://agentgateway.dev/blog/
+    author: "agentgateway"
+    description: "Every post from the agentgateway blog: AI and MCP gateways, agent connectivity, LLM routing and governance."
+    source: feed
+    feed: { url: https://agentgateway.dev/blog/index.xml }
+    include:
+      - "^https://agentgateway\\.dev/blog/[^/]+"
+    # The posts are dense with code. Readability picks a wrapper that drops the fourteen `pre`
+    # blocks and the diagrams out of a typical post; `.prose` is the body as written.
+    keep:
+      - ".prose"
+    order: desc               # newest post first
+    group_by: year-month      # contents: year -> month -> posts
+    cover: covers/agentgateway.html
   - id: nordicapis
     title: "Nordic APIs"
     url: https://nordicapis.com/blog
@@ -197,7 +218,7 @@ books:
     title: "API Management Digest"
     description: "A monthly digest: the last 30 days of posts from the API management blogs that matter."
     author: "Various"
-    blogs: [apichangelog, apidays, apievangelist, apiscene, axway, brunopedro, gravitee, kong, mulesoft, nordicapis, postman, tyk]
+    blogs: [agentgateway, apichangelog, apidays, apievangelist, apiscene, axway, brunopedro, gravitee, kong, mulesoft, nordicapis, postman, tyk]
     since: 1m                 # rolling 30-day window, measured at build time
     group_by: blog            # one part per blog
     order: desc               # newest first

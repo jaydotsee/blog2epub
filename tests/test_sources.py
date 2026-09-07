@@ -303,3 +303,68 @@ def test_sitemap_index_partitions_can_be_filtered_and_capped(blog):
 def test_invalid_sitemap_include_regex_is_rejected():
     with pytest.raises(ConfigError):
         BlogConfig(id="x", url="https://x", sitemap={"include": ["("]})
+
+
+# Hugo emits paths rather than URLs when baseURL is relative, in both the feed and the sitemap.
+# agentgateway.dev is such a site: every link read as `/blog/slug/`, which matched no `include`
+# regex and fetched nowhere, so the blog looked like it had 39 posts and zero readable pages.
+RELATIVE_RSS = """<?xml version="1.0"?><rss version="2.0"><channel><title>x</title><link>/blog/</link>
+<item><title>Feed post</title><link>/blog/f1/</link><guid>/blog/f1/</guid>
+<pubDate>Mon, 01 Jan 2024 00:00:00 GMT</pubDate><description>short</description></item>
+</channel></rss>"""
+
+RELATIVE_SITEMAP_INDEX = """<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<sitemap><loc>/post-sitemap.xml</loc></sitemap></sitemapindex>"""
+
+RELATIVE_SITEMAP = """<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url><loc>/blog/f1/</loc><lastmod>2024-01-02</lastmod></url>
+<url><loc>/about/</loc></url></urlset>"""
+
+
+def test_feed_links_are_resolved_against_the_feed_url(blog):
+    blog.source = "feed"
+
+    def routes(url, params):
+        return {
+            "https://example.com/feed/": FakeResponse(200, RELATIVE_RSS),
+            "https://example.com/blog/f1/": FakeResponse(200, PAGE),
+        }.get(url)
+
+    src = FeedSource(blog, FakeClient(routes), "https://example.com/feed/")
+    refs = src.discover()
+    assert [r.url for r in refs] == ["https://example.com/blog/f1/"]
+    assert next(iter(src.fetch(refs))).title == "Feed post"
+
+
+def test_sitemap_locs_are_resolved_against_the_sitemap_that_listed_them(blog):
+    blog.source = "sitemap"
+
+    def routes(url, params):
+        return {
+            "https://example.com/robots.txt": FakeResponse(
+                200, "Sitemap: https://example.com/sitemap_index.xml\n"
+            ),
+            "https://example.com/sitemap_index.xml": FakeResponse(200, RELATIVE_SITEMAP_INDEX),
+            # the index's relative loc has to resolve, or this is never requested at all
+            "https://example.com/post-sitemap.xml": FakeResponse(200, RELATIVE_SITEMAP),
+            "https://example.com/blog/f1/": FakeResponse(200, PAGE),
+        }.get(url)
+
+    src = resolve_source(blog, FakeClient(routes))
+    assert isinstance(src, SitemapSource)
+    refs = src.discover()
+    assert [r.url for r in refs] == ["https://example.com/blog/f1/"]
+
+
+def test_an_absolute_link_is_left_alone(blog):
+    """urljoin is a no-op on an absolute URL; the sites that were already right stay right."""
+    blog.source = "feed"
+
+    def routes(url, params):
+        return {
+            "https://example.com/feed/": FakeResponse(200, RSS),
+            "https://example.com/blog/f1/": FakeResponse(200, PAGE),
+        }.get(url)
+
+    src = FeedSource(blog, FakeClient(routes), "https://example.com/feed/")
+    assert [r.url for r in src.discover()] == ["https://example.com/blog/f1/"]

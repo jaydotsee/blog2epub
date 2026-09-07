@@ -85,6 +85,10 @@ class FeedSource(Source):
             url = entry.get("link")
             if not url:
                 continue
+            # A feed may carry relative links: Hugo emits `/blog/slug/` when baseURL is not set
+            # absolutely, and agentgateway.dev is one such site. Readers resolve those against
+            # the feed's own URL, so do the same. An absolute link passes through untouched.
+            url = urljoin(self.feed_url, url)
             key = "feed-" + hashlib.sha1((entry.get("id") or url).encode("utf-8")).hexdigest()[:16]
             keys = set(entry.keys())  # feedparser warns on .get() of a missing *_parsed key
             ref = PostRef(
