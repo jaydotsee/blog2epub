@@ -173,11 +173,30 @@ blogs:
     order: desc               # newest post first
     group_by: year-month      # contents: year -> month -> posts
     cover: covers/agentgateway.html
+  # Nordic APIs, the community behind the Austin API Summit and the Platform Summit: 1,680
+  # posts from 2013 to today. Three things to know:
+  #  * The posts sit at the site root (/<slug>/); /blog/ is the listing page and not one post
+  #    lives under it. The REST API returns posts only, so no include regex is needed - but an
+  #    include built from the /blog/ URL, as the probe suggests, would match nothing at all.
+  #  * The conference programme (session listings, speaker slots) is a separate post type, so
+  #    the posts endpoint is articles only and needs no `exclude`.
+  #  * The host caps `per_page` at 25 however many we ask for, and admits it only by serving a
+  #    short page while the header still promises the rest. Handled in the WordPress source,
+  #    which now takes its batch size from the listing instead of assuming 100.
   - id: nordicapis
     title: "Nordic APIs"
     url: https://nordicapis.com/blog
-    standalone: false
-    since: 3m
+    author: "Nordic APIs"
+    description: "Every post from Nordic APIs: API design, strategy, security and the platforms behind them."
+    source: wordpress
+    # Every one of the 1,680 posts is filed under "blog", so the byline read "blog, Design" on
+    # every chapter and the lead cover kicker was the word BLOG. Drop it and the real sections
+    # (Design, Strategy, Security, Platforms) come through.
+    category_strip:
+      - "^blog$"
+    order: desc              # newest post first
+    group_by: year-month     # contents: year -> month -> posts
+    cover: covers/nordicapis.html
   - id: postman
     title: "Postman Blog"
     url: https://blog.postman.com

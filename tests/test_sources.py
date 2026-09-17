@@ -112,16 +112,25 @@ def wp_item(i, date="2024-01-01T00:00:00", modified=None, link=None):
     }
 
 
-def make_wp_routes(items, images=True):
+def make_wp_routes(items, images=True, cap=None):
+    """Routes for a fake WordPress API.
+
+    `cap` is the largest page the host will serve whatever `per_page` asks for - the shape
+    Nordic APIs has, where `per_page=100` quietly yields 25.
+    """
+
     def routes(url, params):
         if url == "https://example.com/blog":
             return FakeResponse(200, BLOG_HTML)
         if url == "https://example.com/wp-json/wp/v2/posts":
-            if "include" in params:
-                ids = {int(x) for x in params["include"].split(",")}
-                return FakeResponse(200, json.dumps([i for i in items if i["id"] in ids]))
-            page = int(params.get("page", 1))
             per = int(params.get("per_page", 100))
+            if cap is not None:
+                per = min(per, cap)
+            if "include" in params:
+                ids = [int(x) for x in params["include"].split(",")]
+                picked = [i for i in items if i["id"] in set(ids)]
+                return FakeResponse(200, json.dumps(picked[:per]))
+            page = int(params.get("page", 1))
             chunk = items[(page - 1) * per : page * per]
             if page > 1 and not chunk:
                 return FakeResponse(400, "{}")
@@ -148,6 +157,33 @@ def test_wordpress_detect_discover_fetch(blog):
     assert posts[0].date == "2024-01-01T00:00:00+00:00"
     fetch_call = next(c for c in client.calls if "include" in c[1])
     assert fetch_call[1]["include"] == "1,3" and "after" not in fetch_call[1]
+
+
+def test_wordpress_capped_page_size_still_fetches_every_post(blog):
+    """A host that caps `per_page` must not cost us the posts it left off the page.
+
+    Nordic APIs answers `per_page=100` with 25 posts and a header that still promises the
+    rest. Batching `include` in hundreds against that would fetch one post in four, and a
+    short page is a valid response, so nothing would raise.
+    """
+    items = [wp_item(i) for i in range(1, 61)]
+    client = FakeClient(make_wp_routes(items, cap=25))
+    src = WordPressSource.detect(blog, client)
+    refs = src.discover()
+    assert len(refs) == 60
+    posts = list(src.fetch(refs))
+    assert [p.key for p in posts] == [f"wp-{i}" for i in range(1, 61)]
+    assert all(len(c[1]["include"].split(",")) <= 25 for c in client.calls if "include" in c[1])
+    assert src.page_size == 25
+
+
+def test_wordpress_uncapped_host_still_batches_in_hundreds(blog):
+    items = [wp_item(i) for i in range(1, 121)]
+    client = FakeClient(make_wp_routes(items))
+    src = WordPressSource.detect(blog, client)
+    refs = src.discover()
+    assert len(list(src.fetch(refs))) == 120
+    assert src.page_size == 100  # a short *last* page is not a cap
 
 
 def test_wordpress_since_filter_sent_as_after(blog):

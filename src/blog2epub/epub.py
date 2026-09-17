@@ -139,6 +139,11 @@ def _strip_title(title: str, patterns: list[re.Pattern[str]]) -> str:
     return title
 
 
+def _strip_categories(categories: list[str], patterns: list[re.Pattern[str]]) -> list[str]:
+    """Drop the categories a blog puts on every post. Build-time, like `_strip_title`."""
+    return [c for c in categories if not any(pattern.search(c) for pattern in patterns)]
+
+
 def select_entries(book: BookConfig, sources: dict[str, tuple[BlogConfig, BlogStore]]) -> list[Entry]:
     """Every cached post of the book's blogs within since/until, sorted, trimmed to max_posts."""
     since, until = resolve_date(book.since), resolve_date(book.until)
@@ -146,12 +151,15 @@ def select_entries(book: BookConfig, sources: dict[str, tuple[BlogConfig, BlogSt
     for blog_id in book.blogs:
         blog, store = sources[blog_id]
         strip = [re.compile(p) for p in blog.title_strip]
+        cat_strip = [re.compile(p) for p in blog.category_strip]
         for post in store.iter_posts():
             d = post.date_obj
             if d is not None and ((since and d < since) or (until and d > until)):
                 continue
             if strip:
                 post.title = _strip_title(post.title, strip)
+            if cat_strip and post.categories:
+                post.categories = _strip_categories(post.categories, cat_strip)
             entries.append(Entry(blog=blog, store=store, post=post))
 
     def key(e: Entry):

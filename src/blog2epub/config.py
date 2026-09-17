@@ -169,6 +169,10 @@ class BlogConfig:
     # rules in extract.py already remove a tail the page's own <h1> or domain disowns; this is for
     # a stale brand they cannot know about, such as the "| Ambassador" a migration left on Gravitee.
     title_strip: list[str] = field(default_factory=list)
+    # Regexes matched against every category name; those that hit are dropped from the byline and
+    # from the cover kickers. For a category the blog puts on everything - Nordic APIs files all
+    # 1,680 posts under "blog" - which says nothing and crowds out the ones that do.
+    category_strip: list[str] = field(default_factory=list)
     extra_css: str = ""  # appended to the stylesheet of every book containing this blog
     request_delay: float | None = None
     # Overrides the global user_agent for this blog. Some edges (Akamai in front of MuleSoft)
@@ -230,6 +234,13 @@ class BlogConfig:
                 re.compile(pattern)
             except re.error as exc:
                 raise ConfigError(f"blog {self.id!r}: invalid title_strip regex {pattern!r}: {exc}") from exc
+        for pattern in self.category_strip:
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                raise ConfigError(
+                    f"blog {self.id!r}: invalid category_strip regex {pattern!r}: {exc}"
+                ) from exc
         _check_date(f"blog {self.id!r}", "since", self.since)
         _check_date(f"blog {self.id!r}", "until", self.until)
         self.as_book()  # validates the book-level choices

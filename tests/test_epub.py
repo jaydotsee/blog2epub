@@ -311,3 +311,15 @@ def test_title_strip_applies_at_build_time():
         "Extending Knative for fun and profit"
     )
     assert _strip_title("Ambassador patterns explained", strip) == "Ambassador patterns explained"
+
+
+def test_category_strip_drops_the_catch_all_category():
+    # Nordic APIs files every post under "blog", so it says nothing and would be the byline's
+    # first word and the lead cover kicker. The real sections have to survive it.
+    from blog2epub.epub import _strip_categories
+
+    strip = [re.compile(r"^blog$")]
+    assert _strip_categories(["blog", "Design", "Platforms"], strip) == ["Design", "Platforms"]
+    assert _strip_categories(["blog"], strip) == []
+    # Anchored, so a section whose name merely contains the word stays.
+    assert _strip_categories(["Blogging Tools"], strip) == ["Blogging Tools"]

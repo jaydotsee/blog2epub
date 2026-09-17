@@ -308,6 +308,9 @@ per-host lock in `_sync_blogs`, so concurrency never turns into extra load on a 
 | The same sentence opens every chapter | A plugin stamp (`Reading Time: 7 minutes`) inside the body | A `remove` selector. Count repeated chapter openings after the first build |
 | The feed lists posts but none can be fetched (`No scheme supplied`) | A Hugo site with a relative `baseURL`: feed links and sitemap `loc`s are paths, not URLs | Handled: both sources resolve against the document that listed them |
 | A code-heavy post arrives without its code | Readability picked a wrapper above the article, not the article | `keep` the prose container; compare the `pre`/`img` counts under each candidate |
+| Three posts in four missing, no error, `X-WP-Total` says they exist | The host caps `per_page` below the 100 we ask for, and a short page is a valid response | Handled: `discover` learns the real page size and `fetch` batches to it. Nordic APIs caps at 25 |
+| An `include` built from the blog URL matches nothing, and the probe suggested it | The posts live at the site root; `/blog/` is only the listing page | Read the probe's *URL shape* section, not its draft entry: a depth of 1 means the slug is the whole path |
+| The probe's `keep`/`remove`/image findings do not match what a sync produces | The probe always scrapes and runs readability, even when it picks the WordPress API | On a `wordpress` entry, judge the body from `content.rendered`, not from the probe's samples |
 
 ## Where to change what
 
