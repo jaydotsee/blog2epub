@@ -34,12 +34,13 @@ and cross-links that stay inside the book. A book can be one blog's complete arc
 magazine-style digest that combines several blogs over a date range. Every book it produces passes
 the W3C [epubcheck](https://github.com/w3c/epubcheck) with zero errors and warnings.
 
-It ships configured with eight books: seven complete archives — [Tyk](https://tyk.io/blog)
+It ships configured with nine books: eight complete archives — [Tyk](https://tyk.io/blog)
 (627 posts), [Kong](https://konghq.com/blog) (900 posts),
 [Apigee](https://cloud.google.com/blog/products/apigee) (244 posts),
 [Axway](https://blog.axway.com) (1,968 posts, back to 2011),
-[Gravitee](https://www.gravitee.io/blog) (656 posts) and
-[MuleSoft](https://blogs.mulesoft.com) (2,505 posts, back to 2008) and
+[Gravitee](https://www.gravitee.io/blog) (656 posts),
+[MuleSoft](https://blogs.mulesoft.com) (2,505 posts, back to 2008),
+[Nordic APIs](https://nordicapis.com/blog) (1,680 posts, back to 2013) and
 [agentgateway](https://agentgateway.dev/blog/) (39 posts) — and the
 **API Management Digest**, a monthly issue drawn from twelve API-management blogs. All are
 published on the [releases page](https://github.com/jaydotsee/blog2epub/releases).
@@ -426,6 +427,8 @@ Any blog or book key may also appear under `defaults`.
 | `min_chars` | `150` | Skip posts whose body is shorter than this and name them in the log. Catches soft 404s, where a site answers 200 with an error page. Set `0` for a blog of genuinely tiny posts. |
 | `keep` | `[]` | CSS selectors for the article container(s). When one matches, only that content is kept. See [Site rules](#site-rules). |
 | `remove` | `[]` | CSS selectors for clutter to drop from every post (share bars, newsletter boxes, related posts). |
+| `title_strip` | `[]` | Regexes matched against the end of every post title and dropped when they hit. For a stale brand the generic rules cannot know about, such as the `\| Ambassador` a migration left on `gravitee`. Applied at build time. |
+| `category_strip` | `[]` | Regexes matched against every category name; those that hit are dropped from the byline and the cover kickers. For a category the blog puts on everything — `nordicapis` files all 1,680 posts under `blog` — which says nothing and crowds out the ones that do. Applied at build time. |
 | `extra_css` | – | CSS appended to every book that contains this blog. Chapters carry `class="blog-<id>"` for scoping. |
 | `request_delay` | inherits | Per-blog override. |
 | `timeout` | inherits | Per-blog override. A slow API is not a broken one: `mulesoft` needs about 40s to assemble a batch of 100 embedded posts, and at the 30s default every batch costs four attempts. |
@@ -648,7 +651,7 @@ is a tag page; the posts live under other product sections. Match where they rea
 
 ## The complete-archive books
 
-Seven blogs are configured as complete archives, newest first, with year → month navigation and
+Eight blogs are configured as complete archives, newest first, with year → month navigation and
 their own covers:
 
 | Book | Source | Posts | Notes |
@@ -659,6 +662,7 @@ their own covers:
 | `axway` | WordPress REST API | 1,968 | The longest archive here, back to 2011, across API management, MFT and B2B. |
 | `gravitee` | HubSpot sitemap | 656 | Gravitee publishes through HubSpot, so the archive is in that sitemap, not the site's own. |
 | `mulesoft` | WordPress REST API | 2,505 | The longest archive here, back to 2008. Its edge 403s a crawler-shaped `User-Agent`, so the entry sets its own, and `/events/` and `/careers/` are excluded. |
+| `nordicapis` | WordPress REST API | 1,680 | Posts sit at the site root, not under the `/blog/` listing path. The host caps `per_page` at 25 whatever is asked for, so the source takes its batch size from the listing. |
 | `agentgateway` | Hugo feed | 39 | A Hugo site with a relative `baseURL`, so every feed link and sitemap `loc` is a path, not a URL. `keep: .prose` because readability drops the code blocks. |
 
 Kong's pages prerender twenty related-post cards into every article, which readability alone
@@ -747,13 +751,15 @@ Because the window rolls, the weekly workflow always produces a fresh issue; the
   <img src="covers/axway.jpg" width="16%" alt="Axway Blog cover">
   <img src="covers/gravitee.jpg" width="16%" alt="Gravitee Blog cover">
   <img src="covers/mulesoft.jpg" width="16%" alt="MuleSoft Blog cover">
+  <img src="covers/nordicapis.jpg" width="16%" alt="Nordic APIs cover">
   <img src="covers/agentgateway.jpg" width="16%" alt="Agentgateway Blog cover">
 </p>
 
 Every book has a cover rendered from the HTML template next to it by `scripts/render_cover.py`,
 each in its blog's own brand palette: Tyk's purple, Kong's acid lime on near-black, Google's four
 colours for Apigee, Axway's crimson on warm off-white, Gravitee's flame on near-black,
-MuleSoft's blue and teal on deep navy, and teal and amber for the digest. The Tyk cover uses a masthead, three
+MuleSoft's blue and teal on deep navy, Nordic APIs' teal on pale ice — the one cover here drawn
+as contour lines rather than a dark ground — and teal and amber for the digest. The Tyk cover uses a masthead, three
 kicker-plus-title cover lines taken from the newest cached posts, a hexagon badge with the post
 count and year span, and a topic strip. The digest cover uses the month as its headline, the lead
 post as the main cover line, four more posts with their blog names as kickers, a post-count stamp

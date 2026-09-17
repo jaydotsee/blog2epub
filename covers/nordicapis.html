@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nordic APIs cover</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root {
+    /* Nordic APIs runs pale and cool where every other book here runs dark. The teal is the
+       site's own accent (73 uses on the home page); the ice and mist are its backgrounds. */
+    --teal: #62b9cb;       /* the accent, and the logo mark */
+    --deep: #06467a;       /* the darker blue it pairs with */
+    --moss: #87b825;       /* the one warm-ish accent the site allows itself */
+    --ink: #3d4a4d;        /* body copy */
+    --slate: #6b7b80;
+    --mist: #ccd7d9;       /* rules */
+    --ice: #ebf1f2;        /* panel */
+    --paper: #f5f9fa;      /* ground */
+    --w: 1600px; --h: 2133px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: var(--w); height: var(--h); overflow: hidden; background: var(--paper); }
+  body { font-family: "Barlow", "Liberation Sans", Arial, sans-serif; color: var(--ink); position: relative; }
+
+  .bg { position: absolute; inset: 0;
+        background: linear-gradient(180deg, #ffffff 0%, var(--paper) 46%, var(--ice) 100%); }
+  svg.map { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .frame { position: absolute; inset: 0; padding: 96px; display: flex; flex-direction: column; }
+
+  .masthead .name { font-weight: 800; font-size: 124px; letter-spacing: -4px; line-height: 1; color: var(--deep); }
+  .masthead .name em { font-style: normal; color: var(--teal); }
+  .masthead .tag { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 40px;
+                   letter-spacing: 9px; color: var(--teal); text-transform: uppercase; margin-top: 16px; }
+
+  .issue { display: flex; gap: 22px; align-items: center; margin-top: 30px; font-weight: 600; font-size: 28px;
+           letter-spacing: 1px; color: var(--slate); }
+  .issue .bar { width: 3px; height: 26px; background: var(--mist); }
+
+  .lines { margin-top: 104px; width: 700px; display: flex; flex-direction: column; gap: 46px; }
+  .line { border-left: 4px solid var(--teal); padding-left: 28px; }
+  .line .kicker { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 34px; letter-spacing: 4px;
+                  color: var(--teal); text-transform: uppercase; }
+  .line .title { font-weight: 600; font-size: 42px; line-height: 1.14; color: var(--deep); margin-top: 10px; text-wrap: balance; }
+
+  /* A circle, drawn as a thin ring rather than a filled badge: this cover is all line and air. */
+  .badge { position: absolute; right: 96px; top: 620px; width: 372px; height: 372px; border-radius: 50%;
+           border: 4px solid var(--teal); background: rgba(255,255,255,.72);
+           display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .badge .big { font-weight: 800; font-size: 132px; line-height: .9; color: var(--deep); letter-spacing: -4px; }
+  .badge .small { font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 30px; letter-spacing: 5px;
+                  color: var(--teal); margin-top: 12px; }
+  .badge .tiny { font-weight: 600; font-size: 24px; color: var(--slate); margin-top: 8px; }
+
+  .headline { margin-top: auto; padding-bottom: 26px; }
+  .headline .over { font-family: "Barlow Condensed", sans-serif; font-weight: 600; font-size: 40px; letter-spacing: 14px;
+                    color: var(--slate); text-transform: uppercase; }
+  .headline .big { font-weight: 800; font-size: 178px; line-height: .92; letter-spacing: -6px;
+                   margin-top: 20px; color: var(--deep); }
+  .headline .big span { display: block; }
+  .headline .big span.accent { color: var(--teal); }
+  .headline .dek { font-size: 34px; line-height: 1.35; color: var(--ink); margin-top: 40px; width: 1180px; }
+  .headline .dek b { color: var(--deep); font-weight: 600; }
+
+  .strip { margin-top: 44px; border-top: 2px solid var(--mist); padding-top: 26px; display: flex;
+           justify-content: space-between; align-items: center; font-family: "Barlow Condensed", sans-serif;
+           font-weight: 800; font-size: 34px; letter-spacing: 4px; text-transform: uppercase; color: var(--slate); }
+  .strip .sep { color: var(--moss); }
+  .vol:empty { display: none; }
+  .vol::before { content: "\00a0\00b7\00a0"; }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <svg class="map" viewBox="0 0 1600 2133" xmlns="http://www.w3.org/2000/svg">
+    <!-- Contour lines: a fjord read off a survey map. Nordic, and nothing like the grids and
+         glows the other covers use. -->
+    <g fill="none" stroke="#62B9CB" stroke-width="2" opacity=".30">
+      <path d="M-40 1580 C 240 1500, 420 1620, 700 1548 S 1180 1400, 1660 1492"/>
+      <path d="M-40 1664 C 260 1586, 450 1704, 720 1634 S 1200 1490, 1660 1578"/>
+      <path d="M-40 1750 C 280 1674, 480 1790, 740 1722 S 1220 1582, 1660 1666"/>
+      <path d="M-40 1838 C 300 1764, 510 1878, 760 1812 S 1240 1676, 1660 1756"/>
+      <path d="M-40 1928 C 320 1856, 540 1968, 780 1904 S 1260 1772, 1660 1848"/>
+    </g>
+    <g fill="none" stroke="#06467A" stroke-width="2" opacity=".16">
+      <path d="M-40 1622 C 250 1543, 435 1662, 710 1591 S 1190 1445, 1660 1535"/>
+      <path d="M-40 1794 C 290 1719, 495 1834, 750 1767 S 1230 1629, 1660 1711"/>
+    </g>
+    <!-- A few soundings, as a chart would mark them -->
+    <g fill="#62B9CB" opacity=".55">
+      <circle cx="318" cy="1546" r="7"/><circle cx="962" cy="1470" r="7"/><circle cx="1402" cy="1520" r="7"/>
+      <circle cx="616" cy="1726" r="6"/><circle cx="1182" cy="1638" r="6"/>
+    </g>
+    <!-- The thin arc of a low northern sun, behind the count -->
+    <g fill="none" stroke="#87B825" stroke-width="3" opacity=".40">
+      <path d="M1040 806 A 242 242 0 0 1 1524 806"/>
+    </g>
+  </svg>
+
+  <div class="frame">
+    <div class="masthead">
+      <div class="name">Nordic APIs<em>.</em></div>
+      <div class="tag">For API Practitioners</div>
+    </div>
+    <div class="issue"><span>Issue $issue_number<span class="vol">$volume_label</span></span><span class="bar"></span><span>$issue</span><span class="bar"></span><span>$url</span></div>
+
+    <div class="lines">
+      <div class="line"><div class="kicker">$kicker1</div><div class="title">$title1</div></div>
+      <div class="line"><div class="kicker">$kicker2</div><div class="title">$title2</div></div>
+      <div class="line"><div class="kicker">$kicker3</div><div class="title">$title3</div></div>
+    </div>
+
+    <div class="badge">
+      <div class="big">$count</div>
+      <div class="small">POSTS</div>
+      <div class="tiny">$years</div>
+    </div>
+
+    <div class="headline">
+      <div class="over">The archive</div>
+      <div class="big"><span>API</span><span class="accent">INSIGHTS</span></div>
+      <div class="dek">Every post from <b>Nordic APIs</b>, $years_prose: <b>API design</b> and description formats,
+        platform <b>strategy</b>, <b>security</b> and identity, and the practitioners behind the Summits.</div>
+    </div>
+
+    <div class="strip">
+      <span>Design</span><span class="sep">/</span><span>Strategy</span><span class="sep">/</span><span>Security</span><span class="sep">/</span><span>Platforms</span>
+    </div>
+  </div>
+</body>
+</html>

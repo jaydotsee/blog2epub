@@ -173,6 +173,11 @@ def test_title_strip_must_be_a_valid_regex():
         BlogConfig(id="b", url="https://e.org", title_strip=["(unclosed"])
 
 
+def test_category_strip_must_be_a_valid_regex():
+    with pytest.raises(ConfigError, match="category_strip"):
+        BlogConfig(id="b", url="https://e.org", category_strip=["(unclosed"])
+
+
 OVERRIDE_CONFIG = """
 defaults:
   request_delay: 0.5

@@ -41,6 +41,9 @@ class WordPressSource(Source):
         super().__init__(blog, client)
         self.api_base = api_base.rstrip("/")
         self.post_type = blog.wordpress.get("post_type", "posts")
+        # How many posts this host really serves per request. WordPress core allows 100;
+        # plenty of sites cap it lower, and `discover` learns the real number.
+        self.page_size = PER_PAGE
 
     def describe(self) -> str:
         return f"wordpress ({self.api_base}/{self.post_type})"
@@ -101,6 +104,7 @@ class WordPressSource(Source):
         refs: list[PostRef] = []
         page = 1
         total_pages = 1
+        per_page = int(self._params().get("per_page", PER_PAGE))
         while page <= total_pages:
             try:
                 resp = self.client.get(
@@ -116,6 +120,13 @@ class WordPressSource(Source):
             items = resp.json()
             if not items:
                 break
+            # A host may cap `per_page` below what we asked for and say so only by serving a
+            # short page while the header still promises more. `include` batches obey the same
+            # cap, so fetching in hundreds against a host that caps at 25 would drop three posts
+            # in four - silently, because a capped page is a valid response, not an error.
+            # Nordic APIs caps at 25. Take the listing's word for the real size.
+            if page < total_pages and 0 < len(items) < per_page:
+                self.page_size = min(self.page_size, len(items))
             for item in items:
                 ref = PostRef(
                     key=f"wp-{item['id']}",
@@ -133,8 +144,9 @@ class WordPressSource(Source):
     # ---- fetching ------------------------------------------------------------
     def fetch(self, refs: list[PostRef]) -> Iterator[Post]:
         ids = [r.extra["id"] for r in refs]
-        for start in range(0, len(ids), PER_PAGE):
-            for item in self._fetch_batch(ids[start : start + PER_PAGE]):
+        size = max(1, self.page_size)
+        for start in range(0, len(ids), size):
+            for item in self._fetch_batch(ids[start : start + size]):
                 yield self._to_post(item)
 
     def _fetch_batch(self, batch: list[int]) -> list[dict[str, Any]]:
@@ -148,6 +160,7 @@ class WordPressSource(Source):
         """
         params = self._params(
             include=",".join(map(str, batch)),
+            per_page=len(batch),
             _fields=FETCH_FIELDS,
             _embed="author,wp:term,wp:featuredmedia",
         )
@@ -166,6 +179,15 @@ class WordPressSource(Source):
             half = len(batch) // 2
             log.warning("batch of %d posts starting %s failed, splitting: %s", len(batch), batch[0], exc)
             return self._fetch_batch(batch[:half]) + self._fetch_batch(batch[half:])
+        if len(items) < len(batch):
+            # Not an error, so nothing else would say it: the posts left out stay uncached and
+            # the next sync asks for them again. `sync` reports each one as "not fetched".
+            log.warning(
+                "%s: asked for %d posts, got %d - the host is serving a shorter page than it accepts",
+                self.blog.id,
+                len(batch),
+                len(items),
+            )
         return items
 
     def _to_post(self, item: dict[str, Any]) -> Post:

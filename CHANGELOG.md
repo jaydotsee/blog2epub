@@ -5,6 +5,13 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 ## [Unreleased]
 
 ### Added
+- **Nordic APIs is a complete archive.** It was already a digest source, capped at the last three
+  months; it is now the eighth standalone book — 1,680 posts back to February 2013, newest first
+  with year → month navigation and a cover in the site's teal on pale ice. Its recipe needs no
+  `include` regex (the REST API returns posts only) and no `exclude` (the conference programme is
+  a separate post type). Worth knowing for the next WordPress blog: the posts sit at the site
+  root, so an `include` built from the `/blog/` URL — which is what `probe_blog.py` suggests —
+  would have matched nothing at all.
 - **The GitHub About sidebar has a source of truth.** `scripts/set_github_about.sh` (`make about`)
   writes the repository description, website link and topics with the gh CLI, and removes topics
   that are no longer in the list, so the sidebar mirrors the file.
@@ -15,6 +22,15 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   to a published issue. The digest is now twelve blogs.
 
 ### Fixed
+- **A WordPress host that caps `per_page` no longer costs us three posts in four.** The source
+  asked for 100 posts a request and batched `include` to match. A host may cap that lower and say
+  so only by serving a short page while `X-WP-TotalPages` still promises the rest — Nordic APIs
+  caps at 25 — and because a short page is a valid response rather than an error, nothing raised:
+  listing found all 1,680 posts and fetching quietly returned 25 of every 100 asked for. The
+  batch-halving that recovers an unserveable post never ran, since there was no exception to
+  catch. `discover` now learns the real page size from the listing and `fetch` batches to it, and
+  a short batch that still gets through is logged rather than passed over in silence. The digest
+  was already losing a post an issue to this.
 - **A missing cairo library no longer aborts a build.** cairosvg is optional twice over: the `svg`
   extra installs the Python package, and the package binds to a native cairo that pip does not
   install. With the module present and the library absent — a Mac after `uv sync` without
