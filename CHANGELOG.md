@@ -4,6 +4,23 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+### Changed
+- **One release per run, numbered by the date its files were built.** A full run used to open two
+  releases per book — `tyk-20260907` and `tyk-latest`, `kong-20260907`, `kong-latest`, … — so a
+  single day's publishing left up to twenty-four tags and uploaded every file twice. A run now
+  makes one release, `v2026.09.17`, holding every book of that issue, with a section per book in
+  the notes and the collector's editions kept apart in `v2026.09.17-collectors`. The newest issue
+  is the repository's own latest release, so `/releases/latest` is the standing link in place of
+  the rolling per-book tags; re-running an older issue does not drag that pointer backwards. The
+  release is opened as a draft before the books upload to it, so the matrix jobs never race to
+  create the same tag and a half-built issue is never on show, and re-running one book of an issue
+  clears only that book's files — `scripts/clear_release_assets.sh` now takes a name prefix — so
+  the other books published under that issue stay as they are. The notes are composed from every
+  book's build report by `scripts/release_notes.py`, and from the release's existing assets for
+  the books this run did not build, so they describe the release rather than the last run.
+  `scripts/prune_rolling_releases.sh` deletes the leftover `<book>-latest` releases; dated issues
+  are untouched.
+
 ### Added
 - **Nordic APIs is a complete archive.** It was already a digest source, capped at the last three
   months; it is now the eighth standalone book — 1,680 posts back to February 2013, newest first

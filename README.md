@@ -112,8 +112,9 @@ exposes.
 - **Covers with live cover lines.** HTML templates rendered once per volume, with that volume's
   newest post titles, post count, year span and issue number. Or point `cover:` at your own image.
 - **Scriptable, published by hand.** A plain CLI, a JSON report, and a GitHub Actions workflow
-  you run when you want an issue out: every book to its own dated tag plus a `<book>-latest`
-  that always holds the newest. A weekly job keeps the download cache warm and publishes nothing.
+  you run when you want an issue out: one release per run, tagged with the date its files were
+  built (`v2026.09.17`), holding every book of that issue, and the newest one is the
+  repository's latest release. A weekly job keeps the download cache warm and publishes nothing.
 
 ## How it works
 
@@ -787,19 +788,25 @@ network.
 07:00 UTC, and on demand from the Actions tab → *Release books* → *Run workflow*. A manual run
 takes `books` (`all`, or ids like `tyk,kong`), `issue` (a `YYYYMMDD`, default today) and `full`;
 the monthly run takes every book with the issue dated `YYYYMM01`. The books run **in parallel**,
-each syncing, building with a cover per volume, and publishing to **two tags** (the assets carry
-the issue in their names, so a file downloaded from either tag says which issue it is):
+each syncing and building with a cover per volume, and **one run makes one release**, tagged with
+the date the files were built:
 
-| Tag | What it is |
+| Where | What it is |
 | --- | --- |
-| `tyk-20260906` | The **issue**: its volumes `tyk-20260906-2026.epub`, `-2025`, … with a table of them in the notes. Kept for good. Run the workflow again with the same `issue` and the files are replaced, not added to. |
-| `tyk-latest` | The **newest issue**, moved on every run. A stable link: `https://github.com/jaydotsee/blog2epub/releases/tag/tyk-latest`. |
+| `v2026.09.17` | The **issue**, and every book of it: `tyk-20260917.2026.epub`, `kong-20260917.epub`, `api-management-20260917.epub`, … with a section per book in the notes listing its volumes. Kept for good. Run the workflow again with the same `issue` and only the rebuilt books' files are replaced; the rest of the issue stays as it was. |
+| [`releases/latest`](https://github.com/jaydotsee/blog2epub/releases/latest) | The **newest issue**. GitHub's own latest-release pointer moves to each new issue, so this is the standing link; re-running an older issue does not drag it backwards. |
+
+Every file carries the issue in its name, so a download says which issue it came from wherever it
+came from. The release is opened as a draft and published once the last book is in, so a
+half-built issue is never on show; a book whose job failed is named in the notes rather than
+quietly missing, and the books that did build still ship.
 
 Set **`edition: collectors`** on the run and each book is built as **one file** instead — the
-whole archive, ignoring `split` and `max_book_bytes` — published to `<book>-collectors-<issue>`
-and `<book>-collectors-latest`. The two editions are separate books as far as the builder is
-concerned (`tyk` and `tyk-collectors`), so their files, covers, tags and cleanup never touch each
-other and you can keep both. Collector's editions are large on purpose — the whole Axway archive
+whole archive, ignoring `split` and `max_book_bytes` — published to its own
+`v2026.09.17-collectors` release, which never becomes the repository's latest since those files
+are for keeping rather than for Send to Kindle. The two editions are separate books as far as the
+builder is concerned (`tyk` and `tyk-collectors`), so their files, covers, tags and cleanup never
+touch each other and you can keep both. Collector's editions are large on purpose — the whole Axway archive
 is 291 MB, past what Send to Kindle accepts — so they are for keeping and reading over USB rather
 than emailing. Locally:
 
@@ -879,7 +886,7 @@ src/blog2epub/
   assets/styles.css            e-reader friendly stylesheet
 tests/                         pytest suite; runs offline with a fake HTTP client
 .github/workflows/ci.yml       ruff, mypy, pytest + epubcheck on every push
-.github/workflows/release.yml  manual: sync, build, publish each book to <book>-<issue> and <book>-latest
+.github/workflows/release.yml  manual: sync, build, publish every book of an issue to v<YYYY.MM.DD>
 .github/workflows/sync.yml     weekly: keep the download cache warm, publish nothing
 ```
 
