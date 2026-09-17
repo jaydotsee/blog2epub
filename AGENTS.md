@@ -305,6 +305,7 @@ per-host lock in `_sync_blogs`, so concurrency never turns into extra load on a 
 | A sync goes quiet for half an hour | A third-party image host answered `Retry-After: 1800` | Handled: capped at a minute. Check `wchan` before killing a quiet run |
 | An image is "corrupt" in epubcheck | The site served its 404 page under `Content-Type: image/png` | Handled: the bytes are sniffed first, and a web page is not an image |
 | A `table` inside a `pre` fails RSC-005 | A pasted config snippet was parsed rather than escaped | Handled: markup inside a `pre` is re-serialised as text |
+| A `dd` inside a `dl` fails RSC-005 | A pasted template snippet was rendered rather than escaped, leaving a description with no term | Handled: a `dl` missing either half becomes plain blocks. Only a build of the *whole* archive shows it - one post in 1,680 |
 | Volumes full of webinar invitations and job posts | The archive includes `/events/` and `/careers/` sections | `exclude` them by exact path segment, then `sync --prune` |
 | The same sentence opens every chapter | A plugin stamp (`Reading Time: 7 minutes`) inside the body | A `remove` selector. Count repeated chapter openings after the first build |
 | The feed lists posts but none can be fetched (`No scheme supplied`) | A Hugo site with a relative `baseURL`: feed links and sitemap `loc`s are paths, not URLs | Handled: both sources resolve against the document that listed them |
