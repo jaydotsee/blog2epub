@@ -1,18 +1,21 @@
 # Publish books: every month on the 1st, and whenever you press the button.
 #
-# Each book becomes an issue, <book>-<YYYYMMDD>, holding its volumes <book>-<YYYYMMDD>.<n>.epub
-# with a table of them in the notes, and <book>-latest is moved to the same files so there is
-# always one link to the newest Tyk, Kong, ... A re-run of the same issue replaces its files.
-# Books are built one after another so each sync lands in the shared download cache that the
-# weekly sync.yml keeps warm.
+# One run makes one release. Its tag is the date the files were built - `v2026.09.17` - and every
+# book of that issue lands there: <book>-<YYYYMMDD>.<n>.epub for each, with a table of the volumes
+# per book in the notes. The newest issue is the repository's latest release, so
+# https://github.com/<owner>/<repo>/releases/latest is the standing link; there are no rolling
+# per-book tags. A re-run with the same issue date replaces that book's files in the same release
+# and leaves the other books' alone.
 #
 # The monthly run takes every book, with the issue dated YYYYMM01, in the standard edition. It
 # suits the api-management digest in particular, whose `since: 1m` window means each issue is the
 # month just gone.
 #
-# edition: collectors instead builds each book as one file, ignoring split and max_book_bytes, and
-# publishes it to <book>-collectors-<YYYYMMDD> and <book>-collectors-latest. Those files are large
-# by design — the whole Axway archive is 291 MB — so they are for keeping, not for Send to Kindle.
+# edition: collectors instead builds each book as one file, ignoring split and max_book_bytes,
+# and publishes to `v<date>-collectors`, kept apart from the standard issue because those files
+# are large by design - the whole Axway archive is 291 MB - so they are for keeping, not for Send
+# to Kindle. A collector's run never becomes the repository's latest release.
+#
 # Note that GitHub disables scheduled workflows in a repository with no activity for 60 days;
 # a push or a manual run re-enables them.
 name: Release books
@@ -56,8 +59,10 @@ jobs:
     outputs:
       books: ${{ steps.plan.outputs.books }}
       issue: ${{ steps.plan.outputs.issue }}
+      tag: ${{ steps.plan.outputs.tag }}
       suffix: ${{ steps.plan.outputs.suffix }}
       flag: ${{ steps.plan.outputs.flag }}
+      title: ${{ steps.plan.outputs.title }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -88,10 +93,35 @@ jobs:
           collectors = "${{ inputs.edition }}".strip() == "collectors"
           print(f"suffix={'-collectors' if collectors else ''}")
           print(f"flag={'--collectors' if collectors else ''}")
+          # One tag for the whole run, the date the files were built. Zero-padded fields sort
+          # as dates do, which is how `publish` decides whether this issue is the newest.
+          tag = f"v{issue[:4]}.{issue[4:6]}.{issue[6:]}" + ("-collectors" if collectors else "")
+          print(f"tag={tag}")
+          print(f"title={'Collector’s editions' if collectors else 'Books'} — issue {issue}")
           PY
 
-  release:
+  # The release is opened as a draft before any book uploads to it, so the matrix jobs never race
+  # to create the same tag and half an issue is never on show. `publish` takes the draft off.
+  open:
     needs: plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open the issue's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          TITLE: ${{ needs.plan.outputs.title }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists; this run replaces the files of the books it builds."
+          else
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" \
+              --title "$TITLE" --notes "Building ${{ needs.plan.outputs.issue }}…"
+          fi
+
+  release:
+    needs: [plan, open]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false      # a book that fails does not stop the others
@@ -151,71 +181,102 @@ jobs:
           fi
 
       - name: Build
-        id: build
         run: |
           uv run blog2epub -v build "${{ matrix.book }}" --issue "${{ needs.plan.outputs.issue }}" \
-            ${{ needs.plan.outputs.flag }} --report build.json
-          uv run python - <<'PY' >> "$GITHUB_OUTPUT"
-          import json
-          r = json.load(open("build.json"))
+            ${{ needs.plan.outputs.flag }} --report "report-${{ matrix.book }}.json"
+          uv run python - <<'PY'
+          import json, os
+          r = json.load(open(f"report-{os.environ['BOOK']}.json"))
           book = r["books"][0]
           if book.get("error") or not book["built"]:
               raise SystemExit(f"::error::{book.get('error') or 'nothing was built'}")
-          print(f"title={book['title']}")
-          vols = book["built"]
-          lines = [f"{book['title']}, issue {r['issue']}, built by blog2epub.", ""]
-          if len(vols) > 1:
-              lines.append(f"{sum(v['posts'] for v in vols)} posts in {len(vols)} volumes, each under the size Send to Kindle accepts:")
-              lines.append("")
-              lines.append("| File | Volume | Posts | Covers | Size |")
-              lines.append("| --- | --- | --- | --- | --- |")
-              for v in vols:
-                  span = f"{v['first_date']} to {v['last_date']}" if v["first_date"] else ""
-                  lines.append(f"| `{v['file']}` | {v['label'] or v['title']} | {v['posts']} | {span} | {v['bytes'] / 1e6:.1f} MB |")
-          else:
-              v = vols[0]
-              span = f", {v['first_date']} to {v['last_date']}" if v["first_date"] else ""
-              lines.append(f"`{v['file']}`: {v['posts']} posts{span}, {v['bytes'] / 1e6:.1f} MB.")
-          lines += ["", "EPUB 3, validated with epubcheck. Copy to your e-reader or send to Kindle."]
-          print("body<<EOF"); print("\n".join(lines)); print("EOF")
           PY
           ls -la output/
+        env:
+          BOOK: ${{ matrix.book }}
 
-      # An issue is one set of files, so re-running it replaces them; the rolling tag likewise.
-      # Both run after Build, so a failed build never empties a good release.
-      - name: Clear the issue's and the rolling release's existing assets
+      # The notes are written once, by `publish`, from every book's report.
+      - name: Keep the build report for the notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-${{ matrix.book }}
+          path: report-${{ matrix.book }}.json
+          retention-days: 7
+
+      # This book's files only: the release holds the whole issue, so clearing everything would
+      # drop the books that finished first. Runs after Build, so a failed build never empties a
+      # good release. --clobber then replaces same-named files if anything slipped through.
+      - name: Put this book in the issue
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          PREFIX: ${{ matrix.book }}${{ needs.plan.outputs.suffix }}-${{ needs.plan.outputs.issue }}
         run: |
-          scripts/clear_release_assets.sh "${{ matrix.book }}${{ needs.plan.outputs.suffix }}-${{ needs.plan.outputs.issue }}"
-          scripts/clear_release_assets.sh "${{ matrix.book }}${{ needs.plan.outputs.suffix }}-latest"
+          scripts/clear_release_assets.sh "$TAG" "$PREFIX"
+          gh release upload "$TAG" output/"$PREFIX"*.epub --clobber
+
+  # Every book is in, so write the notes and take the draft off. `always()` because a book that
+  # failed must not cost the issue the books that built.
+  publish:
+    needs: [plan, open, release]
+    if: always() && needs.open.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # continue-on-error because the action fails when the pattern matches nothing, which is
+      # what "every book failed" looks like; the step below says so in those words.
+      - name: Collect the build reports
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: report-*
+          path: reports
+          merge-multiple: true
 
       - name: Publish the issue
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ matrix.book }}${{ needs.plan.outputs.suffix }}-${{ needs.plan.outputs.issue }}
-          target_commitish: ${{ github.sha }}
-          name: "${{ steps.build.outputs.title }} — Issue ${{ needs.plan.outputs.issue }}"
-          body: ${{ steps.build.outputs.body }}
-          files: output/${{ matrix.book }}${{ needs.plan.outputs.suffix }}-${{ needs.plan.outputs.issue }}*.epub
-          make_latest: false
-
-      # The rolling tag has to move to this commit, or the release page shows the old one.
-      - name: Point the rolling tag here
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          TITLE: ${{ needs.plan.outputs.title }}
+          ISSUE: ${{ needs.plan.outputs.issue }}
+          BOOKS: ${{ join(fromJSON(needs.plan.outputs.books), ',') }}
+          COLLECTORS: ${{ needs.plan.outputs.flag }}
         run: |
-          git tag -f "${{ matrix.book }}${{ needs.plan.outputs.suffix }}-latest" "${{ github.sha }}"
-          git push -f origin "refs/tags/${{ matrix.book }}${{ needs.plan.outputs.suffix }}-latest"
+          shopt -s nullglob
+          reports=(reports/*.json)
+          if [ ${#reports[@]} -eq 0 ]; then
+            echo "::error title=Nothing to publish::No book built; the draft release at $TAG is left as it was."
+            exit 1
+          fi
 
-      - name: Publish as the book's latest
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ matrix.book }}${{ needs.plan.outputs.suffix }}-latest
-          target_commitish: ${{ github.sha }}
-          name: "${{ steps.build.outputs.title }} — latest (issue ${{ needs.plan.outputs.issue }})"
-          body: |
-            The newest issue of ${{ steps.build.outputs.title }}, currently ${{ needs.plan.outputs.issue }}.
-            Every issue is kept under its own tag, `${{ matrix.book }}${{ needs.plan.outputs.suffix }}-YYYYMMDD`.
+          # The notes describe the release, not just this run: a run that rebuilds one book must
+          # not drop the sections of the books already published under this issue. A draft has no
+          # git tag, so the release is found by listing rather than by tag.
+          id=$(gh api "repos/$GH_REPO/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1)
+          gh api "repos/$GH_REPO/releases/$id/assets" --paginate \
+            --jq '.[] | {name: .name, size: .size}' > assets.jsonl
 
-            ${{ steps.build.outputs.body }}
-          files: output/${{ matrix.book }}${{ needs.plan.outputs.suffix }}-${{ needs.plan.outputs.issue }}*.epub
-          make_latest: false
+          python3 scripts/release_notes.py "${reports[@]}" \
+            --issue "$ISSUE" --asked "$BOOKS" --assets assets.jsonl ${COLLECTORS:+--collectors} > notes.md
+          cat notes.md
+
+          # The newest standard issue is the repository's latest release, so /releases/latest is
+          # the standing link. Re-running an older issue must not drag that pointer backwards,
+          # and a collector's run never holds it. Tags are v<YYYY.MM.DD>, so a plain sort orders
+          # them by date; drafts are excluded, which includes this one until the edit below.
+          latest=false
+          if [ -z "$COLLECTORS" ]; then
+            newest=$(gh api "repos/$GH_REPO/releases" --paginate \
+              --jq '.[] | select(.draft == false) | .tag_name' |
+              grep -E '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}$' | sort -r | head -1 || true)
+            if [ -z "$newest" ] || [ "$TAG" = "$(printf '%s\n%s\n' "$TAG" "$newest" | sort -r | head -1)" ]; then
+              latest=true
+            fi
+          fi
+          gh release edit "$TAG" --draft=false --title "$TITLE" --notes-file notes.md --latest="$latest"
+          gh release view "$TAG" --json url --jq .url

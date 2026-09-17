@@ -223,10 +223,11 @@ gh workflow run release.yml -f books=<id>          # issue defaults to today, UT
   lines rather than pushing a tag or a branch: a push must never publish. A release built before
   the change merges publishes the *old* configuration, so merge first.
 
-`release.yml` syncs, builds with a cover per volume, and publishes to `<id>-<YYYYMMDD>` (the
-issue, kept) and `<id>-latest` (moved to the newest issue), with a table of the volumes in the
-notes; re-running the same issue replaces the files. Confirm it succeeded rather than assuming;
-report both release URLs and the volume count.
+`release.yml` syncs, builds with a cover per volume, and publishes **one release for the whole
+run**: `v<YYYY.MM.DD>`, the date the files were built, holding every book of that issue with a
+section per book in the notes. Re-running the same issue for one book replaces that book's files
+and leaves the other books' alone. Confirm it succeeded rather than assuming; report the release
+URL and the volume count — and note that the new book's files sit alongside the others' there.
 
 ## Report back
 

@@ -257,14 +257,15 @@ optionally, an `issue` date; or from a terminal:
 
 ```bash
 gh workflow run release.yml -f books=kong            # issue defaults to today, UTC
-gh workflow run release.yml -f books=all -f issue=20260906
+gh workflow run release.yml -f books=all -f issue=20260917
 ```
 
-`release.yml` syncs, builds (rendering a cover per volume) and publishes each book to two tags:
-`<book>-<YYYYMMDD>`, the issue, kept for good with its volumes `<book>-<YYYYMMDD>.<n>.epub` and
-a table of them in the notes; and `<book>-latest`, moved to the same files on every run so there
-is one stable link per book. Re-running an issue clears its assets first, so it replaces rather
-than accumulates. Books run one after another so each sync lands in the shared cache, which the
+`release.yml` syncs, builds (rendering a cover per volume) and publishes **one release per run**:
+`v<YYYY.MM.DD>`, the date the files were built, holding every book of that issue as
+`<book>-<YYYYMMDD>[.<n>].epub` with a section per book in the notes. It is the repository's latest
+release, so `/releases/latest` is the standing link — there are no rolling per-book tags, and
+re-running an older issue does not move the pointer back. Re-running an issue clears only the
+rebuilt books' assets, so it replaces those files and leaves the rest of the issue alone. Books run one after another so each sync lands in the shared cache, which the
 weekly `sync.yml` keeps warm without building or publishing anything. Do not add tag or branch
 triggers back: a push must never publish, only the schedule and the button.
 
