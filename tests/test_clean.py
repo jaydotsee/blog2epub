@@ -249,6 +249,26 @@ def test_a_real_definition_list_is_left_alone():
     assert "<dl>" in out and "<dt>" in out and "<dd>" in out
 
 
+def test_a_definition_list_with_no_terms_becomes_plain_blocks():
+    # The markup a 2015 Nordic APIs post carries verbatim: a Velocity snippet pasted as markup
+    # rather than escaped, so WordPress rendered a dd with no dt. epubcheck rejects it with
+    # RSC-005, "element dd not allowed yet".
+    out, _ = clean_html("<dl><dd>$e.value</dd></dl>", "https://e.org/post", image_resolver=lambda u: None)
+    assert "<dl" not in out and "<dd" not in out
+    assert "$e.value" in out
+
+
+def test_a_description_before_the_first_term_is_not_one():
+    out, _ = clean_html(
+        "<dl><dd>Stray</dd><dt>Term</dt><dd>Meaning</dd></dl>",
+        "https://e.org/post",
+        image_resolver=lambda u: None,
+    )
+    # The pair survives as a definition list; the orphan is lifted out in front of it.
+    assert "<dt>Term</dt>" in out and "<dd>Meaning</dd>" in out
+    assert "Stray" in out and out.index("Stray") < out.index("<dl>")
+
+
 def test_markup_inside_pre_stays_in_the_code_block():
     """A `pre` takes phrasing content, so a `table` inside it is invalid however it got there.
 

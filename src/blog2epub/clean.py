@@ -361,13 +361,24 @@ def _fix_lists(root: html.HtmlElement) -> None:
         parent = li.getparent()
         if parent is not None and parent.tag not in ("ul", "ol"):
             li.tag = "div"  # an item with no list around it is just a block
-    # A `dl` must pair terms with descriptions. WordPress galleries emit `dl > dt` alone, which
-    # is a list of blocks in everything but name, so that is what it becomes.
+    # A `dl` must pair terms with descriptions, and lead with the term. WordPress galleries emit
+    # `dl > dt` alone; a code sample pasted as markup rather than escaped can leave `dl > dd`
+    # alone, as one Nordic APIs post does with a Velocity snippet. Either way it is a list of
+    # blocks in everything but name, so that is what it becomes.
     for dl in list(root.iter("dl")):
-        if dl.find("dd") is None:
-            for dt in dl.findall("dt"):
-                dt.tag = "div"
+        terms, descs = dl.findall("dt"), dl.findall("dd")
+        if not terms or not descs:
+            for child in terms + descs:
+                child.tag = "div"
             dl.tag = "div"
+            continue
+        # A description ahead of the first term has nothing to describe, so it is not one.
+        for child in list(dl):
+            if child is terms[0]:
+                break
+            if child.tag == "dd":
+                child.tag = "div"
+                dl.addprevious(child)
 
 
 # These may hold phrasing content only; a block inside one is invalid however browsers render it.
