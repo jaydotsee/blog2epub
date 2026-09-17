@@ -22,6 +22,14 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   to a published issue. The digest is now twelve blogs.
 
 ### Fixed
+- **A definition list with no terms no longer fails epubcheck.** `_fix_lists` demoted a `dl` whose
+  terms had no descriptions — what WordPress galleries emit — but not the mirror case. A 2015
+  Nordic APIs post pastes a Velocity snippet as markup rather than escaping it, so WordPress
+  rendered `<dl><dd>$e.value</dd></dl>`, and epubcheck rejects a description with nothing to
+  describe (`RSC-005: element "dd" not allowed yet`). The rule is symmetric now, and a description
+  sitting ahead of the first term is lifted out in front rather than costing the pairs around it.
+  One post in 1,680 hits it, and only a build of the whole archive shows it: the 2015 volume was
+  the only one of fourteen that failed.
 - **A WordPress host that caps `per_page` no longer costs us three posts in four.** The source
   asked for 100 posts a request and batched `include` to match. A host may cap that lower and say
   so only by serving a short page while `X-WP-TotalPages` still promises the rest — Nordic APIs
