@@ -20,9 +20,133 @@ tags:
   - { name: books, description: "Your books, their schedules and builds." }
   - { name: delivery, description: "Where books go." }
   - { name: jobs, description: "Long-running work and its progress." }
-  - { name: account }
+  - { name: auth, description: "Sign-up, verification, sign-in and password reset." }
+  - { name: account, description: "The signed-in user's profile, settings, sessions and tokens." }
+  - { name: schedules, description: "When and where each book is delivered." }
+  - { name: admin, description: "Curation and moderation; role admin only." }
 
 paths:
+  /auth/signup:
+    post:
+      tags: [auth]
+      operationId: signup
+      security: [{}]
+      summary: Create an account and send a verification email. The response never says whether the address was taken.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, timezone]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 12, maxLength: 256, description: "Optional; without one the account signs in by magic link." }
+                timezone: { type: string, examples: ["Europe/London"] }
+                locale: { type: string, default: en }
+      responses:
+        "202": { description: "If the address can be used, a verification email is on its way." }
+        "422": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
+
+  /auth/verify-email:
+    post:
+      tags: [auth]
+      operationId: verifyEmail
+      security: [{}]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/TokenBody" } } }
+      responses:
+        "200": { $ref: "#/components/responses/SignedIn" }
+        "400": { $ref: "#/components/responses/Problem" }
+
+  /auth/verify-email/resend:
+    post:
+      tags: [auth]
+      operationId: resendVerification
+      security: [{}]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/EmailBody" } } }
+      responses: { "202": { description: "Sent, if there is an unverified account at that address." } }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      security: [{}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [email, password]
+                  properties: { email: { type: string, format: email }, password: { type: string } }
+                - type: object
+                  required: [magic_token]
+                  properties: { magic_token: { type: string } }
+      responses:
+        "200": { $ref: "#/components/responses/SignedIn" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
+
+  /auth/magic-link:
+    post:
+      tags: [auth]
+      operationId: requestMagicLink
+      security: [{}]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/EmailBody" } } }
+      responses: { "202": { description: "Sent, if there is an account at that address." } }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      responses: { "204": { description: "This session has ended." } }
+
+  /auth/password-reset:
+    post:
+      tags: [auth]
+      operationId: requestPasswordReset
+      security: [{}]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/EmailBody" } } }
+      responses: { "202": { description: "Sent, if there is an account at that address." } }
+
+  /auth/password-reset/confirm:
+    post:
+      tags: [auth]
+      operationId: confirmPasswordReset
+      security: [{}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties: { token: { type: string }, password: { type: string, minLength: 12, maxLength: 256 } }
+      responses:
+        "204": { description: "Password set; every session has been ended." }
+        "400": { $ref: "#/components/responses/Problem" }
+
+  /auth/token:
+    post:
+      tags: [auth]
+      operationId: exchangeSessionForToken
+      summary: Exchange the current session for a personal API token, e.g. for the CLI's device sign-in.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/TokenRequest" } } }
+      responses:
+        "201": { $ref: "#/components/responses/TokenCreated" }
+
   /me:
     get:
       tags: [account]
@@ -30,6 +154,72 @@ paths:
       responses:
         "200": { description: "The signed-in user.", content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
         "401": { $ref: "#/components/responses/Problem" }
+    patch:
+      tags: [account]
+      operationId: updateMe
+      summary: Change settings. Changing timezone moves every schedule that uses the account's timezone.
+      requestBody:
+        required: true
+        content: { application/merge-patch+json: { schema: { $ref: "#/components/schemas/UserSettings" } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "422": { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [account]
+      operationId: deleteMe
+      summary: Delete the account. Needs a sign-in within the last 10 minutes. The shared blog cache is untouched.
+      responses:
+        "202": { description: "Schedules stopped; owned data is purged after 30 days." }
+        "403": { description: "Sign in again first.", content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } } }
+
+  /me/password:
+    post:
+      tags: [account]
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_password]
+              properties:
+                current_password: { type: string, description: "Required when the account has a password." }
+                new_password: { type: string, minLength: 12, maxLength: 256 }
+      responses:
+        "204": { description: "Changed; other sessions have been ended." }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /me/email:
+    post:
+      tags: [account]
+      operationId: changeEmail
+      summary: Start an email change. It takes effect when the new address is verified; the old one is told.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/EmailBody" } } }
+      responses: { "202": { description: "Verification sent to the new address." } }
+
+  /me/sessions:
+    get:
+      tags: [account]
+      operationId: listSessions
+      responses:
+        "200": { description: "Signed-in devices.", content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Session" } } } } }
+
+  /me/sessions/{session_id}:
+    delete:
+      tags: [account]
+      operationId: endSession
+      parameters: [{ name: session_id, in: path, required: true, schema: { type: string } }]
+      responses: { "204": { description: "Signed out on that device." } }
+
+  /me/export:
+    get:
+      tags: [account]
+      operationId: exportAccount
+      summary: Everything the account owns - books, schedules, targets, build history - as JSON.
+      responses: { "200": { description: "The export.", content: { application/json: { schema: { type: object } } } } }
 
   /tokens:
     get:
@@ -44,25 +234,9 @@ paths:
       operationId: createToken
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name, scopes]
-              properties:
-                name: { type: string }
-                scopes: { type: array, items: { $ref: "#/components/schemas/Scope" } }
+        content: { application/json: { schema: { $ref: "#/components/schemas/TokenRequest" } } }
       responses:
-        "201":
-          description: The token, with its secret shown this once.
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/ApiToken"
-                  - type: object
-                    required: [secret]
-                    properties: { secret: { type: string } }
+        "201": { $ref: "#/components/responses/TokenCreated" }
 
   /tokens/{token_id}:
     delete:
@@ -107,6 +281,7 @@ paths:
       parameters:
         - { name: q, in: query, schema: { type: string }, description: "Matches title and URL." }
         - { name: tier, in: query, schema: { $ref: "#/components/schemas/Tier" } }
+        - { name: mine, in: query, schema: { type: boolean }, description: "Only blogs used by your books or added by you." }
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
       responses:
@@ -245,7 +420,7 @@ paths:
     delete:
       tags: [books]
       operationId: deleteBook
-      responses: { "204": { description: "Deleted, with its schedule and builds." } }
+      responses: { "204": { description: "Deleted, with its schedules and builds." } }
 
   /books/{book_id}/preview:
     get:
@@ -258,26 +433,85 @@ paths:
       responses:
         "200": { description: "The plan.", content: { application/json: { schema: { $ref: "#/components/schemas/BookPreview" } } } }
 
-  /books/{book_id}/schedule:
+  /books/{book_id}/schedules:
     parameters: [{ $ref: "#/components/parameters/BookId" }]
     get:
-      tags: [books]
-      operationId: getSchedule
+      tags: [schedules]
+      operationId: listBookSchedules
       responses:
-        "200": { description: "The schedule.", content: { application/json: { schema: { $ref: "#/components/schemas/Schedule" } } } }
-        "404": { $ref: "#/components/responses/Problem" }
-    put:
-      tags: [books]
-      operationId: putSchedule
+        "200": { description: "This book's schedules.", content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Schedule" } } } } }
+    post:
+      tags: [schedules]
+      operationId: createSchedule
+      summary: Deliver this book daily, weekly or monthly. A book can have any number of schedules.
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: "#/components/schemas/Schedule" } } }
+        content: { application/json: { schema: { $ref: "#/components/schemas/ScheduleInput" } } }
       responses:
-        "200": { description: "Saved.", content: { application/json: { schema: { $ref: "#/components/schemas/Schedule" } } } }
+        "201":
+          description: Created, with its next_run_at.
+          headers: { Location: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Schedule" } } }
+        "409": { description: "An email target is not usable yet: the account is unverified, or the target bounced.", content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } } }
+        "422": { $ref: "#/components/responses/Problem" }
+
+  /schedules:
+    get:
+      tags: [schedules]
+      operationId: listSchedules
+      summary: Every schedule the account has, soonest first.
+      parameters:
+        - { name: paused, in: query, schema: { type: boolean } }
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: A page of schedules.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Schedule" } }
+                  next: { type: [string, "null"] }
+
+  /schedules/{schedule_id}:
+    parameters: [{ $ref: "#/components/parameters/ScheduleId" }]
+    get:
+      tags: [schedules]
+      operationId: getSchedule
+      responses:
+        "200":
+          description: The schedule.
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Schedule" } } }
+        "404": { $ref: "#/components/responses/Problem" }
+    patch:
+      tags: [schedules]
+      operationId: updateSchedule
+      summary: Change cadence, time, targets or content, or pause and resume.
+      parameters: [{ $ref: "#/components/parameters/IfMatch" }]
+      requestBody:
+        required: true
+        content: { application/merge-patch+json: { schema: { $ref: "#/components/schemas/ScheduleInput" } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/Schedule" } } } }
+        "412": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
     delete:
-      tags: [books]
+      tags: [schedules]
       operationId: deleteSchedule
-      responses: { "204": { description: "No longer scheduled." } }
+      responses: { "204": { description: "No longer delivered on this schedule." } }
+
+  /schedules/{schedule_id}/run:
+    post:
+      tags: [schedules]
+      operationId: runScheduleNow
+      summary: Deliver now, outside the cadence. For new_posts schedules this moves the mark like a scheduled run.
+      parameters: [{ $ref: "#/components/parameters/ScheduleId" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      responses:
+        "202": { $ref: "#/components/responses/BuildAccepted" }
 
   /books/{book_id}/builds:
     parameters: [{ $ref: "#/components/parameters/BookId" }]
@@ -449,6 +683,50 @@ paths:
       parameters: [{ name: feed_token, in: path, required: true, schema: { type: string } }]
       responses: { "200": { description: "Atom feed.", content: { application/atom+xml: { schema: { type: string } } } } }
 
+  /admin/blogs/{blog_id}/promote:
+    post:
+      tags: [admin]
+      operationId: promoteBlog
+      summary: Make an auto blog curated, with a recipe worked out through /add-blog.
+      parameters: [{ $ref: "#/components/parameters/BlogId" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Recipe" } } }
+      responses:
+        "200": { description: "Promoted.", content: { application/json: { schema: { $ref: "#/components/schemas/Blog" } } } }
+
+  /admin/blogs/{blog_id}/block:
+    post:
+      tags: [admin]
+      operationId: blockBlog
+      summary: Stop syncing a blog (robots, opt-out, abuse) and drop its cache. Books using it are told.
+      parameters: [{ $ref: "#/components/parameters/BlogId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [reason], properties: { reason: { type: string, enum: [robots, opted_out, abuse, broken] } } }
+      responses: { "200": { description: "Blocked." } }
+
+  /admin/recipe-proposals:
+    get:
+      tags: [admin]
+      operationId: listRecipeProposals
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses: { "200": { description: "Open proposals, oldest first." } }
+
+  /admin/users/{user_id}:
+    patch:
+      tags: [admin]
+      operationId: updateUserStatus
+      parameters: [{ name: user_id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, properties: { status: { type: string, enum: [active, suspended] }, role: { type: string, enum: [user, admin] } } }
+      responses: { "200": { description: "Updated." } }
+
 components:
   securitySchemes:
     session: { type: apiKey, in: cookie, name: b2e_session }
@@ -464,9 +742,31 @@ components:
     BookId: { name: book_id, in: path, required: true, schema: { type: string } }
     BuildId: { name: build_id, in: path, required: true, schema: { type: string } }
     JobId: { name: job_id, in: path, required: true, schema: { type: string } }
+    ScheduleId: { name: schedule_id, in: path, required: true, schema: { type: string } }
     Volume: { name: volume, in: path, required: true, schema: { type: integer, minimum: 1 } }
 
   responses:
+    SignedIn:
+      description: Signed in. Browsers get the session cookie; the body carries the CSRF token for unsafe requests.
+      headers: { Set-Cookie: { schema: { type: string }, description: "b2e_session; HttpOnly; Secure; SameSite=Lax" } }
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [user, csrf_token]
+            properties:
+              user: { $ref: "#/components/schemas/User" }
+              csrf_token: { type: string }
+    TokenCreated:
+      description: The token, with its secret shown this once.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/ApiToken"
+              - type: object
+                required: [secret]
+                properties: { secret: { type: string, examples: ["b2e_4f9c…"] } }
     Problem:
       description: An RFC 9457 problem.
       content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
@@ -502,22 +802,76 @@ components:
               pointer: { type: string, examples: ["/split"] }
               detail: { type: string }
 
-    Scope: { type: string, enum: ["books:read", "books:write", "blogs:write", "deliveries:write"] }
+    Scope: { type: string, enum: ["books:read", "books:write", "blogs:write", "schedules:write", "deliveries:write", "account"] }
     Tier: { type: string, enum: [curated, auto] }
     Window:
       type: [string, "null"]
       description: A date (2025-01-01) or a window back from now (7d, 2w, 3m, 1y).
       pattern: "^(\\d{4}-\\d{2}-\\d{2}|\\d+[dwmy])$"
 
-    User:
+    EmailBody:
       type: object
-      required: [id, email, timezone]
+      required: [email]
+      properties: { email: { type: string, format: email } }
+
+    TokenBody:
+      type: object
+      required: [token]
+      properties: { token: { type: string } }
+
+    TokenRequest:
+      type: object
+      required: [name, scopes]
+      properties:
+        name: { type: string, examples: ["laptop CLI"] }
+        scopes: { type: array, items: { $ref: "#/components/schemas/Scope" }, minItems: 1 }
+        expires_in_days: { type: [integer, "null"], minimum: 1, maximum: 365 }
+
+    UserSettings:
+      type: object
+      properties:
+        name: { type: string }
+        timezone: { type: string, examples: ["Europe/London"] }
+        locale: { type: string, examples: [en] }
+        default_target: { type: [string, "null"], description: "The delivery target new schedules use unless told otherwise." }
+        notifications:
+          type: object
+          properties:
+            delivery_failed: { type: boolean, default: true }
+            delivery_sent: { type: boolean, default: false }
+            blog_failing: { type: boolean, default: true }
+
+    User:
+      allOf:
+        - $ref: "#/components/schemas/UserSettings"
+        - type: object
+          required: [id, email, email_verified, status, role, timezone, created_at]
+          properties:
+            id: { type: string }
+            email: { type: string, format: email }
+            email_verified: { type: boolean, description: "Email delivery needs a verified account." }
+            has_password: { type: boolean }
+            status: { type: string, enum: [pending_verification, active, suspended] }
+            role: { type: string, enum: [user, admin] }
+            created_at: { type: string, format: date-time }
+            opds_url: { type: string, format: uri }
+            quotas:
+              type: object
+              description: Limits and current use, e.g. books 3/10.
+              additionalProperties:
+                type: object
+                properties: { used: { type: integer }, limit: { type: integer } }
+
+    Session:
+      type: object
+      required: [id, created_at, current]
       properties:
         id: { type: string }
-        email: { type: string, format: email }
-        timezone: { type: string, examples: ["Europe/London"] }
-        opds_url: { type: string, format: uri }
-        quotas: { type: object, additionalProperties: { type: integer } }
+        user_agent: { type: string }
+        ip_country: { type: string }
+        created_at: { type: string, format: date-time }
+        last_seen_at: { type: string, format: date-time }
+        current: { type: boolean }
 
     ApiToken:
       type: object
@@ -688,7 +1042,8 @@ components:
           properties:
             id: { type: string }
             created_at: { type: string, format: date-time }
-            schedule: { oneOf: [{ $ref: "#/components/schemas/Schedule" }, { type: "null" }] }
+            kind: { type: string, enum: [single, combined], readOnly: true, description: "single with one blog, combined with several; derived from blogs." }
+            schedules: { type: array, items: { $ref: "#/components/schemas/Schedule" } }
             last_build: { oneOf: [{ $ref: "#/components/schemas/Build" }, { type: "null" }] }
             next_delivery_at: { type: [string, "null"], format: date-time }
 
@@ -725,18 +1080,39 @@ components:
               posts: { type: integer }
               children: { type: array, items: { type: object } }
 
-    Schedule:
+    ScheduleInput:
       type: object
-      required: [frequency, time]
       properties:
         frequency: { type: string, enum: [daily, weekly, monthly] }
         weekday: { type: integer, minimum: 0, maximum: 6, description: "Weekly only; 0 is Monday." }
-        day: { type: integer, minimum: 1, maximum: 28, description: "Monthly only." }
-        time: { type: string, pattern: "^\\d{2}:\\d{2}$", examples: ["07:00"] }
-        timezone: { type: string, description: "Defaults to the user's." }
-        targets: { type: array, items: { type: string } }
-        skip_if_empty: { type: boolean, default: true, description: "Send nothing when no post is newer than the last delivery." }
+        day: { type: integer, minimum: 1, maximum: 28, description: "Monthly only; capped at 28 so every month has one." }
+        time: { type: string, pattern: "^([01]\\d|2[0-3]):[0-5]\\d$", examples: ["07:00"], description: "Local time." }
+        timezone: { type: [string, "null"], description: "IANA name; null follows the account's timezone." }
+        targets: { type: array, items: { type: string }, minItems: 1, description: "Delivery target ids; defaults to the account's default_target." }
+        content:
+          type: string
+          enum: [new_posts, window]
+          default: new_posts
+          description: >-
+            new_posts: every post first seen since this schedule last delivered (a digest).
+            window: the book's own since/until, rebuilt each time.
+        start_from: { type: [string, "null"], format: date, description: "new_posts only: where the first issue starts. Default: when the schedule was created." }
+        skip_if_empty: { type: boolean, default: true, description: "Send nothing when nothing is new; the mark does not move." }
         paused: { type: boolean, default: false }
+
+    Schedule:
+      allOf:
+        - $ref: "#/components/schemas/ScheduleInput"
+        - type: object
+          required: [id, book, frequency, time, targets, content, next_run_at]
+          properties:
+            id: { type: string }
+            book: { type: string }
+            next_run_at: { type: [string, "null"], format: date-time, description: "UTC; recomputed from the local time after every run." }
+            last_run_at: { type: [string, "null"], format: date-time }
+            last_status: { type: [string, "null"], enum: [sent, skipped_empty, failed, null] }
+            last_delivered_through: { type: [string, "null"], format: date-time, description: "First-seen time of the newest post delivered." }
+            paused_reason: { type: [string, "null"], enum: [user, bounced, blog_blocked, account_suspended, null] }
 
     Volume:
       type: object
@@ -765,6 +1141,7 @@ components:
         edition: { type: string, enum: [standard, collectors] }
         status: { $ref: "#/components/schemas/JobStatus" }
         reason: { type: string, enum: [manual, schedule, api] }
+        schedule: { type: [string, "null"], description: "The schedule that triggered it, if any." }
         job: { type: string }
         volumes: { type: array, items: { $ref: "#/components/schemas/Volume" } }
         created_at: { type: string, format: date-time }
