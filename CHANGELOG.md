@@ -22,6 +22,12 @@ All notable changes to blog2epub. The format follows [Keep a Changelog](https://
   are untouched.
 
 ### Added
+- **A design for blog2epub as a service.** `docs/design/webapp.md` proposes an API-first service
+  with a web app on top, in the spirit of RSS to Kindle: add a blog by probing its URL, compose
+  archive and digest books, and have them delivered to a Kindle address, downloaded, or read from
+  an OPDS catalogue. Blogs and their caches are shared between users so a site is crawled once
+  however many people read it. `docs/design/openapi.yaml` is the draft contract. Nothing is
+  implemented yet; the document lists the library seams to cut first.
 - **Nordic APIs is a complete archive.** It was already a digest source, capped at the last three
   months; it is now the eighth standalone book — 1,680 posts back to February 2013, newest first
   with year → month navigation and a cover in the site's teal on pale ice. Its recipe needs no

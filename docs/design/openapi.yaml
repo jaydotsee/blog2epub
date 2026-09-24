@@ -1,0 +1,839 @@
+# A proposed contract for the blog2epub service. See webapp.md for the reasoning behind it.
+# It is a design sketch: complete enough to generate a client and argue about, not yet served.
+openapi: 3.1.0
+info:
+  title: blog2epub API
+  version: 0.1.0-draft
+  summary: Turn blogs into navigable EPUB books and deliver them to your e-reader.
+  license: { name: MIT, identifier: MIT }
+servers:
+  - url: https://api.example.com/v1
+  - url: http://localhost:8000/v1
+security:
+  - session: []
+  - token: []
+
+tags:
+  - { name: probes, description: "Find out what blog2epub can make of a URL before adding it." }
+  - { name: blogs, description: "Shared, cached blogs and their posts." }
+  - { name: catalogue, description: "The curated shelf." }
+  - { name: books, description: "Your books, their schedules and builds." }
+  - { name: delivery, description: "Where books go." }
+  - { name: jobs, description: "Long-running work and its progress." }
+  - { name: account }
+
+paths:
+  /me:
+    get:
+      tags: [account]
+      operationId: getMe
+      responses:
+        "200": { description: "The signed-in user.", content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /tokens:
+    get:
+      tags: [account]
+      operationId: listTokens
+      responses:
+        "200":
+          description: Personal API tokens (secrets are never returned again).
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ApiToken" } } } }
+    post:
+      tags: [account]
+      operationId: createToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name: { type: string }
+                scopes: { type: array, items: { $ref: "#/components/schemas/Scope" } }
+      responses:
+        "201":
+          description: The token, with its secret shown this once.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiToken"
+                  - type: object
+                    required: [secret]
+                    properties: { secret: { type: string } }
+
+  /tokens/{token_id}:
+    delete:
+      tags: [account]
+      operationId: revokeToken
+      parameters: [{ name: token_id, in: path, required: true, schema: { type: string } }]
+      responses: { "204": { description: "Revoked." } }
+
+  /probes:
+    post:
+      tags: [probes]
+      operationId: createProbe
+      summary: "Probe a URL: sources, post counts, URL shape, sample chapters, bleed, brand colours."
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, format: uri, examples: ["https://konghq.com/blog"] }
+      responses:
+        "202": { $ref: "#/components/responses/ProbeAccepted" }
+        "422": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
+
+  /probes/{probe_id}:
+    get:
+      tags: [probes]
+      operationId: getProbe
+      parameters: [{ $ref: "#/components/parameters/ProbeId" }]
+      responses:
+        "200": { description: "The probe, complete once status is succeeded.", content: { application/json: { schema: { $ref: "#/components/schemas/Probe" } } } }
+        "404": { $ref: "#/components/responses/Problem" }
+
+  /blogs:
+    get:
+      tags: [blogs]
+      operationId: listBlogs
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: "Matches title and URL." }
+        - { name: tier, in: query, schema: { $ref: "#/components/schemas/Tier" } }
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200": { description: "A page of blogs.", content: { application/json: { schema: { $ref: "#/components/schemas/BlogPage" } } } }
+    post:
+      tags: [blogs]
+      operationId: createBlog
+      summary: Add a blog from a succeeded probe. Queues its first sync.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [probe]
+              properties:
+                probe: { type: string }
+                title: { type: string }
+                include: { type: array, items: { type: string }, maxItems: 5, description: "Override the suggested include regexes." }
+                exclude: { type: array, items: { type: string }, maxItems: 5 }
+      responses:
+        "201":
+          description: Created.
+          headers: { Location: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Blog" } } }
+        "303":
+          description: This blog already exists; Location points at it.
+          headers: { Location: { schema: { type: string } } }
+        "409": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
+
+  /blogs/{blog_id}:
+    get:
+      tags: [blogs]
+      operationId: getBlog
+      parameters: [{ $ref: "#/components/parameters/BlogId" }]
+      responses:
+        "200": { description: "The blog.", content: { application/json: { schema: { $ref: "#/components/schemas/Blog" } } } }
+        "404": { $ref: "#/components/responses/Problem" }
+
+  /blogs/{blog_id}/posts:
+    get:
+      tags: [blogs]
+      operationId: listPosts
+      parameters:
+        - $ref: "#/components/parameters/BlogId"
+        - { name: q, in: query, schema: { type: string } }
+        - { name: since, in: query, schema: { type: string }, description: "A date or a window: 2025-01-01, 7d, 3m." }
+        - { name: until, in: query, schema: { type: string } }
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200": { description: "Newest first.", content: { application/json: { schema: { $ref: "#/components/schemas/PostPage" } } } }
+
+  /blogs/{blog_id}/posts/{post_key}:
+    get:
+      tags: [blogs]
+      operationId: getPost
+      summary: One post, cleaned exactly as its chapter would read.
+      parameters:
+        - $ref: "#/components/parameters/BlogId"
+        - { name: post_key, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "The post.", content: { application/json: { schema: { $ref: "#/components/schemas/PostDetail" } } } }
+
+  /blogs/{blog_id}/recipe-proposals:
+    post:
+      tags: [blogs]
+      operationId: proposeRecipe
+      summary: Ask a maintainer for a curated recipe, with what is wrong and optional suggested rules.
+      parameters: [{ $ref: "#/components/parameters/BlogId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [problem]
+              properties:
+                problem: { type: string, maxLength: 2000 }
+                example_urls: { type: array, items: { type: string, format: uri }, maxItems: 10 }
+                suggested: { $ref: "#/components/schemas/Recipe" }
+      responses: { "202": { description: "Recorded for review." } }
+
+  /catalogue:
+    get:
+      tags: [catalogue]
+      operationId: getCatalogue
+      security: [{}]
+      responses:
+        "200":
+          description: The curated books and their latest published files.
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/CatalogueEntry" } } } }
+
+  /books:
+    get:
+      tags: [books]
+      operationId: listBooks
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200": { description: "Your books.", content: { application/json: { schema: { $ref: "#/components/schemas/BookPage" } } } }
+    post:
+      tags: [books]
+      operationId: createBook
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/BookInput" } } }
+      responses:
+        "201":
+          description: Created.
+          headers: { Location: { schema: { type: string } }, ETag: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Book" } } }
+        "422": { $ref: "#/components/responses/Problem" }
+
+  /books/{book_id}:
+    parameters: [{ $ref: "#/components/parameters/BookId" }]
+    get:
+      tags: [books]
+      operationId: getBook
+      responses:
+        "200":
+          description: The book.
+          headers: { ETag: { schema: { type: string } } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Book" } } }
+    patch:
+      tags: [books]
+      operationId: updateBook
+      parameters: [{ $ref: "#/components/parameters/IfMatch" }]
+      requestBody:
+        required: true
+        content: { application/merge-patch+json: { schema: { $ref: "#/components/schemas/BookInput" } } }
+      responses:
+        "200": { description: "Updated.", content: { application/json: { schema: { $ref: "#/components/schemas/Book" } } } }
+        "412": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [books]
+      operationId: deleteBook
+      responses: { "204": { description: "Deleted, with its schedule and builds." } }
+
+  /books/{book_id}/preview:
+    get:
+      tags: [books]
+      operationId: previewBook
+      summary: What a build would contain now - volumes, post counts, contents - without building it.
+      parameters:
+        - $ref: "#/components/parameters/BookId"
+        - { name: target, in: query, schema: { type: string }, description: "A delivery target id, whose size limit then applies." }
+      responses:
+        "200": { description: "The plan.", content: { application/json: { schema: { $ref: "#/components/schemas/BookPreview" } } } }
+
+  /books/{book_id}/schedule:
+    parameters: [{ $ref: "#/components/parameters/BookId" }]
+    get:
+      tags: [books]
+      operationId: getSchedule
+      responses:
+        "200": { description: "The schedule.", content: { application/json: { schema: { $ref: "#/components/schemas/Schedule" } } } }
+        "404": { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [books]
+      operationId: putSchedule
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Schedule" } } }
+      responses:
+        "200": { description: "Saved.", content: { application/json: { schema: { $ref: "#/components/schemas/Schedule" } } } }
+    delete:
+      tags: [books]
+      operationId: deleteSchedule
+      responses: { "204": { description: "No longer scheduled." } }
+
+  /books/{book_id}/builds:
+    parameters: [{ $ref: "#/components/parameters/BookId" }]
+    get:
+      tags: [books]
+      operationId: listBuilds
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200": { description: "Newest first.", content: { application/json: { schema: { $ref: "#/components/schemas/BuildPage" } } } }
+    post:
+      tags: [books]
+      operationId: createBuild
+      parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                issue: { type: string, pattern: "^\\d{8}$", description: "YYYYMMDD; defaults to today in the user's timezone." }
+                edition: { type: string, enum: [standard, collectors], default: standard }
+                deliver_to: { type: array, items: { type: string }, description: "Delivery target ids to send the build to when it succeeds." }
+      responses:
+        "202": { $ref: "#/components/responses/BuildAccepted" }
+        "422": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/Problem" }
+
+  /builds/{build_id}:
+    get:
+      tags: [books]
+      operationId: getBuild
+      parameters: [{ $ref: "#/components/parameters/BuildId" }]
+      responses:
+        "200": { description: "The build and its volumes.", content: { application/json: { schema: { $ref: "#/components/schemas/Build" } } } }
+
+  /builds/{build_id}/volumes/{volume}/epub:
+    get:
+      tags: [books]
+      operationId: downloadVolume
+      parameters: [{ $ref: "#/components/parameters/BuildId" }, { $ref: "#/components/parameters/Volume" }]
+      responses:
+        "302": { description: "Redirect to a short-lived signed URL.", headers: { Location: { schema: { type: string } } } }
+        "410": { $ref: "#/components/responses/Problem" }
+
+  /builds/{build_id}/volumes/{volume}/cover:
+    get:
+      tags: [books]
+      operationId: getVolumeCover
+      parameters: [{ $ref: "#/components/parameters/BuildId" }, { $ref: "#/components/parameters/Volume" }]
+      responses:
+        "302": { description: "Redirect to the rendered JPEG cover.", headers: { Location: { schema: { type: string } } } }
+
+  /builds/{build_id}/deliveries:
+    post:
+      tags: [delivery]
+      operationId: deliverBuild
+      parameters: [{ $ref: "#/components/parameters/BuildId" }, { $ref: "#/components/parameters/IdempotencyKey" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target]
+              properties: { target: { type: string } }
+      responses:
+        "202": { $ref: "#/components/responses/JobAccepted" }
+        "422": { description: "The build's volumes exceed this target's size limit; rebuild for it.", content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } } }
+
+  /deliveries:
+    get:
+      tags: [delivery]
+      operationId: listDeliveries
+      parameters:
+        - { name: book, in: query, schema: { type: string } }
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Delivery" } }
+                  next: { type: [string, "null"] }
+
+  /delivery-targets:
+    get:
+      tags: [delivery]
+      operationId: listDeliveryTargets
+      responses:
+        "200": { description: "Your targets.", content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/DeliveryTarget" } } } } }
+    post:
+      tags: [delivery]
+      operationId: createDeliveryTarget
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/DeliveryTargetInput" } } }
+      responses:
+        "201": { description: "Created; an `email` target needs verifying before use.", content: { application/json: { schema: { $ref: "#/components/schemas/DeliveryTarget" } } } }
+
+  /delivery-targets/{target_id}:
+    delete:
+      tags: [delivery]
+      operationId: deleteDeliveryTarget
+      parameters: [{ name: target_id, in: path, required: true, schema: { type: string } }]
+      responses: { "204": { description: "Deleted." } }
+
+  /delivery-targets/{target_id}/test:
+    post:
+      tags: [delivery]
+      operationId: testDeliveryTarget
+      summary: Send a one-page test book, to confirm the sender is on the approved list.
+      parameters: [{ name: target_id, in: path, required: true, schema: { type: string } }]
+      responses: { "202": { $ref: "#/components/responses/JobAccepted" } }
+
+  /jobs/{job_id}:
+    get:
+      tags: [jobs]
+      operationId: getJob
+      parameters: [{ $ref: "#/components/parameters/JobId" }]
+      responses:
+        "200": { description: "The job.", content: { application/json: { schema: { $ref: "#/components/schemas/Job" } } } }
+
+  /jobs/{job_id}/events:
+    get:
+      tags: [jobs]
+      operationId: streamJobEvents
+      summary: Progress as server-sent events; replays from Last-Event-ID.
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+        - { name: Last-Event-ID, in: header, schema: { type: string } }
+      responses:
+        "200":
+          description: "`event: progress|log|done`, data is a JobEvent."
+          content: { text/event-stream: { schema: { $ref: "#/components/schemas/JobEvent" } } }
+
+  /jobs/{job_id}/cancel:
+    post:
+      tags: [jobs]
+      operationId: cancelJob
+      parameters: [{ $ref: "#/components/parameters/JobId" }]
+      responses: { "202": { description: "Cancellation requested; the job stops at its next checkpoint." } }
+
+  /config.yaml:
+    get:
+      tags: [books]
+      operationId: exportConfig
+      summary: Your books and the recipes they use, as a blogs.yaml the CLI can build from.
+      responses: { "200": { description: "YAML.", content: { application/yaml: { schema: { type: string } } } } }
+    post:
+      tags: [books]
+      operationId: importConfig
+      summary: Import a blogs.yaml. Recipes land as proposals; books are created from the blogs that exist.
+      requestBody: { required: true, content: { application/yaml: { schema: { type: string } } } }
+      responses:
+        "200": { description: "What was imported and what was not, and why." }
+        "422": { $ref: "#/components/responses/Problem" }
+
+  /opds/{feed_token}/catalog.xml:
+    get:
+      tags: [delivery]
+      operationId: opdsCatalog
+      summary: OPDS 1.2 acquisition feed of your latest builds, for e-reader apps.
+      security: [{}]
+      parameters: [{ name: feed_token, in: path, required: true, schema: { type: string } }]
+      responses: { "200": { description: "Atom feed.", content: { application/atom+xml: { schema: { type: string } } } } }
+
+components:
+  securitySchemes:
+    session: { type: apiKey, in: cookie, name: b2e_session }
+    token: { type: http, scheme: bearer }
+
+  parameters:
+    Cursor: { name: cursor, in: query, schema: { type: string } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, schema: { type: string, maxLength: 128 } }
+    IfMatch: { name: If-Match, in: header, required: true, schema: { type: string } }
+    ProbeId: { name: probe_id, in: path, required: true, schema: { type: string } }
+    BlogId: { name: blog_id, in: path, required: true, schema: { type: string } }
+    BookId: { name: book_id, in: path, required: true, schema: { type: string } }
+    BuildId: { name: build_id, in: path, required: true, schema: { type: string } }
+    JobId: { name: job_id, in: path, required: true, schema: { type: string } }
+    Volume: { name: volume, in: path, required: true, schema: { type: integer, minimum: 1 } }
+
+  responses:
+    Problem:
+      description: An RFC 9457 problem.
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    JobAccepted:
+      description: Work queued.
+      headers: { Location: { schema: { type: string }, description: "/v1/jobs/{id}" } }
+      content: { application/json: { schema: { $ref: "#/components/schemas/Job" } } }
+    ProbeAccepted:
+      description: Probe queued.
+      headers: { Location: { schema: { type: string } } }
+      content: { application/json: { schema: { $ref: "#/components/schemas/Probe" } } }
+    BuildAccepted:
+      description: Build queued.
+      headers: { Location: { schema: { type: string } } }
+      content: { application/json: { schema: { $ref: "#/components/schemas/Build" } } }
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string, description: "The library's own message, e.g. `split` must be one of [...]." }
+        instance: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [pointer, detail]
+            properties:
+              pointer: { type: string, examples: ["/split"] }
+              detail: { type: string }
+
+    Scope: { type: string, enum: ["books:read", "books:write", "blogs:write", "deliveries:write"] }
+    Tier: { type: string, enum: [curated, auto] }
+    Window:
+      type: [string, "null"]
+      description: A date (2025-01-01) or a window back from now (7d, 2w, 3m, 1y).
+      pattern: "^(\\d{4}-\\d{2}-\\d{2}|\\d+[dwmy])$"
+
+    User:
+      type: object
+      required: [id, email, timezone]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        timezone: { type: string, examples: ["Europe/London"] }
+        opds_url: { type: string, format: uri }
+        quotas: { type: object, additionalProperties: { type: integer } }
+
+    ApiToken:
+      type: object
+      required: [id, name, scopes, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        scopes: { type: array, items: { $ref: "#/components/schemas/Scope" } }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, "null"], format: date-time }
+
+    Recipe:
+      description: The source-and-extraction half of a BlogConfig. Curated-only fields are ignored on auto blogs.
+      type: object
+      properties:
+        source: { type: string, enum: [auto, wordpress, feed, sitemap] }
+        include: { type: array, items: { type: string } }
+        exclude: { type: array, items: { type: string } }
+        keep: { type: array, items: { type: string }, description: "Curated only." }
+        remove: { type: array, items: { type: string }, description: "Curated only." }
+        title_strip: { type: array, items: { type: string }, description: "Curated only." }
+        category_strip: { type: array, items: { type: string }, description: "Curated only." }
+        min_chars: { type: integer }
+        wordpress: { type: object }
+        feed: { type: object }
+        sitemap: { type: object }
+
+    Probe:
+      type: object
+      required: [id, status, url]
+      properties:
+        id: { type: string }
+        status: { $ref: "#/components/schemas/JobStatus" }
+        job: { type: string }
+        url: { type: string, format: uri }
+        existing_blog: { type: [string, "null"], description: "Set when this URL is already a blog; add that one instead." }
+        robots: { type: object, properties: { allowed: { type: boolean }, reason: { type: string } } }
+        sources:
+          type: array
+          items:
+            type: object
+            required: [name, posts]
+            properties:
+              name: { type: string, enum: [wordpress, feed, sitemap] }
+              posts: { type: integer }
+              url: { type: string }
+              recommended: { type: boolean }
+              note: { type: string }
+        url_shape:
+          type: object
+          properties:
+            depths: { type: object, additionalProperties: { type: integer } }
+            sections: { type: object, additionalProperties: { type: integer }, description: "Post counts per first path segment, to spot /events/ and /careers/." }
+            suggested_include: { type: array, items: { type: string } }
+        samples:
+          type: array
+          items:
+            type: object
+            properties:
+              url: { type: string }
+              title: { type: string }
+              date: { type: [string, "null"] }
+              author: { type: [string, "null"] }
+              chars: { type: integer }
+              images: { type: integer }
+              bleed: { type: array, items: { type: string }, description: "Other posts' titles found inside this body." }
+        bleed_count: { type: integer }
+        draft: { $ref: "#/components/schemas/Recipe" }
+        brand_colours: { type: array, items: { type: string, pattern: "^#[0-9a-f]{6}$" } }
+
+    Blog:
+      type: object
+      required: [id, url, title, tier, status]
+      properties:
+        id: { type: string }
+        url: { type: string, format: uri }
+        title: { type: string }
+        tier: { $ref: "#/components/schemas/Tier" }
+        status: { type: string, enum: [pending, active, failing, blocked_robots, opted_out, paused] }
+        source: { type: string }
+        recipe: { $ref: "#/components/schemas/Recipe" }
+        post_count: { type: integer }
+        first_date: { type: [string, "null"], format: date }
+        last_date: { type: [string, "null"], format: date }
+        last_sync: { type: [string, "null"], format: date-time }
+        subscribers: { type: integer }
+
+    BlogPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Blog" } }
+        next: { type: [string, "null"] }
+
+    Post:
+      type: object
+      required: [key, url, title]
+      properties:
+        key: { type: string }
+        url: { type: string, format: uri }
+        title: { type: string }
+        date: { type: [string, "null"], format: date-time }
+        author: { type: [string, "null"] }
+        categories: { type: array, items: { type: string } }
+        excerpt: { type: [string, "null"] }
+        featured_image: { type: [string, "null"] }
+
+    PostDetail:
+      allOf:
+        - $ref: "#/components/schemas/Post"
+        - type: object
+          required: [xhtml]
+          properties:
+            xhtml: { type: string, description: "The body after keep/remove and clean_html, with image URLs pointing at our cache." }
+
+    PostPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Post" } }
+        next: { type: [string, "null"] }
+        total: { type: integer }
+
+    CatalogueEntry:
+      type: object
+      required: [id, title, blogs]
+      properties:
+        id: { type: string, examples: [kong] }
+        title: { type: string }
+        description: { type: string }
+        blogs: { type: array, items: { type: string } }
+        cover: { type: string, format: uri }
+        latest:
+          type: object
+          properties:
+            issue: { type: string }
+            files: { type: array, items: { $ref: "#/components/schemas/Volume" } }
+
+    BookInput:
+      description: Mirrors BookConfig. Validation is BookConfig's own, reported as 422 with a pointer.
+      type: object
+      properties:
+        title: { type: string }
+        author: { type: string }
+        description: { type: string }
+        language: { type: string, default: en }
+        blogs: { type: array, items: { type: string }, minItems: 1, uniqueItems: true }
+        since: { $ref: "#/components/schemas/Window" }
+        until: { $ref: "#/components/schemas/Window" }
+        max_posts: { type: [integer, "null"], minimum: 1 }
+        group_by: { type: string, enum: [year, year-month, month, blog, none], default: year }
+        order: { type: string, enum: [asc, desc], default: asc }
+        split: { type: string, enum: [year, month, size, none], default: year }
+        max_book_bytes: { type: [integer, string], default: 200000000, description: "Bytes or a size like 45MB." }
+        cover: { type: [string, "null"], description: "A curated cover template id, or `generic:#rrggbb,#rrggbb`." }
+        images: { type: boolean, default: true }
+        featured_images: { type: boolean, default: true }
+        excerpts: { type: boolean, default: true }
+        readability: { type: string, enum: [auto, always, never], default: auto }
+        svg_images: { type: string, enum: [raster, keep, drop], default: raster }
+        image_quality: { type: integer, minimum: 30, maximum: 95, default: 82 }
+
+    Book:
+      allOf:
+        - $ref: "#/components/schemas/BookInput"
+        - type: object
+          required: [id, title, blogs, created_at]
+          properties:
+            id: { type: string }
+            created_at: { type: string, format: date-time }
+            schedule: { oneOf: [{ $ref: "#/components/schemas/Schedule" }, { type: "null" }] }
+            last_build: { oneOf: [{ $ref: "#/components/schemas/Build" }, { type: "null" }] }
+            next_delivery_at: { type: [string, "null"], format: date-time }
+
+    BookPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Book" } }
+        next: { type: [string, "null"] }
+
+    BookPreview:
+      type: object
+      required: [posts, volumes]
+      properties:
+        posts: { type: integer }
+        stale_blogs: { type: array, items: { type: string }, description: "Blogs whose cache is older than the book's freshness need." }
+        volumes:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string, examples: ["2024", "Vol. 2 of 3"] }
+              posts: { type: integer }
+              estimated_bytes: { type: integer }
+              first_date: { type: string, format: date }
+              last_date: { type: string, format: date }
+        contents:
+          type: array
+          description: The first levels of the table of contents.
+          items:
+            type: object
+            properties:
+              label: { type: string }
+              posts: { type: integer }
+              children: { type: array, items: { type: object } }
+
+    Schedule:
+      type: object
+      required: [frequency, time]
+      properties:
+        frequency: { type: string, enum: [daily, weekly, monthly] }
+        weekday: { type: integer, minimum: 0, maximum: 6, description: "Weekly only; 0 is Monday." }
+        day: { type: integer, minimum: 1, maximum: 28, description: "Monthly only." }
+        time: { type: string, pattern: "^\\d{2}:\\d{2}$", examples: ["07:00"] }
+        timezone: { type: string, description: "Defaults to the user's." }
+        targets: { type: array, items: { type: string } }
+        skip_if_empty: { type: boolean, default: true, description: "Send nothing when no post is newer than the last delivery." }
+        paused: { type: boolean, default: false }
+
+    Volume:
+      type: object
+      required: [volume, volumes, posts, bytes]
+      properties:
+        volume: { type: integer }
+        volumes: { type: integer }
+        label: { type: string }
+        title: { type: string }
+        posts: { type: integer }
+        images: { type: integer }
+        bytes: { type: integer }
+        first_date: { type: [string, "null"] }
+        last_date: { type: [string, "null"] }
+        epub_url: { type: string, description: "/v1/builds/{id}/volumes/{n}/epub" }
+        cover_url: { type: [string, "null"] }
+
+    Build:
+      type: object
+      required: [id, book, issue, edition, status]
+      properties:
+        id: { type: string }
+        book: { type: string }
+        issue: { type: string, pattern: "^\\d{8}$" }
+        issue_number: { type: string, examples: ["20260905.2"] }
+        edition: { type: string, enum: [standard, collectors] }
+        status: { $ref: "#/components/schemas/JobStatus" }
+        reason: { type: string, enum: [manual, schedule, api] }
+        job: { type: string }
+        volumes: { type: array, items: { $ref: "#/components/schemas/Volume" } }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: [string, "null"], format: date-time }
+
+    BuildPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Build" } }
+        next: { type: [string, "null"] }
+
+    DeliveryTargetInput:
+      type: object
+      required: [kind, name]
+      properties:
+        kind: { type: string, enum: [kindle_email, email, webhook] }
+        name: { type: string, examples: ["My Paperwhite"] }
+        address: { type: string, description: "kindle_email and email: the address. Kindle addresses must end in @kindle.com." }
+        url: { type: string, format: uri, description: "webhook only." }
+
+    DeliveryTarget:
+      allOf:
+        - $ref: "#/components/schemas/DeliveryTargetInput"
+        - type: object
+          required: [id, verified, max_bytes]
+          properties:
+            id: { type: string }
+            verified: { type: boolean }
+            max_bytes: { type: integer, description: "Volumes are split to fit this. 45 MB for Kindle email." }
+            sender: { type: string, description: "The address to add to Amazon's approved list." }
+
+    Delivery:
+      type: object
+      required: [id, build, target, status]
+      properties:
+        id: { type: string }
+        build: { type: string }
+        target: { type: string }
+        status: { type: string, enum: [queued, sending, sent, failed] }
+        messages: { type: integer, description: "One per volume." }
+        error: { type: [string, "null"] }
+        sent_at: { type: [string, "null"], format: date-time }
+
+    JobStatus: { type: string, enum: [queued, waiting, running, succeeded, failed, cancelled, skipped] }
+
+    Job:
+      type: object
+      required: [id, kind, status]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [probe, sync, build, deliver] }
+        status: { $ref: "#/components/schemas/JobStatus" }
+        waiting_on: { type: array, items: { type: string }, description: "Jobs this one waits for, e.g. a shared sync." }
+        progress: { type: object, properties: { done: { type: integer }, total: { type: integer }, stage: { type: string } } }
+        result: { type: object, description: "The kind's result: a Probe, a SyncResult, a Build, a Delivery." }
+        errors: { type: array, items: { type: string }, description: "The library's warnings, e.g. `not fetched: <url>`." }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: [string, "null"], format: date-time }
+
+    JobEvent:
+      type: object
+      required: [seq, at, type]
+      properties:
+        seq: { type: integer }
+        at: { type: string, format: date-time }
+        type: { type: string, enum: [progress, log, done] }
+        stage: { type: string, examples: [listing, fetching, images, packaging, cover, sending] }
+        done: { type: integer }
+        total: { type: integer }
+        message: { type: string, examples: ["volume 2 of 3 written: 412 posts, 38.1 MB"] }
+        level: { type: string, enum: [info, warning, error] }
